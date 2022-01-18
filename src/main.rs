@@ -1,10 +1,19 @@
 use bevy::prelude::*;
+use rand::{thread_rng, Rng};
+
+use protos::{camera::MainCameraPlugin, light::MainLightsPlugin};
 
 fn main() {
     App::new()
         .insert_resource(Msaa { samples: 4 })
+        .insert_resource(ClearColor(Color::rgb_u8(148, 177, 255)))
         .add_plugins(DefaultPlugins)
+        // .add_plugin(LogDiagnosticsPlugin::default())
+        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(MainLightsPlugin::default())
+        .add_plugin(MainCameraPlugin::default())
         .add_startup_system(setup)
+        .add_system(bevy::input::system::exit_on_esc_system)
         .run();
 }
 
@@ -15,30 +24,40 @@ fn setup(
 ) {
     // plane
     commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 5.0 })),
+        mesh: meshes.add(Mesh::from(shape::Plane { size: 1024.0 })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
-    // cube
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 1.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(0.0, 0.5, 0.0),
+    // objects
+    let mesh = meshes.add(Mesh::from(shape::Capsule {
+        depth: 2.,
         ..Default::default()
-    });
-    // light
-    commands.spawn_bundle(PointLightBundle {
-        point_light: PointLight {
-            intensity: 1500.0,
-            shadows_enabled: true,
-            ..Default::default()
-        },
-        transform: Transform::from_xyz(4.0, 8.0, 4.0),
-        ..Default::default()
-    });
-    // camera
-    commands.spawn_bundle(PerspectiveCameraBundle {
-        transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-        ..Default::default()
-    });
+    }));
+    let mut rng = thread_rng();
+    let mats = {
+        let mut mats = vec![];
+        for _ in 1..10 {
+            mats.push(
+                materials.add(
+                    Color::rgb(
+                        rng.gen_range(0.0..1.0),
+                        rng.gen_range(0.0..1.0),
+                        rng.gen_range(0.0..1.0),
+                    )
+                    .into(),
+                ),
+            );
+        }
+        mats
+    };
+    for x in (-500..500).step_by(10) {
+        for z in (-500..500).step_by(10) {
+            commands.spawn_bundle(PbrBundle {
+                mesh: mesh.clone(),
+                material: mats[rng.gen_range(0..mats.len())].clone(),
+                transform: Transform::from_xyz(x as f32, 1.5, z as f32),
+                ..Default::default()
+            });
+        }
+    }
 }
