@@ -11,7 +11,7 @@ fn main() {
         // .add_plugin(LogDiagnosticsPlugin::default())
         // .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(MainLightsPlugin::default())
-        .add_plugin(MainCameraPlugin::default())
+        .add_plugin(MainCameraPlugin)
         .add_startup_system(setup)
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();

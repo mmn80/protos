@@ -8,7 +8,7 @@ pub struct MainLightsPlugin {
 impl Default for MainLightsPlugin {
     fn default() -> Self {
         MainLightsPlugin {
-            dir_light_size: 50.0,
+            dir_light_size: 100.0,
             dir_light_color: Color::ORANGE_RED,
         }
     }

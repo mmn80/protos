@@ -3,44 +3,26 @@ use bevy::{
     prelude::*,
 };
 
-pub struct MainCameraPlugin {
-    starting_pos: Vec3,
-}
-
-impl Default for MainCameraPlugin {
-    fn default() -> Self {
-        MainCameraPlugin {
-            starting_pos: Vec3::new(-30.0, 30.0, 30.0),
-        }
-    }
-}
-
-pub struct MainCameraState {
-    starting_pos: Vec3,
-}
+pub struct MainCameraPlugin;
 
 impl Plugin for MainCameraPlugin {
     fn build(&self, app: &mut App) {
-        let state = MainCameraState {
-            starting_pos: self.starting_pos,
-        };
-        app.insert_resource(state)
-            .add_startup_system(spawn_camera)
-            .add_system(pan_orbit_camera);
+        app.add_startup_system(spawn_camera).add_system(main_camera);
     }
 }
 
 #[derive(Component)]
-pub struct PanOrbitCamera {
-    /// The "focus point" to orbit around. It is automatically updated when panning the camera
+pub struct MainCamera {
     pub focus: Vec3,
     pub radius: f32,
     pub upside_down: bool,
 }
 
-impl Default for PanOrbitCamera {
+const START_DIST: f32 = 30.0;
+
+impl Default for MainCamera {
     fn default() -> Self {
-        PanOrbitCamera {
+        MainCamera {
             focus: Vec3::ZERO,
             radius: 5.0,
             upside_down: false,
@@ -48,8 +30,8 @@ impl Default for PanOrbitCamera {
     }
 }
 
-fn spawn_camera(mut commands: Commands, state: Res<MainCameraState>) {
-    let translation = state.starting_pos;
+fn spawn_camera(mut commands: Commands) {
+    let translation = Vec3::new(-START_DIST, START_DIST, START_DIST);
     let radius = translation.length();
 
     commands
@@ -57,25 +39,24 @@ fn spawn_camera(mut commands: Commands, state: Res<MainCameraState>) {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
             ..Default::default()
         })
-        .insert(PanOrbitCamera {
+        .insert(MainCamera {
             radius,
             ..Default::default()
         });
 }
 
-/// Pan the camera with middle mouse click, zoom with scroll wheel, orbit with right mouse click.
-fn pan_orbit_camera(
+/// Move with WASD, zoom with scroll wheel, orbit with right mouse click.
+fn main_camera(
     windows: Res<Windows>,
+    time: Res<Time>,
+    keyboard: Res<Input<KeyCode>>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<Input<MouseButton>>,
-    mut query: Query<(&mut PanOrbitCamera, &mut Transform, &PerspectiveProjection)>,
+    mut query: Query<(&mut MainCamera, &mut Transform)>,
 ) {
-    // change input mapping for orbit and panning here
     let orbit_button = MouseButton::Right;
-    let pan_button = MouseButton::Middle;
 
-    let mut pan = Vec2::ZERO;
     let mut rotation_move = Vec2::ZERO;
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
@@ -83,11 +64,6 @@ fn pan_orbit_camera(
     if input_mouse.pressed(orbit_button) {
         for ev in ev_motion.iter() {
             rotation_move += ev.delta;
-        }
-    } else if input_mouse.pressed(pan_button) {
-        // Pan only if we're not rotating at the moment
-        for ev in ev_motion.iter() {
-            pan += ev.delta;
         }
     }
     for ev in ev_scroll.iter() {
@@ -97,12 +73,41 @@ fn pan_orbit_camera(
         orbit_button_changed = true;
     }
 
-    for (mut pan_orbit, mut transform, projection) in query.iter_mut() {
+    for (mut camera, mut transform) in query.iter_mut() {
+        if keyboard.any_pressed([KeyCode::W, KeyCode::S, KeyCode::A, KeyCode::D]) {
+            let mut ds = time.delta_seconds() * 10.;
+            if keyboard.pressed(KeyCode::LShift) {
+                ds *= 4.;
+            }
+            let mut forward = transform.forward();
+            if forward.x.abs() < f32::EPSILON && forward.z.abs() < f32::EPSILON {
+                forward = transform.up();
+            }
+            forward.y = 0.;
+            forward = forward.normalize();
+            let right = transform.right().normalize();
+
+            if keyboard.pressed(KeyCode::W) {
+                camera.focus += ds * forward;
+                transform.translation += ds * forward;
+            } else if keyboard.pressed(KeyCode::S) {
+                camera.focus -= ds * forward;
+                transform.translation -= ds * forward;
+            }
+            if keyboard.pressed(KeyCode::A) {
+                camera.focus -= ds * right;
+                transform.translation -= ds * right;
+            } else if keyboard.pressed(KeyCode::D) {
+                camera.focus += ds * right;
+                transform.translation += ds * right;
+            }
+        }
+
         if orbit_button_changed {
             // only check for upside down when orbiting started or ended this frame
             // if the camera is "upside" down, panning horizontally would be inverted, so invert the input to make it correct
             let up = transform.rotation * Vec3::Y;
-            pan_orbit.upside_down = up.y <= 0.0;
+            camera.upside_down = up.y <= 0.0;
         }
 
         let mut any = false;
@@ -111,7 +116,7 @@ fn pan_orbit_camera(
             let window = get_primary_window_size(&windows);
             let delta_x = {
                 let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
-                if pan_orbit.upside_down {
+                if camera.upside_down {
                     -delta
                 } else {
                     delta
@@ -122,22 +127,11 @@ fn pan_orbit_camera(
             let pitch = Quat::from_rotation_x(-delta_y);
             transform.rotation = yaw * transform.rotation; // rotate around global y axis
             transform.rotation = transform.rotation * pitch; // rotate around local x axis
-        } else if pan.length_squared() > 0.0 {
-            any = true;
-            // make panning distance independent of resolution and FOV,
-            let window = get_primary_window_size(&windows);
-            pan *= Vec2::new(projection.fov * projection.aspect_ratio, projection.fov) / window;
-            // translate by local axes
-            let right = transform.rotation * Vec3::X * -pan.x;
-            let up = transform.rotation * Vec3::Y * pan.y;
-            // make panning proportional to distance away from focus point
-            let translation = (right + up) * pan_orbit.radius;
-            pan_orbit.focus += translation;
         } else if scroll.abs() > 0.0 {
             any = true;
-            pan_orbit.radius -= scroll * pan_orbit.radius * 0.2;
+            camera.radius -= scroll * camera.radius * 0.2;
             // dont allow zoom to reach zero or you get stuck
-            pan_orbit.radius = f32::max(pan_orbit.radius, 0.05);
+            camera.radius = f32::max(camera.radius, 0.05);
         }
 
         if any {
@@ -146,7 +140,7 @@ fn pan_orbit_camera(
             // child = z-offset
             let rot_matrix = Mat3::from_quat(transform.rotation);
             transform.translation =
-                pan_orbit.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, pan_orbit.radius));
+                camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, camera.radius));
         }
     }
 }
