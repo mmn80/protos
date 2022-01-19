@@ -1,15 +1,29 @@
 use bevy::prelude::*;
+use bevy_egui::EguiPlugin;
 use rand::{thread_rng, Rng};
 
-use protos::{camera::MainCameraPlugin, light::MainLightsPlugin};
+use protos::{
+    camera::MainCameraPlugin,
+    light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
+    ui::SidePanelPlugin,
+};
 
 fn main() {
     App::new()
+        .insert_resource(WindowDescriptor {
+            title: "Prototypes".to_string(),
+            ..Default::default()
+        })
         .insert_resource(Msaa { samples: 4 })
-        .insert_resource(ClearColor(Color::rgb_u8(148, 177, 255)))
+        .insert_resource(ClearColor(INFINITE_TEMP_COLOR))
         .add_plugins(DefaultPlugins)
-        // .add_plugin(LogDiagnosticsPlugin::default())
-        // .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(EguiPlugin)
+        .add_plugin(SidePanelPlugin)
+        //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
+        .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
+        //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
+        //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
+        //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
         .add_startup_system(setup)
@@ -28,6 +42,7 @@ fn setup(
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
+
     // objects
     let mesh = meshes.add(Mesh::from(shape::Capsule {
         depth: 2.,

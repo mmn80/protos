@@ -70,3 +70,9 @@ fn animate_light_direction(
         transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.5));
     }
 }
+
+pub const INFINITE_TEMP_COLOR: Color = Color::rgb(
+    148. / u8::MAX as f32,
+    177. / u8::MAX as f32,
+    255. / u8::MAX as f32,
+);
