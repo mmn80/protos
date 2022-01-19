@@ -9,7 +9,8 @@ pub struct SidePanelPlugin;
 
 impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
+        app.insert_resource(UiState::default())
+            .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
@@ -29,11 +30,15 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 }
 
 #[derive(Default)]
-pub struct UiState {}
+pub struct UiState {
+    pub random_walk_selected: bool,
+    pub random_walk_all: bool,
+}
 
 fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
+    mut state: ResMut<UiState>,
     query: Query<(Entity, &Selection, &Transform)>,
 ) {
     egui::SidePanel::left("side_panel")
@@ -58,11 +63,15 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
+                    ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
                     for (entity, selection, transform) in query.iter() {
                         if selection.selected() {
                             ui.label(format!("- {:?}: {}", entity, transform.translation));
                         }
                     }
+                    ui.add_space(10.);
+                    ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
+                    ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
                 });
         });
 }

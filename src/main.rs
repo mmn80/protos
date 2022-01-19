@@ -4,6 +4,7 @@ use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle};
 use rand::{thread_rng, Rng};
 
 use protos::{
+    ai::AiPlugin,
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::SidePanelPlugin,
@@ -23,6 +24,7 @@ fn main() {
         .add_plugin(SidePanelPlugin)
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
+        .add_plugin(AiPlugin)
         .add_startup_system(setup)
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();
@@ -33,9 +35,16 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // plane
+    // ground
     commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Plane { size: 1024.0 })),
+        mesh: meshes.add(Mesh::from(shape::Box {
+            min_x: -500.,
+            max_x: 500.,
+            min_y: -5.,
+            max_y: 0.,
+            min_z: -500.,
+            max_z: 500.,
+        })),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         ..Default::default()
     });
@@ -68,7 +77,7 @@ fn setup(
                 .spawn_bundle(PbrBundle {
                     mesh: mesh.clone(),
                     material: mats[rng.gen_range(0..mats.len())].clone(),
-                    transform: Transform::from_xyz(x as f32, 1.5, z as f32),
+                    transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.),
                     ..Default::default()
                 })
                 .insert_bundle(PickableBundle::default());
