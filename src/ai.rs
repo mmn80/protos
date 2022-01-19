@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{core::FixedTimestep, prelude::*};
 use bevy_mod_picking::Selection;
 use rand::{thread_rng, Rng};
 
@@ -8,7 +8,11 @@ pub struct AiPlugin;
 
 impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(random_walk);
+        app.add_system_set(
+            SystemSet::new()
+                .with_run_criteria(FixedTimestep::step(0.1))
+                .with_system(random_walk),
+        );
     }
 }
 
