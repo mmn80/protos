@@ -2,6 +2,7 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
+use bevy_mod_picking::PickingCameraBundle;
 
 pub struct MainCameraPlugin;
 
@@ -42,7 +43,8 @@ fn spawn_camera(mut commands: Commands) {
         .insert(MainCamera {
             radius,
             ..Default::default()
-        });
+        })
+        .insert_bundle(PickingCameraBundle::default());
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.

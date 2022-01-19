@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
+use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle};
 use rand::{thread_rng, Rng};
 
 use protos::{
@@ -17,13 +18,9 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(INFINITE_TEMP_COLOR))
         .add_plugins(DefaultPlugins)
+        .add_plugin(DefaultPickingPlugins)
         .add_plugin(EguiPlugin)
         .add_plugin(SidePanelPlugin)
-        //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
-        .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-        //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
-        //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
-        //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
         .add_startup_system(setup)
@@ -67,12 +64,14 @@ fn setup(
     };
     for x in (-500..500).step_by(10) {
         for z in (-500..500).step_by(10) {
-            commands.spawn_bundle(PbrBundle {
-                mesh: mesh.clone(),
-                material: mats[rng.gen_range(0..mats.len())].clone(),
-                transform: Transform::from_xyz(x as f32, 1.5, z as f32),
-                ..Default::default()
-            });
+            commands
+                .spawn_bundle(PbrBundle {
+                    mesh: mesh.clone(),
+                    material: mats[rng.gen_range(0..mats.len())].clone(),
+                    transform: Transform::from_xyz(x as f32, 1.5, z as f32),
+                    ..Default::default()
+                })
+                .insert_bundle(PickableBundle::default());
         }
     }
 }
