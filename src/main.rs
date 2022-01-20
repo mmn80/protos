@@ -36,18 +36,20 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     // ground
-    commands.spawn_bundle(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Box {
-            min_x: -500.,
-            max_x: 500.,
-            min_y: -5.,
-            max_y: 0.,
-            min_z: -500.,
-            max_z: 500.,
-        })),
-        material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
-        ..Default::default()
-    });
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Box {
+                min_x: -500.,
+                max_x: 500.,
+                min_y: -5.,
+                max_y: 0.,
+                min_z: -500.,
+                max_z: 500.,
+            })),
+            material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+            ..Default::default()
+        })
+        .insert(Name::new("Ground"));
 
     // objects
     let mesh = meshes.add(Mesh::from(shape::Capsule {
@@ -80,6 +82,7 @@ fn setup(
                     transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.),
                     ..Default::default()
                 })
+                .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
                 .insert_bundle(PickableBundle::default());
         }
     }

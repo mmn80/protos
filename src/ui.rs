@@ -39,7 +39,7 @@ fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<UiState>,
-    query: Query<(Entity, &Selection, &Transform)>,
+    query: Query<(&Name, &Selection, &Transform)>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(250.0)
@@ -63,15 +63,16 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
-                    for (entity, selection, transform) in query.iter() {
-                        if selection.selected() {
-                            ui.label(format!("- {:?}: {}", entity, transform.translation));
-                        }
-                    }
-                    ui.add_space(10.);
                     ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
                     ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
+                    ui.add_space(10.);
+                    ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
+                    for (name, selection, transform) in query.iter() {
+                        if selection.selected() {
+                            let pos = transform.translation;
+                            ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
+                        }
+                    }
                 });
         });
 }
