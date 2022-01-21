@@ -37,7 +37,6 @@ pub struct UiState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
     pub inspector_visible: bool,
-    pub ai_debug_info: String,
 }
 
 fn update_side_panel(
@@ -80,12 +79,6 @@ fn update_side_panel(
                             let pos = transform.translation;
                             ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
                         }
-                    }
-
-                    if !state.ai_debug_info.is_empty() {
-                        ui.add_space(10.);
-                        ui.colored_label(egui::Color32::DARK_GREEN, "Ai debug info:");
-                        ui.label(state.ai_debug_info.as_str());
                     }
                 });
         });

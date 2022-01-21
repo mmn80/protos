@@ -15,7 +15,7 @@ impl Plugin for AiPlugin {
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
-            .add_system(update_inspected_unit)
+            .add_system(show_ai_debug_info)
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>()
             .register_inspectable::<RandomMove>();
@@ -134,29 +134,47 @@ fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle
     }
 }
 
-fn update_inspected_unit(
-    mut ui: ResMut<UiState>,
+fn show_ai_debug_info(
+    keyboard: Res<Input<KeyCode>>,
     unit_query: Query<(Entity, &Selection), With<HasThinker>>,
-    thinker_query: Query<(Entity, &Actor), With<Thinker>>,
-    action_query: Query<(Entity, &Actor), With<ActionState>>,
+    thinker_query: Query<(Entity, &Actor, &Thinker)>,
+    action_query: Query<(
+        Entity,
+        &Actor,
+        &ActionState,
+        Option<&RandomMove>,
+        Option<&Idle>,
+    )>,
 ) {
-    let mut info = String::new();
-    for (unit_ent, selection) in unit_query.iter() {
-        if selection.selected() {
-            info.push_str(format!("unit: {:?}\n", unit_ent).as_str());
-            for (thinker_ent, actor) in thinker_query.iter() {
-                if actor.0 == unit_ent {
-                    info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
-                    break;
+    if keyboard.just_pressed(KeyCode::F1) {
+        let mut info = String::new();
+        for (unit_ent, selection) in unit_query.iter() {
+            if selection.selected() {
+                info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
+                for (thinker_ent, actor, thinker) in thinker_query.iter() {
+                    if actor.0 == unit_ent {
+                        info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
+                        info.push_str(format!("{:?}\n", thinker).as_str());
+                        break;
+                    }
                 }
-            }
-            for (action_ent, actor) in action_query.iter() {
-                if actor.0 == unit_ent {
-                    info.push_str(format!("action: {:?}\n", action_ent).as_str());
+                for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
+                    if actor.0 == unit_ent {
+                        info.push_str(
+                            format!("action: {:?} ({:?})", action_ent, action_state).as_str(),
+                        );
+                        if let Some(random_move) = random_move {
+                            info.push_str(format!(" {:?}\n", random_move).as_str());
+                        } else if let Some(idle) = idle {
+                            info.push_str(format!(" {:?}\n", idle).as_str());
+                        } else {
+                            info.push_str(" mistery action\n");
+                        }
+                    }
                 }
+                break;
             }
-            break;
         }
+        info!("{}", info);
     }
-    ui.ai_debug_info = info;
 }
