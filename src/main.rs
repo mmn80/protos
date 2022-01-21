@@ -5,7 +5,7 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use protos::{
-    ai::{AiPlugin, Drunk, MoveTarget, RandomMove, Velocity},
+    ai::{AiPlugin, Drunk, Idle, RandomMove, Velocity},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::SidePanelPlugin,
@@ -86,11 +86,11 @@ fn setup(
                 .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
                 .insert_bundle(PickableBundle::default())
                 .insert(Velocity::default())
-                .insert(MoveTarget::default())
                 .insert(
                     Thinker::build()
                         .picker(FirstToScore { threshold: 0.8 })
-                        .when(Drunk, RandomMove::new()),
+                        .when(Drunk, RandomMove::new())
+                        .otherwise(Idle),
                 );
         }
     }
