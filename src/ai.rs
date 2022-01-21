@@ -15,6 +15,7 @@ impl Plugin for AiPlugin {
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
+            .add_system(apply_velocity)
             .add_system(show_ai_debug_info.with_run_criteria(f1_just_pressed))
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>();
@@ -24,6 +25,23 @@ impl Plugin for AiPlugin {
 #[derive(Clone, Component, Debug, Default, Inspectable)]
 pub struct Velocity {
     pub velocity: Vec3,
+    pub breaking: bool,
+}
+
+fn apply_velocity(time: Res<Time>, mut state: Query<(&mut Transform, &mut Velocity)>) {
+    for (mut transform, mut velocity) in state.iter_mut() {
+        let dt = time.delta_seconds();
+        transform.translation += velocity.velocity * dt;
+        if velocity.breaking {
+            if velocity.velocity.length() < 0.5 {
+                velocity.velocity = Vec3::ZERO;
+                velocity.breaking = false;
+            } else {
+                let dir = velocity.velocity.normalize();
+                velocity.velocity -= dir * dt;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
@@ -34,18 +52,19 @@ pub struct MoveTarget {
 
 fn move_to_target(
     time: Res<Time>,
-    mut state: Query<(Entity, &mut Transform, &mut Velocity, &MoveTarget)>,
+    mut state: Query<(Entity, &Transform, &mut Velocity, &MoveTarget)>,
     mut cmd: Commands,
 ) {
-    for (entity, mut transform, mut velocity, MoveTarget { target, speed }) in state.iter_mut() {
+    for (entity, transform, mut velocity, MoveTarget { target, speed }) in state.iter_mut() {
         if (transform.translation - *target).length() > 0.5 {
             let dt = time.delta_seconds();
             let target_velocity = (*target - transform.translation).normalize() * *speed;
-            let acceleration = 10. * (target_velocity - velocity.velocity).normalize() * dt;
+            let acceleration = (target_velocity - velocity.velocity).normalize() * dt;
             velocity.velocity += acceleration;
-            transform.translation += velocity.velocity * dt;
+            velocity.breaking = false;
         } else {
             cmd.entity(entity).remove::<MoveTarget>();
+            velocity.breaking = true;
         }
     }
 }
@@ -55,21 +74,18 @@ pub struct RandomMove;
 
 fn random_move_action(
     mut action_query: Query<(&Actor, &mut ActionState), With<RandomMove>>,
-    state_query: Query<(&Transform, Option<&MoveTarget>)>,
+    mut state_query: Query<(&Transform, Option<&MoveTarget>, &mut Velocity)>,
     mut cmd: Commands,
 ) {
     for (Actor(actor), mut state) in action_query.iter_mut() {
-        if let Ok((transform, move_target)) = state_query.get(*actor) {
+        if let Ok((transform, move_target, mut velocity)) = state_query.get_mut(*actor) {
             match *state {
                 ActionState::Requested => {
                     let mut rng = thread_rng();
-                    let target =
-                        Vec3::new(rng.gen_range(-10.0..10.0), 0., rng.gen_range(-10.0..10.0));
+                    let target = transform.translation
+                        + Vec3::new(rng.gen_range(-10.0..10.0), 0., rng.gen_range(-10.0..10.0));
                     let speed = rng.gen_range(0.0..5.0);
-                    cmd.entity(*actor).insert(MoveTarget {
-                        target: transform.translation + target,
-                        speed: speed,
-                    });
+                    cmd.entity(*actor).insert(MoveTarget { target, speed });
                     *state = ActionState::Executing;
                 }
                 ActionState::Executing => {
@@ -79,6 +95,7 @@ fn random_move_action(
                 }
                 ActionState::Cancelled => {
                     cmd.entity(*actor).remove::<MoveTarget>();
+                    velocity.breaking = true;
                     *state = ActionState::Failure;
                 }
                 _ => {}
