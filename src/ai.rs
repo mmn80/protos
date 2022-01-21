@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
 use big_brain::{prelude::*, thinker::HasThinker};
@@ -15,10 +15,9 @@ impl Plugin for AiPlugin {
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
-            .add_system(show_ai_debug_info)
+            .add_system(show_ai_debug_info.with_run_criteria(f1_just_pressed))
             .register_inspectable::<Velocity>()
-            .register_inspectable::<MoveTarget>()
-            .register_inspectable::<RandomMove>();
+            .register_inspectable::<MoveTarget>();
     }
 }
 
@@ -51,7 +50,7 @@ fn move_to_target(
     }
 }
 
-#[derive(Clone, Component, Debug, Inspectable)]
+#[derive(Clone, Component, Debug)]
 pub struct RandomMove {
     pub target: Vec3,
     pub speed: f32,
@@ -134,8 +133,15 @@ fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle
     }
 }
 
+fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
+    if keyboard.just_pressed(KeyCode::F1) {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    }
+}
+
 fn show_ai_debug_info(
-    keyboard: Res<Input<KeyCode>>,
     unit_query: Query<(Entity, &Selection), With<HasThinker>>,
     thinker_query: Query<(Entity, &Actor, &Thinker)>,
     action_query: Query<(
@@ -146,35 +152,33 @@ fn show_ai_debug_info(
         Option<&Idle>,
     )>,
 ) {
-    if keyboard.just_pressed(KeyCode::F1) {
-        let mut info = String::new();
-        for (unit_ent, selection) in unit_query.iter() {
-            if selection.selected() {
-                info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
-                for (thinker_ent, actor, thinker) in thinker_query.iter() {
-                    if actor.0 == unit_ent {
-                        info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
-                        info.push_str(format!("{:?}\n", thinker).as_str());
-                        break;
-                    }
+    let mut info = String::new();
+    for (unit_ent, selection) in unit_query.iter() {
+        if selection.selected() {
+            info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
+            for (thinker_ent, actor, thinker) in thinker_query.iter() {
+                if actor.0 == unit_ent {
+                    info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
+                    info.push_str(format!("{:?}\n", thinker).as_str());
+                    break;
                 }
-                for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
-                    if actor.0 == unit_ent {
-                        info.push_str(
-                            format!("action: {:?} ({:?})", action_ent, action_state).as_str(),
-                        );
-                        if let Some(random_move) = random_move {
-                            info.push_str(format!(" {:?}\n", random_move).as_str());
-                        } else if let Some(idle) = idle {
-                            info.push_str(format!(" {:?}\n", idle).as_str());
-                        } else {
-                            info.push_str(" mistery action\n");
-                        }
-                    }
-                }
-                break;
             }
+            for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
+                if actor.0 == unit_ent {
+                    info.push_str(
+                        format!("action: {:?} ({:?})", action_ent, action_state).as_str(),
+                    );
+                    if let Some(random_move) = random_move {
+                        info.push_str(format!(" {:?}\n", random_move).as_str());
+                    } else if let Some(idle) = idle {
+                        info.push_str(format!(" {:?}\n", idle).as_str());
+                    } else {
+                        info.push_str(" mistery action\n");
+                    }
+                }
+            }
+            break;
         }
-        info!("{}", info);
     }
+    info!("{}", info);
 }
