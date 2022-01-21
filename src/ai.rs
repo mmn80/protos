@@ -10,12 +10,12 @@ pub struct AiPlugin;
 impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(BigBrainPlugin)
-            .add_system_to_stage(BigBrainStage::Actions, random_move_action_system)
-            .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer_system);
+            .add_system_to_stage(BigBrainStage::Actions, random_move_action)
+            .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer);
     }
 }
 
-#[derive(Clone, Component, Debug)]
+#[derive(Clone, Component, Debug, Default)]
 pub struct Velocity {
     pub velocity: Vec3,
 }
@@ -40,15 +40,15 @@ impl RandomMove {
     }
 }
 
-fn random_move_action_system(
+fn random_move_action(
     time: Res<Time>,
     mut action_query: Query<(&Actor, &mut ActionState, &RandomMove)>,
-    mut agent_query: Query<(&mut Transform, &mut Velocity, &mut MoveTarget)>,
+    mut state_query: Query<(&mut Transform, &mut Velocity, &mut MoveTarget)>,
 ) {
     for (Actor(actor), mut state, random_move) in action_query.iter_mut() {
         match *state {
             ActionState::Requested => {
-                if let Ok((transform, _, mut move_target)) = agent_query.get_mut(*actor) {
+                if let Ok((transform, _, mut move_target)) = state_query.get_mut(*actor) {
                     move_target.target = Some(transform.translation + random_move.target);
                     *state = ActionState::Executing;
                 } else {
@@ -56,7 +56,7 @@ fn random_move_action_system(
                 }
             }
             ActionState::Executing => {
-                if let Ok((mut transform, mut velocity, move_target)) = agent_query.get_mut(*actor)
+                if let Ok((mut transform, mut velocity, move_target)) = state_query.get_mut(*actor)
                 {
                     let move_target = move_target.target.unwrap();
                     let dt = time.delta_seconds();
@@ -76,7 +76,7 @@ fn random_move_action_system(
                 *state = ActionState::Failure;
             }
             _ => {
-                if let Ok((_, _, mut move_target)) = agent_query.get_mut(*actor) {
+                if let Ok((_, _, mut move_target)) = state_query.get_mut(*actor) {
                     move_target.target = None;
                 }
             }
@@ -87,7 +87,7 @@ fn random_move_action_system(
 #[derive(Clone, Component, Debug)]
 pub struct Drunk;
 
-pub fn drunk_scorer_system(
+pub fn drunk_scorer(
     ui: Res<UiState>,
     selected: Query<&Selection>,
     mut query: Query<(&Actor, &mut Score), With<Drunk>>,
