@@ -10,6 +10,7 @@ publish = false
 bevy = "0.6"
 bevy_egui = "0.10"
 bevy_mod_picking = "0.5"
+big-brain = "0.10"
 rand = "0.8"
 
 [profile.dev]
@@ -20,3 +21,4 @@ opt-level = 3
 
 [patch.crates-io]
 bevy = { path = "../bevy" }
+big-brain = { path = "../big-brain" }
