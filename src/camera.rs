@@ -2,6 +2,7 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
+use bevy_egui::EguiContext;
 use bevy_mod_picking::PickingCameraBundle;
 
 pub struct MainCameraPlugin;
@@ -56,6 +57,7 @@ fn main_camera(
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<Input<MouseButton>>,
     mut query: Query<(&mut MainCamera, &mut Transform)>,
+    egui_ctx: ResMut<EguiContext>,
 ) {
     let orbit_button = MouseButton::Right;
 
@@ -63,16 +65,18 @@ fn main_camera(
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
 
-    if input_mouse.pressed(orbit_button) {
-        for ev in ev_motion.iter() {
-            rotation_move += ev.delta;
+    if !egui_ctx.ctx().wants_pointer_input() {
+        if input_mouse.pressed(orbit_button) {
+            for ev in ev_motion.iter() {
+                rotation_move += ev.delta;
+            }
         }
-    }
-    for ev in ev_scroll.iter() {
-        scroll += ev.y;
-    }
-    if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
-        orbit_button_changed = true;
+        for ev in ev_scroll.iter() {
+            scroll += ev.y;
+        }
+        if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
+            orbit_button_changed = true;
+        }
     }
 
     for (mut camera, mut transform) in query.iter_mut() {
