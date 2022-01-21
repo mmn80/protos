@@ -76,7 +76,7 @@ fn setup(
                         .insert(
                             Thinker::build()
                                 .picker(FirstToScore { threshold: 0.8 })
-                                .when(Drunk, RandomMove::new())
+                                .when(Drunk, RandomMove)
                                 .otherwise(Idle),
                         )
                         .id(),

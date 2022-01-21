@@ -50,33 +50,25 @@ fn move_to_target(
     }
 }
 
-#[derive(Clone, Component, Debug)]
-pub struct RandomMove {
-    pub target: Vec3,
-    pub speed: f32,
-}
-
-impl RandomMove {
-    pub fn new() -> Self {
-        let mut rng = thread_rng();
-        let target = Vec3::new(rng.gen_range(-10.0..10.0), 0., rng.gen_range(-10.0..10.0));
-        let speed = rng.gen_range(0.0..5.0);
-        RandomMove { target, speed }
-    }
-}
+#[derive(Clone, Component, Debug, Default)]
+pub struct RandomMove;
 
 fn random_move_action(
-    mut action_query: Query<(&Actor, &mut ActionState, &RandomMove)>,
+    mut action_query: Query<(&Actor, &mut ActionState), With<RandomMove>>,
     state_query: Query<(&Transform, Option<&MoveTarget>)>,
     mut cmd: Commands,
 ) {
-    for (Actor(actor), mut state, RandomMove { target, speed }) in action_query.iter_mut() {
+    for (Actor(actor), mut state) in action_query.iter_mut() {
         if let Ok((transform, move_target)) = state_query.get(*actor) {
             match *state {
                 ActionState::Requested => {
+                    let mut rng = thread_rng();
+                    let target =
+                        Vec3::new(rng.gen_range(-10.0..10.0), 0., rng.gen_range(-10.0..10.0));
+                    let speed = rng.gen_range(0.0..5.0);
                     cmd.entity(*actor).insert(MoveTarget {
-                        target: transform.translation + *target,
-                        speed: *speed,
+                        target: transform.translation + target,
+                        speed: speed,
                     });
                     *state = ActionState::Executing;
                 }
