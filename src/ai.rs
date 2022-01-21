@@ -1,6 +1,7 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
-use big_brain::prelude::*;
+use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 
 use crate::ui::UiState;
@@ -13,16 +14,20 @@ impl Plugin for AiPlugin {
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
-            .add_system(move_to_target);
+            .add_system(move_to_target)
+            .add_system(update_inspected_unit)
+            .register_inspectable::<Velocity>()
+            .register_inspectable::<MoveTarget>()
+            .register_inspectable::<RandomMove>();
     }
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug, Default, Inspectable)]
 pub struct Velocity {
     pub velocity: Vec3,
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug, Default, Inspectable)]
 pub struct MoveTarget {
     pub target: Vec3,
     pub speed: f32,
@@ -46,7 +51,7 @@ fn move_to_target(
     }
 }
 
-#[derive(Clone, Component, Debug)]
+#[derive(Clone, Component, Debug, Inspectable)]
 pub struct RandomMove {
     pub target: Vec3,
     pub speed: f32,
@@ -127,4 +132,31 @@ fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle
             _ => {}
         }
     }
+}
+
+fn update_inspected_unit(
+    mut ui: ResMut<UiState>,
+    unit_query: Query<(Entity, &Selection), With<HasThinker>>,
+    thinker_query: Query<(Entity, &Actor), With<Thinker>>,
+    action_query: Query<(Entity, &Actor), With<ActionState>>,
+) {
+    let mut info = String::new();
+    for (unit_ent, selection) in unit_query.iter() {
+        if selection.selected() {
+            info.push_str(format!("unit: {:?}\n", unit_ent).as_str());
+            for (thinker_ent, actor) in thinker_query.iter() {
+                if actor.0 == unit_ent {
+                    info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
+                    break;
+                }
+            }
+            for (action_ent, actor) in action_query.iter() {
+                if actor.0 == unit_ent {
+                    info.push_str(format!("action: {:?}\n", action_ent).as_str());
+                }
+            }
+            break;
+        }
+    }
+    ui.ai_debug_info = info;
 }
