@@ -11,7 +11,8 @@ impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(BigBrainPlugin)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
-            .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer);
+            .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
+            .add_system(move_to_target);
     }
 }
 
@@ -22,7 +23,32 @@ pub struct Velocity {
 
 #[derive(Clone, Component, Debug, Default)]
 pub struct MoveTarget {
-    pub target: Option<Vec3>,
+    pub target_pos: Option<Vec3>,
+    pub target_speed: f32,
+}
+
+fn move_to_target(
+    time: Res<Time>,
+    mut state: Query<(&mut Transform, &mut Velocity, &mut MoveTarget)>,
+) {
+    for (mut transform, mut velocity, mut move_target) in state.iter_mut() {
+        if let MoveTarget {
+            target_pos: Some(target_pos),
+            target_speed,
+        } = move_target.clone()
+        {
+            if (transform.translation - target_pos).length() < 0.5 {
+                let dt = time.delta_seconds();
+                let target_velocity =
+                    (target_pos - transform.translation).normalize() * target_speed;
+                let acceleration = 10. * (target_velocity - velocity.velocity).normalize() * dt;
+                velocity.velocity += acceleration;
+                transform.translation += velocity.velocity * dt;
+            } else {
+                move_target.target_pos = None;
+            }
+        }
+    }
 }
 
 #[derive(Clone, Component, Debug)]
@@ -41,45 +67,29 @@ impl RandomMove {
 }
 
 fn random_move_action(
-    time: Res<Time>,
     mut action_query: Query<(&Actor, &mut ActionState, &RandomMove)>,
-    mut state_query: Query<(&mut Transform, &mut Velocity, &mut MoveTarget)>,
+    mut state_query: Query<(&Transform, &mut MoveTarget)>,
 ) {
     for (Actor(actor), mut state, random_move) in action_query.iter_mut() {
-        match *state {
-            ActionState::Requested => {
-                if let Ok((transform, _, mut move_target)) = state_query.get_mut(*actor) {
-                    move_target.target = Some(transform.translation + random_move.target);
+        if let Ok((transform, mut move_target)) = state_query.get_mut(*actor) {
+            match *state {
+                ActionState::Requested => {
+                    move_target.target_pos = Some(transform.translation + random_move.target);
                     *state = ActionState::Executing;
-                } else {
-                    *state = ActionState::Failure;
                 }
-            }
-            ActionState::Executing => {
-                if let Ok((mut transform, mut velocity, move_target)) = state_query.get_mut(*actor)
-                {
-                    let move_target = move_target.target.unwrap();
-                    let dt = time.delta_seconds();
-                    let target_velocity =
-                        (move_target - transform.translation).normalize() * random_move.speed;
-                    let acceleration = 10. * (target_velocity - velocity.velocity).normalize() * dt;
-                    velocity.velocity += acceleration;
-                    transform.translation += velocity.velocity * dt;
-                    if (transform.translation - random_move.target).length() < 0.5 {
+                ActionState::Executing => {
+                    if move_target.target_pos.is_none() {
                         *state = ActionState::Success;
                     }
-                } else {
+                }
+                ActionState::Cancelled => {
+                    move_target.target_pos = None;
                     *state = ActionState::Failure;
                 }
+                _ => {}
             }
-            ActionState::Cancelled => {
-                *state = ActionState::Failure;
-            }
-            _ => {
-                if let Ok((_, _, mut move_target)) = state_query.get_mut(*actor) {
-                    move_target.target = None;
-                }
-            }
+        } else {
+            *state = ActionState::Failure;
         }
     }
 }
