@@ -3,6 +3,7 @@ use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
+use rand_distr::{Distribution, Normal};
 
 use crate::ui::UiState;
 
@@ -50,6 +51,8 @@ pub struct MoveTarget {
     pub speed: f32,
 }
 
+const TURN_ACC: f32 = 4.;
+
 fn move_to_target(
     time: Res<Time>,
     mut state: Query<(Entity, &Transform, &mut Velocity, &MoveTarget)>,
@@ -59,7 +62,7 @@ fn move_to_target(
         if (transform.translation - *target).length() > 0.5 {
             let dt = time.delta_seconds();
             let target_velocity = (*target - transform.translation).normalize() * *speed;
-            let acceleration = (target_velocity - velocity.velocity).normalize() * dt;
+            let acceleration = TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
             velocity.velocity += acceleration;
             velocity.breaking = false;
         } else {
@@ -69,8 +72,17 @@ fn move_to_target(
     }
 }
 
+pub fn get_random_radius(mean_area: f32, stddev: f32) -> f32 {
+    let normal = Normal::new(mean_area, stddev).unwrap();
+    f32::sqrt(normal.sample(&mut thread_rng()))
+}
+
 #[derive(Clone, Component, Debug, Default)]
 pub struct RandomMove;
+
+const TARGET_DST: f32 = 10.;
+const TARGET_SPD: f32 = 5.0;
+const TARGET_SPD_D: f32 = 0.5;
 
 fn random_move_action(
     mut action_query: Query<(&Actor, &mut ActionState), With<RandomMove>>,
@@ -83,8 +95,14 @@ fn random_move_action(
                 ActionState::Requested => {
                     let mut rng = thread_rng();
                     let target = transform.translation
-                        + Vec3::new(rng.gen_range(-10.0..10.0), 0., rng.gen_range(-10.0..10.0));
-                    let speed = rng.gen_range(0.0..5.0);
+                        + Vec3::new(
+                            rng.gen_range(-TARGET_DST..TARGET_DST),
+                            0.,
+                            rng.gen_range(-TARGET_DST..TARGET_DST),
+                        );
+                    let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
+                    let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
+                    let speed = rng.gen_range(min_s..max_s);
                     cmd.entity(*actor).insert(MoveTarget { target, speed });
                     *state = ActionState::Executing;
                 }

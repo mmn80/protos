@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle};
@@ -5,7 +7,7 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use protos::{
-    ai::{AiPlugin, Drunk, Idle, RandomMove, Velocity},
+    ai::{get_random_radius, AiPlugin, Drunk, Idle, RandomMove, Velocity},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::SidePanelPlugin,
@@ -62,12 +64,14 @@ fn setup(
         let mut units = vec![];
         for x in (-500..500).step_by(10) {
             for z in (-500..500).step_by(10) {
+                let scale = get_random_radius(2. * PI, 2.5);
                 units.push(
                     commands
                         .spawn_bundle(PbrBundle {
                             mesh: mesh.clone(),
                             material: mats[rng.gen_range(0..mats.len())].clone(),
-                            transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.),
+                            transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.)
+                                .with_scale(Vec3::new(scale, 1., scale)),
                             ..Default::default()
                         })
                         .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
