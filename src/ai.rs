@@ -51,7 +51,7 @@ pub struct MoveTarget {
     pub speed: f32,
 }
 
-const TURN_ACC: f32 = 4.;
+const TURN_ACC: f32 = 10.;
 
 fn move_to_target(
     time: Res<Time>,
@@ -80,8 +80,8 @@ pub fn get_random_radius(mean_area: f32, stddev: f32) -> f32 {
 #[derive(Clone, Component, Debug, Default)]
 pub struct RandomMove;
 
-const TARGET_DST: f32 = 10.;
-const TARGET_SPD: f32 = 5.0;
+const TARGET_DST: f32 = 3.;
+const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
 
 fn random_move_action(
@@ -94,13 +94,10 @@ fn random_move_action(
             match *state {
                 ActionState::Requested => {
                     let mut rng = thread_rng();
-                    let target = transform.translation
-                        + Vec3::new(
-                            rng.gen_range(-TARGET_DST..TARGET_DST),
-                            0.,
-                            rng.gen_range(-TARGET_DST..TARGET_DST),
-                        );
                     let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
+                    let dst = v * TARGET_DST;
+                    let target = transform.translation
+                        + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst));
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
                     cmd.entity(*actor).insert(MoveTarget { target, speed });
