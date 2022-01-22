@@ -1,9 +1,11 @@
+use std::f32::consts::PI;
+
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
-use rand_distr::{Distribution, Normal};
+use rand_distr::{Distribution, LogNormal};
 
 use crate::ui::UiState;
 
@@ -72,9 +74,10 @@ fn move_to_target(
     }
 }
 
-pub fn get_random_radius(mean_area: f32, stddev: f32) -> f32 {
-    let normal = Normal::new(mean_area, stddev).unwrap();
-    f32::sqrt(normal.sample(&mut thread_rng()))
+pub fn get_random_radius(mean_radius: f32, stddev: f32) -> f32 {
+    let area_dist = LogNormal::new(PI * mean_radius * mean_radius, stddev).unwrap();
+    let area = area_dist.sample(&mut thread_rng());
+    f32::sqrt(area / PI)
 }
 
 #[derive(Clone, Component, Debug, Default)]

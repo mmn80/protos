@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
 use bevy_mod_picking::{DefaultPickingPlugins, PickableBundle};
@@ -64,7 +62,7 @@ fn setup(
         let mut units = vec![];
         for x in (-500..500).step_by(10) {
             for z in (-500..500).step_by(10) {
-                let scale = get_random_radius(2. * PI, 2.5);
+                let scale = get_random_radius(0.8, 0.4);
                 units.push(
                     commands
                         .spawn_bundle(PbrBundle {
