@@ -20,7 +20,8 @@ impl Plugin for AiPlugin {
                 "update_grid",
                 SystemStage::parallel(),
             )
-            .add_system_to_stage("update_grid", update_grid)
+            .add_system_to_stage("update_grid", update_grid.label("update_grid_system"))
+            .add_system_to_stage("update_grid", find_neighbours.after("update_grid_system"))
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
@@ -54,6 +55,37 @@ fn update_grid(mut res: ResMut<SpaceIndex>, query: Query<(Entity, &Transform), W
     }
     // let dt = (std::time::Instant::now() - start).as_micros();
     // info!("grid construction time: {}μs, len={}", dt, res.grid.size(),);
+}
+
+#[derive(Clone, Debug)]
+pub struct Neighbour {
+    pub entity: Entity,
+    pub distance: f32,
+}
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct Neighbours {
+    pub neighbours: Vec<Neighbour>,
+}
+
+fn find_neighbours(space: Res<SpaceIndex>, mut query: Query<(&Transform, &mut Neighbours)>) {
+    let start = std::time::Instant::now();
+    for (transform, mut neighbours) in query.iter_mut() {
+        let ns = space.grid.within_unsorted(
+            &[transform.translation.x, transform.translation.z],
+            10.,
+            &kiddo::distance::squared_euclidean,
+        );
+        neighbours.neighbours.clear();
+        for (distance, entity) in ns.ok().unwrap_or_default() {
+            neighbours.neighbours.push(Neighbour {
+                entity: *entity,
+                distance,
+            })
+        }
+    }
+    let dt = (std::time::Instant::now() - start).as_micros();
+    info!("Neighbours update time: {}μs", dt);
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
