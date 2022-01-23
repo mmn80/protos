@@ -8,7 +8,7 @@ use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
 use crate::{
-    grid::{Grid, QuadKey},
+    grid::{Grid, GridPos},
     ui::UiState,
 };
 
@@ -46,14 +46,19 @@ impl SpaceIndex {
 }
 
 fn update_grid(mut res: ResMut<SpaceIndex>, query: Query<(Entity, &Transform), With<HasThinker>>) {
-    //let start = Instant::now();
+    let start = std::time::Instant::now();
     res.grid = Grid::with_capacity(1000000);
     for (entity, transform) in query.iter() {
-        res.grid
-            .insert(QuadKey::from_vec(transform.translation), entity);
+        let pos = GridPos::from_vec(transform.translation);
+        res.grid.insert(pos, entity);
     }
-    // let dt = (Instant::now() - start).as_micros();
-    // info!("grid construction time: {}μs", dt);
+    let dt = (std::time::Instant::now() - start).as_micros();
+    info!(
+        "grid construction time: {}μs, len={}, capacity={}",
+        dt,
+        res.grid.values.len(),
+        res.grid.values.capacity(),
+    );
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
