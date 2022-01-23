@@ -7,10 +7,7 @@ use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::{
-    grid::{Grid, GridPos},
-    ui::UiState,
-};
+use crate::ui::UiState;
 
 pub struct AiPlugin;
 
@@ -36,29 +33,27 @@ impl Plugin for AiPlugin {
 }
 
 pub struct SpaceIndex {
-    pub grid: Grid<Entity>,
+    pub grid: kiddo::KdTree<f32, Entity, 2>, //Grid<Entity>,
 }
 
 impl SpaceIndex {
     pub fn new() -> Self {
-        Self { grid: Grid::new() }
+        Self {
+            grid: kiddo::KdTree::new(),
+        }
     }
 }
 
 fn update_grid(mut res: ResMut<SpaceIndex>, query: Query<(Entity, &Transform), With<HasThinker>>) {
-    let start = std::time::Instant::now();
-    res.grid = Grid::with_capacity(1000000);
+    //let start = std::time::Instant::now();
+    res.grid = kiddo::KdTree::new();
     for (entity, transform) in query.iter() {
-        let pos = GridPos::from_vec(transform.translation);
-        res.grid.insert(pos, entity);
+        res.grid
+            .add(&[transform.translation.x, transform.translation.z], entity)
+            .ok();
     }
-    let dt = (std::time::Instant::now() - start).as_micros();
-    info!(
-        "grid construction time: {}μs, len={}, capacity={}",
-        dt,
-        res.grid.values.len(),
-        res.grid.values.capacity(),
-    );
+    // let dt = (std::time::Instant::now() - start).as_micros();
+    // info!("grid construction time: {}μs, len={}", dt, res.grid.size(),);
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
