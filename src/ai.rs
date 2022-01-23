@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use bevy::{ecs::schedule::ShouldRun, prelude::*};
+use bevy::{ecs::schedule::ShouldRun, prelude::*, tasks::ComputeTaskPool};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
 use big_brain::{prelude::*, thinker::HasThinker};
@@ -68,9 +68,13 @@ pub struct Neighbours {
     pub neighbours: Vec<Neighbour>,
 }
 
-fn find_neighbours(space: Res<SpaceIndex>, mut query: Query<(&Transform, &mut Neighbours)>) {
-    let start = std::time::Instant::now();
-    for (transform, mut neighbours) in query.iter_mut() {
+fn find_neighbours(
+    pool: Res<ComputeTaskPool>,
+    space: Res<SpaceIndex>,
+    mut query: Query<(&Transform, &mut Neighbours)>,
+) {
+    // let start = std::time::Instant::now();
+    query.par_for_each_mut(&pool, 32, |(transform, mut neighbours)| {
         let ns = space.grid.within_unsorted(
             &[transform.translation.x, transform.translation.z],
             10.,
@@ -83,9 +87,9 @@ fn find_neighbours(space: Res<SpaceIndex>, mut query: Query<(&Transform, &mut Ne
                 distance,
             })
         }
-    }
-    let dt = (std::time::Instant::now() - start).as_micros();
-    info!("Neighbours update time: {}μs", dt);
+    });
+    // let dt = (std::time::Instant::now() - start).as_micros();
+    // info!("Neighbours update time: {}μs", dt);
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
