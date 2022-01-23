@@ -15,8 +15,8 @@ impl Default for MainLightsPlugin {
 }
 
 pub struct MainLightsState {
-    dir_light_size: f32,
-    dir_light_color: Color,
+    pub dir_light_size: f32,
+    pub dir_light_color: Color,
 }
 
 impl Plugin for MainLightsPlugin {
@@ -64,9 +64,19 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
 
 fn animate_light_direction(
     time: Res<Time>,
-    mut query: Query<&mut Transform, With<DirectionalLight>>,
+    state: Res<MainLightsState>,
+    mut query: Query<(&mut Transform, &mut DirectionalLight)>,
 ) {
-    for mut transform in query.iter_mut() {
+    for (mut transform, mut light) in query.iter_mut() {
+        light.shadow_projection = OrthographicProjection {
+            left: -state.dir_light_size,
+            right: state.dir_light_size,
+            bottom: -state.dir_light_size,
+            top: state.dir_light_size,
+            near: -10.0 * state.dir_light_size,
+            far: 10.0 * state.dir_light_size,
+            ..Default::default()
+        };
         transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.5));
     }
 }

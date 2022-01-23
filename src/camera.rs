@@ -5,6 +5,8 @@ use bevy::{
 use bevy_egui::EguiContext;
 use bevy_mod_picking::PickingCameraBundle;
 
+use crate::light::MainLightsState;
+
 pub struct MainCameraPlugin;
 
 impl Plugin for MainCameraPlugin {
@@ -53,6 +55,7 @@ fn main_camera(
     windows: Res<Windows>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
+    mut light: ResMut<MainLightsState>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<Input<MouseButton>>,
@@ -148,6 +151,8 @@ fn main_camera(
             transform.translation =
                 camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, camera.radius));
         }
+
+        light.dir_light_size = transform.translation.y * 100. / START_DIST;
     }
 }
 
