@@ -20,6 +20,20 @@ impl GridPos {
 
     pub fn as_raw(&self) -> usize {
         (self.x as usize) * 1024 + (self.y as usize)
+        // let mut key = 0;
+        // let mut shift = 15;
+        // while shift >= 0 {
+        //     key = key << 1;
+        //     if ((self.x >> shift) & 1) == 1 {
+        //         key += 1;
+        //     }
+        //     key = key << 1;
+        //     if ((self.y >> shift) & 1) == 1 {
+        //         key += 1;
+        //     }
+        //     shift -= 1;
+        // }
+        // key
     }
 }
 
