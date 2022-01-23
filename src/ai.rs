@@ -7,13 +7,23 @@ use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::ui::UiState;
+use crate::{
+    grid::{Grid, QuadKey},
+    ui::UiState,
+};
 
 pub struct AiPlugin;
 
 impl Plugin for AiPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugin(BigBrainPlugin)
+            .insert_resource(SpaceIndex::new())
+            .add_stage_before(
+                BigBrainStage::Scorers,
+                "update_grid",
+                SystemStage::parallel(),
+            )
+            .add_system_to_stage("update_grid", update_grid)
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
@@ -23,6 +33,27 @@ impl Plugin for AiPlugin {
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>();
     }
+}
+
+pub struct SpaceIndex {
+    pub grid: Grid<Entity>,
+}
+
+impl SpaceIndex {
+    pub fn new() -> Self {
+        Self { grid: Grid::new() }
+    }
+}
+
+fn update_grid(mut res: ResMut<SpaceIndex>, query: Query<(Entity, &Transform), With<HasThinker>>) {
+    //let start = Instant::now();
+    res.grid = Grid::with_capacity(1000000);
+    for (entity, transform) in query.iter() {
+        res.grid
+            .insert(QuadKey::from_vec(transform.translation), entity);
+    }
+    // let dt = (Instant::now() - start).as_micros();
+    // info!("grid construction time: {}μs", dt);
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
