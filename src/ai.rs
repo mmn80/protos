@@ -9,6 +9,8 @@ use rand_distr::{Distribution, LogNormal};
 
 use crate::{grid::*, ui::UiState};
 
+pub const MAP_SIZE: f32 = 1000.;
+
 pub struct AiPlugin;
 
 impl Plugin for AiPlugin {
@@ -145,8 +147,10 @@ fn random_move_action(
                     let mut rng = thread_rng();
                     let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
                     let dst = v * TARGET_DST;
-                    let target = transform.translation
-                        + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst));
+                    let sz = MAP_SIZE / 2. - 10.;
+                    let target = (transform.translation
+                        + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst)))
+                    .clamp(Vec3::new(-sz, 0., -sz), Vec3::new(sz, 10., sz));
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
                     cmd.entity(*actor).insert(MoveTarget { target, speed });

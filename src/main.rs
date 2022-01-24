@@ -5,7 +5,7 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use protos::{
-    ai::{get_random_radius, AiPlugin, Drunk, Idle, RandomMove, Velocity},
+    ai::{get_random_radius, AiPlugin, Drunk, Idle, RandomMove, Velocity, MAP_SIZE},
     camera::MainCameraPlugin,
     grid::Neighbours,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
@@ -61,8 +61,9 @@ fn setup(
             mats
         };
         let mut units = vec![];
-        for x in (-500..500).step_by(10) {
-            for z in (-500..500).step_by(10) {
+        let sz = (MAP_SIZE / 2.).round() as i32;
+        for x in (-sz..sz).step_by(10) {
+            for z in (-sz..sz).step_by(10) {
                 let scale = get_random_radius(0.8, 0.4);
                 units.push(
                     commands
@@ -91,15 +92,16 @@ fn setup(
     };
 
     // ground
+    let sz = MAP_SIZE / 2.;
     commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box {
-                min_x: -500.,
-                max_x: 500.,
+                min_x: -sz,
+                max_x: sz,
                 min_y: -5.,
                 max_y: 0.,
-                min_z: -500.,
-                max_z: 500.,
+                min_z: -sz,
+                max_z: sz,
             })),
             material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
             ..Default::default()
