@@ -7,30 +7,21 @@ use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::{grid::*, ui::UiState};
+use crate::{fast_unit_index::Neighbours, ui::UiState};
 
 pub const MAP_SIZE: f32 = 1000.;
 
-pub struct AiPlugin;
+pub struct FastUnitPlugin;
 
-impl Plugin for AiPlugin {
+impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(BigBrainPlugin)
-            .insert_resource(SpaceIndex::new())
-            .add_stage_before(
-                BigBrainStage::Scorers,
-                "update_grid",
-                SystemStage::parallel(),
-            )
-            .add_system_to_stage("update_grid", update_grid.label("update_grid_system"))
-            .add_system_to_stage("update_grid", find_neighbours.after("update_grid_system"))
-            .add_system_to_stage(BigBrainStage::Actions, idle_action)
+        app.add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
             .add_system(avoid_collisions)
             .add_system(apply_velocity)
-            .add_system(show_ai_debug_info.with_run_criteria(f1_just_pressed))
+            .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed))
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>();
     }
@@ -218,7 +209,7 @@ fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
     }
 }
 
-fn show_ai_debug_info(
+fn show_unit_debug_info(
     unit_query: Query<(Entity, &Selection, &Neighbours), With<HasThinker>>,
     thinker_query: Query<(Entity, &Actor, &Thinker)>,
     action_query: Query<(
