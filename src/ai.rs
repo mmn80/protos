@@ -63,30 +63,45 @@ pub struct Neighbour {
     pub distance: f32,
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug)]
 pub struct Neighbours {
+    pub range: f32,
     pub neighbours: Vec<Neighbour>,
+}
+
+impl Default for Neighbours {
+    fn default() -> Self {
+        Self {
+            range: 10.,
+            neighbours: Default::default(),
+        }
+    }
 }
 
 fn find_neighbours(
     pool: Res<ComputeTaskPool>,
     space: Res<SpaceIndex>,
-    mut query: Query<(&Transform, &mut Neighbours)>,
+    mut query: Query<(Entity, &Transform, &mut Neighbours)>,
 ) {
     // let start = std::time::Instant::now();
-    query.par_for_each_mut(&pool, 32, |(transform, mut neighbours)| {
+    query.par_for_each_mut(&pool, 32, |(src_entity, transform, mut neighbours)| {
         let ns = space.grid.within_unsorted(
             &[transform.translation.x, transform.translation.z],
-            10.,
+            neighbours.range * neighbours.range,
             &kiddo::distance::squared_euclidean,
         );
         neighbours.neighbours.clear();
         for (distance, entity) in ns.ok().unwrap_or_default() {
-            neighbours.neighbours.push(Neighbour {
-                entity: *entity,
-                distance,
-            })
+            if *entity != src_entity {
+                neighbours.neighbours.push(Neighbour {
+                    entity: *entity,
+                    distance: distance.sqrt(),
+                })
+            }
         }
+        neighbours
+            .neighbours
+            .sort_unstable_by(|n1, n2| n1.distance.partial_cmp(&n2.distance).unwrap());
     });
     // let dt = (std::time::Instant::now() - start).as_micros();
     // info!("Neighbours update time: {}μs", dt);
@@ -236,7 +251,7 @@ fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
 }
 
 fn show_ai_debug_info(
-    unit_query: Query<(Entity, &Selection), With<HasThinker>>,
+    unit_query: Query<(Entity, &Selection, &Neighbours), With<HasThinker>>,
     thinker_query: Query<(Entity, &Actor, &Thinker)>,
     action_query: Query<(
         Entity,
@@ -247,7 +262,7 @@ fn show_ai_debug_info(
     )>,
 ) {
     let mut info = String::new();
-    for (unit_ent, selection) in unit_query.iter() {
+    for (unit_ent, selection, neighbours) in unit_query.iter() {
         if selection.selected() {
             info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
             for (thinker_ent, actor, thinker) in thinker_query.iter() {
@@ -257,6 +272,13 @@ fn show_ai_debug_info(
                     break;
                 }
             }
+            info.push_str(
+                format!(
+                    "neighbours (<{}m): {:?}\n",
+                    neighbours.range, neighbours.neighbours
+                )
+                .as_str(),
+            );
             for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
                 if actor.0 == unit_ent {
                     info.push_str(
