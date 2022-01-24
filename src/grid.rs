@@ -1,4 +1,5 @@
-use bevy::math::Vec3;
+use bevy::{prelude::*, tasks::ComputeTaskPool};
+use big_brain::thinker::HasThinker;
 
 #[derive(Clone, Debug)]
 pub struct GridPos {
@@ -105,4 +106,81 @@ impl<V: 'static> Grid<V> {
     pub fn clear(&mut self) {
         self.values.clear();
     }
+}
+
+pub struct SpaceIndex {
+    pub grid: kiddo::KdTree<f32, Entity, 2>, //Grid<Entity>,
+}
+
+impl SpaceIndex {
+    pub fn new() -> Self {
+        Self {
+            grid: kiddo::KdTree::new(),
+        }
+    }
+}
+
+pub fn update_grid(
+    mut res: ResMut<SpaceIndex>,
+    query: Query<(Entity, &Transform), With<HasThinker>>,
+) {
+    //let start = std::time::Instant::now();
+    res.grid = kiddo::KdTree::new();
+    for (entity, transform) in query.iter() {
+        res.grid
+            .add(&[transform.translation.x, transform.translation.z], entity)
+            .ok();
+    }
+    // let dt = (std::time::Instant::now() - start).as_micros();
+    // info!("grid construction time: {}μs, len={}", dt, res.grid.size(),);
+}
+
+#[derive(Clone, Debug)]
+pub struct Neighbour {
+    pub entity: Entity,
+    pub distance: f32,
+}
+
+#[derive(Clone, Component, Debug)]
+pub struct Neighbours {
+    pub range: f32,
+    pub neighbours: Vec<Neighbour>,
+}
+
+impl Default for Neighbours {
+    fn default() -> Self {
+        Self {
+            range: 10.,
+            neighbours: Default::default(),
+        }
+    }
+}
+
+pub fn find_neighbours(
+    pool: Res<ComputeTaskPool>,
+    space: Res<SpaceIndex>,
+    mut query: Query<(Entity, &Transform, &mut Neighbours)>,
+) {
+    // let start = std::time::Instant::now();
+    query.par_for_each_mut(&pool, 32, |(src_entity, transform, mut neighbours)| {
+        let ns = space.grid.within_unsorted(
+            &[transform.translation.x, transform.translation.z],
+            neighbours.range * neighbours.range,
+            &kiddo::distance::squared_euclidean,
+        );
+        neighbours.neighbours.clear();
+        for (distance, entity) in ns.ok().unwrap_or_default() {
+            if *entity != src_entity {
+                neighbours.neighbours.push(Neighbour {
+                    entity: *entity,
+                    distance: distance.sqrt(),
+                })
+            }
+        }
+        neighbours
+            .neighbours
+            .sort_unstable_by(|n1, n2| n1.distance.partial_cmp(&n2.distance).unwrap());
+    });
+    // let dt = (std::time::Instant::now() - start).as_micros();
+    // info!("Neighbours update time: {}μs", dt);
 }

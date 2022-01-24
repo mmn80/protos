@@ -5,8 +5,9 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use protos::{
-    ai::{get_random_radius, AiPlugin, Drunk, Idle, Neighbours, RandomMove, Velocity},
+    ai::{get_random_radius, AiPlugin, Drunk, Idle, RandomMove, Velocity},
     camera::MainCameraPlugin,
+    grid::Neighbours,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::SidePanelPlugin,
 };

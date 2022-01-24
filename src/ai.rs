@@ -1,13 +1,13 @@
 use std::f32::consts::PI;
 
-use bevy::{ecs::schedule::ShouldRun, prelude::*, tasks::ComputeTaskPool};
+use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use bevy_mod_picking::Selection;
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::ui::UiState;
+use crate::{grid::*, ui::UiState};
 
 pub struct AiPlugin;
 
@@ -26,85 +26,12 @@ impl Plugin for AiPlugin {
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
+            .add_system(avoid_collisions)
             .add_system(apply_velocity)
             .add_system(show_ai_debug_info.with_run_criteria(f1_just_pressed))
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>();
     }
-}
-
-pub struct SpaceIndex {
-    pub grid: kiddo::KdTree<f32, Entity, 2>, //Grid<Entity>,
-}
-
-impl SpaceIndex {
-    pub fn new() -> Self {
-        Self {
-            grid: kiddo::KdTree::new(),
-        }
-    }
-}
-
-fn update_grid(mut res: ResMut<SpaceIndex>, query: Query<(Entity, &Transform), With<HasThinker>>) {
-    //let start = std::time::Instant::now();
-    res.grid = kiddo::KdTree::new();
-    for (entity, transform) in query.iter() {
-        res.grid
-            .add(&[transform.translation.x, transform.translation.z], entity)
-            .ok();
-    }
-    // let dt = (std::time::Instant::now() - start).as_micros();
-    // info!("grid construction time: {}μs, len={}", dt, res.grid.size(),);
-}
-
-#[derive(Clone, Debug)]
-pub struct Neighbour {
-    pub entity: Entity,
-    pub distance: f32,
-}
-
-#[derive(Clone, Component, Debug)]
-pub struct Neighbours {
-    pub range: f32,
-    pub neighbours: Vec<Neighbour>,
-}
-
-impl Default for Neighbours {
-    fn default() -> Self {
-        Self {
-            range: 10.,
-            neighbours: Default::default(),
-        }
-    }
-}
-
-fn find_neighbours(
-    pool: Res<ComputeTaskPool>,
-    space: Res<SpaceIndex>,
-    mut query: Query<(Entity, &Transform, &mut Neighbours)>,
-) {
-    // let start = std::time::Instant::now();
-    query.par_for_each_mut(&pool, 32, |(src_entity, transform, mut neighbours)| {
-        let ns = space.grid.within_unsorted(
-            &[transform.translation.x, transform.translation.z],
-            neighbours.range * neighbours.range,
-            &kiddo::distance::squared_euclidean,
-        );
-        neighbours.neighbours.clear();
-        for (distance, entity) in ns.ok().unwrap_or_default() {
-            if *entity != src_entity {
-                neighbours.neighbours.push(Neighbour {
-                    entity: *entity,
-                    distance: distance.sqrt(),
-                })
-            }
-        }
-        neighbours
-            .neighbours
-            .sort_unstable_by(|n1, n2| n1.distance.partial_cmp(&n2.distance).unwrap());
-    });
-    // let dt = (std::time::Instant::now() - start).as_micros();
-    // info!("Neighbours update time: {}μs", dt);
 }
 
 #[derive(Clone, Component, Debug, Default, Inspectable)]
@@ -113,9 +40,9 @@ pub struct Velocity {
     pub breaking: bool,
 }
 
-fn apply_velocity(time: Res<Time>, mut state: Query<(&mut Transform, &mut Velocity)>) {
-    for (mut transform, mut velocity) in state.iter_mut() {
-        let dt = time.delta_seconds();
+fn apply_velocity(time: Res<Time>, mut query: Query<(&mut Transform, &mut Velocity)>) {
+    let dt = time.delta_seconds();
+    for (mut transform, mut velocity) in query.iter_mut() {
         transform.translation += velocity.velocity * dt;
         if velocity.breaking {
             if velocity.velocity.length() < 0.5 {
@@ -124,6 +51,43 @@ fn apply_velocity(time: Res<Time>, mut state: Query<(&mut Transform, &mut Veloci
             } else {
                 let dir = velocity.velocity.normalize();
                 velocity.velocity -= dir * dt;
+            }
+        }
+    }
+}
+
+const COLLISION_DIST: f32 = 5.;
+const COLLISION_FORCE: f32 = 5.;
+
+fn avoid_collisions(
+    time: Res<Time>,
+    mut query: Query<(&Transform, &Neighbours, &mut Velocity)>,
+    neigh_query: Query<&Transform>,
+) {
+    let dt = time.delta_seconds();
+    for (transform, neighbours, mut velocity) in query.iter_mut() {
+        let speed = velocity.velocity.length();
+        if speed > 0.5 {
+            if let Some(nearest) = neighbours.neighbours.first() {
+                if let Ok(neigh_tran) = neigh_query.get(nearest.entity) {
+                    let src_size = transform.scale.x;
+                    let dest_size = neigh_tran.scale.x;
+                    let dist = f32::max(0., nearest.distance - src_size - dest_size);
+                    let force = 1. - dist / COLLISION_DIST;
+                    if force > 0. {
+                        let acceleration =
+                            COLLISION_FORCE * f32::min(speed, 10.) * force.powi(5) / src_size;
+                        let direction = (transform.translation - neigh_tran.translation)
+                            .normalize()
+                            .cross(Vec3::Y);
+                        let old_speed = velocity.velocity.length();
+                        velocity.velocity += dt * acceleration * direction;
+                        let new_speed = velocity.velocity.length();
+                        if new_speed > old_speed {
+                            velocity.velocity *= old_speed / new_speed;
+                        }
+                    }
+                }
             }
         }
     }
@@ -139,10 +103,10 @@ const TURN_ACC: f32 = 10.;
 
 fn move_to_target(
     time: Res<Time>,
-    mut state: Query<(Entity, &Transform, &mut Velocity, &MoveTarget)>,
+    mut query: Query<(Entity, &Transform, &mut Velocity, &MoveTarget)>,
     mut cmd: Commands,
 ) {
-    for (entity, transform, mut velocity, MoveTarget { target, speed }) in state.iter_mut() {
+    for (entity, transform, mut velocity, MoveTarget { target, speed }) in query.iter_mut() {
         if (transform.translation - *target).length() > 0.5 {
             let dt = time.delta_seconds();
             let target_velocity = (*target - transform.translation).normalize() * *speed;
