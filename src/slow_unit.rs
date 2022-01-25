@@ -1,13 +1,22 @@
 use bevy::{prelude::*, render::render_resource::Extent3d};
+use bevy_mod_raycast::{
+    DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
+};
 
-use crate::sparse_grid::SparseGrid;
+use crate::{sparse_grid::SparseGrid, ui::UiState};
 
 pub struct SlowUnitPlugin;
 
 impl Plugin for SlowUnitPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Ground::new(1024))
+            .add_plugin(DefaultRaycastingPlugin::<GroundRaycastSet>::default())
             .add_startup_system(setup)
+            .add_system_to_stage(
+                CoreStage::PreUpdate,
+                update_raycast_with_cursor.before(RaycastSystem::BuildRays),
+            )
+            .add_system(ground_painter)
             .add_system(update_ground_texture);
     }
 }
@@ -21,7 +30,7 @@ fn setup(
 ) {
     let sz = ground.nav_grid.width as f32 / 2.;
     {
-        let mut material = StandardMaterial::from(GroundMaterial::default().color);
+        let mut material = StandardMaterial::from(Color::rgb(1.0, 1.0, 1.0));
         material.base_color_texture = Some(images.add(Image::default()));
         ground.material = materials.add(material);
     }
@@ -41,24 +50,15 @@ fn setup(
                 ..Default::default()
             })
             .insert(Name::new("Ground"))
+            .insert(RayCastMesh::<GroundRaycastSet>::default())
             .id(),
     );
-    ground.dirty = true;
 }
 
 #[derive(Debug, Clone)]
 pub struct GroundMaterial {
     pub color: Color,
     pub nav_cost: u8,
-}
-
-impl Default for GroundMaterial {
-    fn default() -> Self {
-        Self {
-            color: Color::rgb(0.3, 0.5, 0.3),
-            nav_cost: 32,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -74,17 +74,48 @@ pub struct Ground {
     dirty: bool,
 }
 
+#[derive(PartialEq)]
+pub enum GroundMaterials {
+    None,
+    Grass,
+    Road,
+}
+
+impl Default for GroundMaterials {
+    fn default() -> Self {
+        GroundMaterials::None
+    }
+}
+
+impl GroundMaterials {
+    pub fn to_material_ref(&self) -> Option<GroundMaterialRef> {
+        match &self {
+            GroundMaterials::None => None,
+            GroundMaterials::Grass => Some(Ground::GRASS),
+            GroundMaterials::Road => Some(Ground::ROAD),
+        }
+    }
+}
+
 impl Ground {
-    pub const DEFAULT_TILE: GroundMaterialRef = GroundMaterialRef(0);
+    pub const GRASS: GroundMaterialRef = GroundMaterialRef(0);
+    pub const ROAD: GroundMaterialRef = GroundMaterialRef(1);
 
     pub fn new(width: u32) -> Self {
-        let default_tile = GroundMaterial::default();
-        let nav_cost = default_tile.nav_cost;
+        let grass = GroundMaterial {
+            color: Color::rgb(0.3, 0.5, 0.3),
+            nav_cost: 32,
+        };
+        let grass_nav_cost = grass.nav_cost;
+        let road = GroundMaterial {
+            color: Color::rgb(1.0, 0.9, 0.8),
+            nav_cost: 1,
+        };
         Self {
             entity: None,
-            palette: vec![default_tile],
-            tiles: SparseGrid::new(width, Some(Self::DEFAULT_TILE)),
-            nav_grid: SparseGrid::new(width, Some(nav_cost)),
+            palette: vec![grass, road],
+            tiles: SparseGrid::new(width, Some(Self::GRASS)),
+            nav_grid: SparseGrid::new(width, Some(grass_nav_cost)),
             material: Default::default(),
             dirty: true,
         }
@@ -119,7 +150,17 @@ impl Ground {
     }
 
     pub fn set_tile(&mut self, pos: Vec3, tile: GroundMaterialRef) {
-        *self.tiles.get_mut(self.tiles.grid_pos(pos)).unwrap() = tile;
+        let pos = self.tiles.grid_pos(pos);
+        self.tiles.insert(pos.clone(), tile.clone());
+        self.nav_grid
+            .insert(pos, self.palette[tile.0 as usize].nav_cost);
+        self.dirty = true;
+    }
+
+    pub fn clear_tile(&mut self, pos: Vec3) {
+        let pos = self.tiles.grid_pos(pos);
+        self.tiles.remove(pos.clone());
+        self.nav_grid.remove(pos);
         self.dirty = true;
     }
 }
@@ -130,6 +171,7 @@ fn update_ground_texture(
     mut images: ResMut<Assets<Image>>,
 ) {
     if ground.dirty {
+        let start = std::time::Instant::now();
         if let Some(material) = materials.get(ground.material.clone()) {
             if let Some(image_handle) = &material.base_color_texture {
                 if let Some(image) = images.get_mut(image_handle) {
@@ -152,6 +194,45 @@ fn update_ground_texture(
                             .map(|slice| slice.copy_from_slice(&pixel));
                     }
                     ground.dirty = false;
+                }
+            }
+        }
+        let dt = (std::time::Instant::now() - start).as_micros();
+        info!("ground texture update time: {}μs", dt);
+    }
+}
+
+pub struct GroundRaycastSet;
+
+fn update_raycast_with_cursor(
+    mut cursor: EventReader<CursorMoved>,
+    mut query: Query<&mut RayCastSource<GroundRaycastSet>>,
+) {
+    let cursor_position = match cursor.iter().last() {
+        Some(cursor_moved) => cursor_moved.position,
+        None => return,
+    };
+    for mut pick_source in &mut query.iter_mut() {
+        pick_source.cast_method = RayCastMethod::Screenspace(cursor_position);
+    }
+}
+
+fn ground_painter(
+    ui: Res<UiState>,
+    mut ground: ResMut<Ground>,
+    keyboard: Res<Input<KeyCode>>,
+    input_mouse: Res<Input<MouseButton>>,
+    query: Query<&RayCastSource<GroundRaycastSet>>,
+) {
+    if keyboard.pressed(KeyCode::LControl) && input_mouse.just_pressed(MouseButton::Left) {
+        for source in query.iter() {
+            if let Some((_, intersection)) = source.intersect_top() {
+                let pos = intersection.position();
+                let mat = ui.ground_material.to_material_ref();
+                if let Some(mat_ref) = mat {
+                    ground.set_tile(pos, mat_ref);
+                } else {
+                    ground.clear_tile(pos);
                 }
             }
         }

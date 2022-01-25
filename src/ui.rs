@@ -6,6 +6,8 @@ use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_inspector_egui::{plugin::InspectorWindows, Inspectable, InspectorPlugin};
 use bevy_mod_picking::Selection;
 
+use crate::slow_unit::GroundMaterials;
+
 pub struct SidePanelPlugin;
 
 impl Plugin for SidePanelPlugin {
@@ -37,6 +39,7 @@ pub struct UiState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
     pub inspector_visible: bool,
+    pub ground_material: GroundMaterials,
 }
 
 fn update_side_panel(
@@ -80,6 +83,14 @@ fn update_side_panel(
                             ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
                         }
                     }
+                });
+
+            egui::CollapsingHeader::new("Ground painter")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.radio_value(&mut state.ground_material, GroundMaterials::None, "None");
+                    ui.radio_value(&mut state.ground_material, GroundMaterials::Grass, "Grass");
+                    ui.radio_value(&mut state.ground_material, GroundMaterials::Road, "Road");
                 });
         });
 }

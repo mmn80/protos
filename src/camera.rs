@@ -4,8 +4,9 @@ use bevy::{
 };
 use bevy_egui::EguiContext;
 use bevy_mod_picking::PickingCameraBundle;
+use bevy_mod_raycast::RayCastSource;
 
-use crate::light::MainLightsState;
+use crate::{light::MainLightsState, slow_unit::GroundRaycastSet};
 
 pub struct MainCameraPlugin;
 
@@ -47,7 +48,8 @@ fn spawn_camera(mut commands: Commands) {
             radius,
             ..Default::default()
         })
-        .insert_bundle(PickingCameraBundle::default());
+        .insert_bundle(PickingCameraBundle::default())
+        .insert(RayCastSource::<GroundRaycastSet>::new());
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.
