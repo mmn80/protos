@@ -16,8 +16,8 @@ impl Plugin for SlowUnitPlugin {
                 CoreStage::PreUpdate,
                 update_raycast_with_cursor.before(RaycastSystem::BuildRays),
             )
-            .add_system(ground_painter)
-            .add_system(update_ground_texture);
+            .add_system(ground_painter.label("ground_painter_system"))
+            .add_system(update_ground_texture.after("ground_painter_system"));
     }
 }
 
@@ -108,7 +108,7 @@ impl Ground {
         };
         let grass_nav_cost = grass.nav_cost;
         let road = GroundMaterial {
-            color: Color::rgb(1.0, 0.9, 0.8),
+            color: Color::rgb(0.8, 0.7, 0.5),
             nav_cost: 1,
         };
         Self {
@@ -167,14 +167,14 @@ impl Ground {
 
 fn update_ground_texture(
     mut ground: ResMut<Ground>,
-    materials: Res<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
     if ground.dirty {
-        let start = std::time::Instant::now();
-        if let Some(material) = materials.get(ground.material.clone()) {
+        if let Some(material) = materials.get_mut(ground.material.clone()) {
             if let Some(image_handle) = &material.base_color_texture {
                 if let Some(image) = images.get_mut(image_handle) {
+                    let start = std::time::Instant::now();
                     image.resize(Extent3d {
                         width: ground.width(),
                         height: ground.width(),
@@ -194,11 +194,11 @@ fn update_ground_texture(
                             .map(|slice| slice.copy_from_slice(&pixel));
                     }
                     ground.dirty = false;
+                    let dt = (std::time::Instant::now() - start).as_micros();
+                    info!("ground texture update time: {}μs", dt);
                 }
             }
         }
-        let dt = (std::time::Instant::now() - start).as_micros();
-        info!("ground texture update time: {}μs", dt);
     }
 }
 
@@ -226,13 +226,19 @@ fn ground_painter(
 ) {
     if keyboard.pressed(KeyCode::LControl) && input_mouse.just_pressed(MouseButton::Left) {
         for source in query.iter() {
-            if let Some((_, intersection)) = source.intersect_top() {
-                let pos = intersection.position();
-                let mat = ui.ground_material.to_material_ref();
-                if let Some(mat_ref) = mat {
-                    ground.set_tile(pos, mat_ref);
-                } else {
-                    ground.clear_tile(pos);
+            if let Some(intersections) = source.intersect_list() {
+                for (entity, intersection) in intersections {
+                    if *entity == ground.entity.unwrap() {
+                        let pos = intersection.position();
+                        info!("ground paint position: {}", pos);
+                        let mat = ui.ground_material.to_material_ref();
+                        if let Some(mat_ref) = mat {
+                            ground.set_tile(pos, mat_ref);
+                        } else {
+                            ground.clear_tile(pos);
+                        }
+                        break;
+                    }
                 }
             }
         }

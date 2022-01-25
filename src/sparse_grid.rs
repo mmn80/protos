@@ -28,11 +28,9 @@ impl<V: 'static> SparseGrid<V> {
     }
 
     pub fn grid_pos(&self, pos: Vec3) -> GridPos {
-        GridPos::new(
-            self.width,
-            f32::max(0., pos.x + self.width as f32 / 2.).floor() as u32,
-            f32::max(0., pos.z + self.width as f32 / 2.).floor() as u32,
-        )
+        let x = f32::max(0., pos.x + self.width as f32 / 2.).floor() as u32;
+        let y = f32::max(0., pos.z + self.width as f32 / 2.).floor() as u32;
+        GridPos::new(self.width, x, y)
     }
 
     #[inline]
