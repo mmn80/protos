@@ -9,7 +9,7 @@ impl Plugin for SlowUnitPlugin {
     }
 }
 
-pub const MAP_SIZE: f32 = 1000.;
+pub const MAP_SIZE: u32 = 1024;
 
 fn setup(
     mut commands: Commands,
@@ -17,7 +17,7 @@ fn setup(
     mut ground: ResMut<Ground>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let sz = MAP_SIZE / 2.;
+    let sz = MAP_SIZE as f32 / 2.;
     ground.entity = Some(
         commands
             .spawn_bundle(PbrBundle {

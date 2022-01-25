@@ -46,7 +46,7 @@ fn update_side_panel(
     query: Query<(&Name, &Selection, &Transform)>,
 ) {
     egui::SidePanel::left("side_panel")
-        .default_width(250.0)
+        .default_width(200.0)
         .show(egui_ctx.ctx(), |ui| {
             let fps = diagnostics
                 .get_measurement(FrameTimeDiagnosticsPlugin::FPS)

@@ -59,7 +59,7 @@ fn setup(
             mats
         };
         let mut units = vec![];
-        let sz = (MAP_SIZE / 2.).round() as i32;
+        let sz = MAP_SIZE as i32 / 2 - 10;
         for x in (-sz..sz).step_by(10) {
             for z in (-sz..sz).step_by(10) {
                 let scale = get_random_radius(0.8, 0.4);
@@ -204,7 +204,7 @@ fn random_move_action(
                     let mut rng = thread_rng();
                     let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
                     let dst = v * TARGET_DST;
-                    let sz = MAP_SIZE / 2. - 10.;
+                    let sz = MAP_SIZE as f32 / 2. - 10.;
                     let target = (transform.translation
                         + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst)))
                     .clamp(Vec3::new(-sz, 0., -sz), Vec3::new(sz, 10., sz));
