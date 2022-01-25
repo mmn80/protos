@@ -16,8 +16,11 @@ impl Plugin for SlowUnitPlugin {
                 CoreStage::PreUpdate,
                 update_raycast_with_cursor.before(RaycastSystem::BuildRays),
             )
-            .add_system(ground_painter.label("ground_painter_system"))
-            .add_system(update_ground_texture.after("ground_painter_system"));
+            .add_system_to_stage(
+                CoreStage::PreUpdate,
+                ground_painter.after(RaycastSystem::BuildRays),
+            )
+            .add_system(update_ground_texture);
     }
 }
 
@@ -174,14 +177,14 @@ fn update_ground_texture(
         if let Some(material) = materials.get_mut(ground.material.clone()) {
             if let Some(image_handle) = &material.base_color_texture {
                 if let Some(image) = images.get_mut(image_handle) {
-                    let start = std::time::Instant::now();
+                    // let start = std::time::Instant::now();
                     image.resize(Extent3d {
                         width: ground.width(),
                         height: ground.width(),
                         depth_or_array_layers: 1,
                     });
                     for (pos, x, y) in ground.tiles.iter_pos() {
-                        let pixel: [u8; 4] = ground
+                        let pixel = ground
                             .tiles
                             .get(pos)
                             .map_or(Color::BLACK, |t| ground.palette[t.0 as usize].color)
@@ -194,8 +197,8 @@ fn update_ground_texture(
                             .map(|slice| slice.copy_from_slice(&pixel));
                     }
                     ground.dirty = false;
-                    let dt = (std::time::Instant::now() - start).as_micros();
-                    info!("ground texture update time: {}μs", dt);
+                    // let dt = (std::time::Instant::now() - start).as_micros();
+                    // info!("ground texture update time: {}μs", dt);
                 }
             }
         }
@@ -227,6 +230,9 @@ fn ground_painter(
     if keyboard.pressed(KeyCode::LAlt) && input_mouse.just_pressed(MouseButton::Left) {
         for source in query.iter() {
             if let Some(intersections) = source.intersect_list() {
+                if intersections.len() > 1 {
+                    info!("more then 1 intersection!");
+                }
                 for (entity, intersection) in intersections {
                     if *entity == ground.entity.unwrap() {
                         let pos = intersection.position();
