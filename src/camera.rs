@@ -48,8 +48,8 @@ fn spawn_camera(mut commands: Commands) {
             radius,
             ..Default::default()
         })
-        .insert_bundle(PickingCameraBundle::default())
-        .insert(RayCastSource::<GroundRaycastSet>::new());
+        .insert(RayCastSource::<GroundRaycastSet>::new())
+        .insert_bundle(PickingCameraBundle::default());
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.

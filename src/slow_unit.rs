@@ -224,13 +224,13 @@ fn ground_painter(
     input_mouse: Res<Input<MouseButton>>,
     query: Query<&RayCastSource<GroundRaycastSet>>,
 ) {
-    if keyboard.pressed(KeyCode::LControl) && input_mouse.just_pressed(MouseButton::Left) {
+    if keyboard.pressed(KeyCode::LAlt) && input_mouse.just_pressed(MouseButton::Left) {
         for source in query.iter() {
             if let Some(intersections) = source.intersect_list() {
                 for (entity, intersection) in intersections {
                     if *entity == ground.entity.unwrap() {
                         let pos = intersection.position();
-                        info!("ground paint position: {}", pos);
+                        // info!("ground paint position: {}", pos);
                         let mat = ui.ground_material.to_material_ref();
                         if let Some(mat_ref) = mat {
                             ground.set_tile(pos, mat_ref);
