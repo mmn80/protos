@@ -2,20 +2,23 @@ use std::f32::consts::PI;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
-use bevy_mod_picking::Selection;
+use bevy_mod_picking::{PickableBundle, Selection};
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::{fast_unit_index::Neighbours, ui::UiState};
-
-pub const MAP_SIZE: f32 = 1000.;
+use crate::{
+    fast_unit_index::Neighbours,
+    slow_unit::{Ground, MAP_SIZE},
+    ui::UiState,
+};
 
 pub struct FastUnitPlugin;
 
 impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_to_stage(BigBrainStage::Actions, idle_action)
+        app.add_startup_system(setup)
+            .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(move_to_target)
@@ -24,6 +27,69 @@ impl Plugin for FastUnitPlugin {
             .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed))
             .register_inspectable::<Velocity>()
             .register_inspectable::<MoveTarget>();
+    }
+}
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    ground: Res<Ground>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let units = {
+        let mesh = meshes.add(Mesh::from(shape::Capsule {
+            depth: 2.,
+            ..Default::default()
+        }));
+        let mut rng = thread_rng();
+        let mats = {
+            let mut mats = vec![];
+            for _ in 1..10 {
+                mats.push(
+                    materials.add(
+                        Color::rgb(
+                            rng.gen_range(0.0..1.0),
+                            rng.gen_range(0.0..1.0),
+                            rng.gen_range(0.0..1.0),
+                        )
+                        .into(),
+                    ),
+                );
+            }
+            mats
+        };
+        let mut units = vec![];
+        let sz = (MAP_SIZE / 2.).round() as i32;
+        for x in (-sz..sz).step_by(10) {
+            for z in (-sz..sz).step_by(10) {
+                let scale = get_random_radius(0.8, 0.4);
+                units.push(
+                    commands
+                        .spawn_bundle(PbrBundle {
+                            mesh: mesh.clone(),
+                            material: mats[rng.gen_range(0..mats.len())].clone(),
+                            transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.)
+                                .with_scale(Vec3::new(scale, 1., scale)),
+                            ..Default::default()
+                        })
+                        .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
+                        .insert_bundle(PickableBundle::default())
+                        .insert(Velocity::default())
+                        .insert(Neighbours::default())
+                        .insert(
+                            Thinker::build()
+                                .picker(FirstToScore { threshold: 0.8 })
+                                .when(Drunk, RandomMove)
+                                .otherwise(Idle),
+                        )
+                        .id(),
+                );
+            }
+        }
+        units
+    };
+    if let Some(ground_ent) = ground.entity {
+        commands.entity(ground_ent).push_children(&units);
     }
 }
 

@@ -1,5 +1,47 @@
 use bevy::prelude::*;
 
+pub struct SlowUnitPlugin;
+
+impl Plugin for SlowUnitPlugin {
+    fn build(&self, app: &mut App) {
+        app.insert_resource(Ground::default())
+            .add_startup_system(setup);
+    }
+}
+
+pub const MAP_SIZE: f32 = 1000.;
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut ground: ResMut<Ground>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let sz = MAP_SIZE / 2.;
+    ground.entity = Some(
+        commands
+            .spawn_bundle(PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Box {
+                    min_x: -sz,
+                    max_x: sz,
+                    min_y: -5.,
+                    max_y: 0.,
+                    min_z: -sz,
+                    max_z: sz,
+                })),
+                material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
+                ..Default::default()
+            })
+            .insert(Name::new("Ground"))
+            .id(),
+    );
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Ground {
+    pub entity: Option<Entity>,
+}
+
 #[derive(Clone, Debug)]
 pub struct GridPos {
     pub x: u16,
