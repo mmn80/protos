@@ -51,6 +51,11 @@ fn setup(
                 material.perceptual_roughness = rng.gen_range(0.089..1.0);
                 material.metallic = rng.gen_range(0.0..1.0);
                 material.reflectance = rng.gen_range(0.0..1.0);
+                // material.emissive = Color::rgb(
+                //     rng.gen_range(0.0..0.2),
+                //     rng.gen_range(0.0..0.2),
+                //     rng.gen_range(0.0..0.2),
+                // );
                 mats.push(materials.add(material));
             }
             mats
@@ -97,10 +102,17 @@ pub struct Velocity {
     pub breaking: bool,
 }
 
-fn apply_velocity(time: Res<Time>, mut query: Query<(&mut Transform, &mut Velocity)>) {
+fn apply_velocity(
+    time: Res<Time>,
+    ground: Res<Ground>,
+    mut query: Query<(&mut Transform, &mut Velocity)>,
+) {
     let dt = time.delta_seconds();
     for (mut transform, mut velocity) in query.iter_mut() {
-        transform.translation += velocity.velocity * dt;
+        let pos = transform.translation + velocity.velocity * dt;
+        if ground.get_tile(pos).is_some() {
+            transform.translation = pos;
+        }
         if velocity.breaking {
             if velocity.velocity.length() < 0.5 {
                 velocity.velocity = Vec3::ZERO;
@@ -209,8 +221,12 @@ fn random_move_action(
                     .clamp(Vec3::new(-sz, 0., -sz), Vec3::new(sz, 10., sz));
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
-                    cmd.entity(*actor).insert(MoveTarget { target, speed });
-                    *state = ActionState::Executing;
+                    if ground.get_tile(target).is_some() {
+                        cmd.entity(*actor).insert(MoveTarget { target, speed });
+                        *state = ActionState::Executing;
+                    } else {
+                        // warn!("invalid ground tile {}", target);
+                    }
                 }
                 ActionState::Executing => {
                     if move_target.is_none() {
