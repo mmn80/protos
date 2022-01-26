@@ -78,8 +78,12 @@ fn update_units_selected(
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
+    egui_ctx: ResMut<bevy_egui::EguiContext>,
     mut units_query: Query<(&ScreenPosition, &mut Selected)>,
 ) {
+    if egui_ctx.ctx().wants_pointer_input() {
+        return;
+    }
     let do_select_rect = {
         selection.clear_previous = !keyboard.pressed(KeyCode::LShift);
         let mouse_pos = windows.get_primary().unwrap().cursor_position();
