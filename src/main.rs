@@ -4,12 +4,12 @@ use bevy_mod_picking::DefaultPickingPlugins;
 use big_brain::prelude::*;
 
 use protos::{
+    ai::{
+        fast_unit::FastUnitPlugin, fast_unit_index::FastUnitIndexPlugin, slow_unit::SlowUnitPlugin,
+    },
     camera::MainCameraPlugin,
-    fast_unit::FastUnitPlugin,
-    fast_unit_index::FastUnitIndexPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
-    slow_unit::SlowUnitPlugin,
-    ui::SidePanelPlugin,
+    ui::{multi_select::MultiSelectPlugin, side_panel::SidePanelPlugin},
 };
 
 fn main() {
@@ -25,6 +25,7 @@ fn main() {
         .add_plugin(EguiPlugin)
         .add_plugin(BigBrainPlugin)
         .add_plugin(SidePanelPlugin)
+        .add_plugin(MultiSelectPlugin)
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
         .add_plugin(SlowUnitPlugin)

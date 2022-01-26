@@ -3,7 +3,7 @@ use bevy_mod_raycast::{
     DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
 };
 
-use crate::{sparse_grid::SparseGrid, ui::UiState};
+use crate::{ai::sparse_grid::SparseGrid, ui::side_panel::SidePanelState};
 
 pub struct SlowUnitPlugin;
 
@@ -12,13 +12,11 @@ impl Plugin for SlowUnitPlugin {
         app.insert_resource(Ground::new(1024))
             .add_plugin(DefaultRaycastingPlugin::<GroundRaycastSet>::default())
             .add_startup_system(setup)
-            .add_system_to_stage(
+            .add_system_set_to_stage(
                 CoreStage::PreUpdate,
-                update_raycast_with_cursor.before(RaycastSystem::BuildRays),
-            )
-            .add_system_to_stage(
-                CoreStage::PreUpdate,
-                ground_painter.after(RaycastSystem::BuildRays),
+                SystemSet::new()
+                    .with_system(update_ground_raycast.before(RaycastSystem::BuildRays))
+                    .with_system(ground_painter.after(RaycastSystem::UpdateRaycast)),
             )
             .add_system(update_ground_texture);
     }
@@ -207,7 +205,7 @@ fn update_ground_texture(
 
 pub struct GroundRaycastSet;
 
-fn update_raycast_with_cursor(
+fn update_ground_raycast(
     mut cursor: EventReader<CursorMoved>,
     mut query: Query<&mut RayCastSource<GroundRaycastSet>>,
 ) {
@@ -221,7 +219,7 @@ fn update_raycast_with_cursor(
 }
 
 fn ground_painter(
-    ui: Res<UiState>,
+    ui: Res<SidePanelState>,
     mut ground: ResMut<Ground>,
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,

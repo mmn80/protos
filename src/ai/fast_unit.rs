@@ -2,12 +2,14 @@ use std::f32::consts::PI;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use bevy_inspector_egui::{Inspectable, RegisterInspectable};
-use bevy_mod_picking::{PickableBundle, Selection};
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::{fast_unit_index::Neighbours, slow_unit::Ground, ui::UiState};
+use crate::ai::{fast_unit_index::Neighbours, slow_unit::Ground};
+use crate::camera::ScreenPosition;
+use crate::ui::multi_select::Selected;
+use crate::ui::side_panel::SidePanelState;
 
 pub struct FastUnitPlugin;
 
@@ -69,7 +71,8 @@ fn setup(
                             ..Default::default()
                         })
                         .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
-                        .insert_bundle(PickableBundle::default())
+                        .insert(ScreenPosition::default())
+                        .insert(Selected::default())
                         .insert(Velocity::default())
                         .insert(Neighbours::default())
                         .insert(
@@ -232,14 +235,14 @@ fn random_move_action(
 pub struct Drunk;
 
 pub fn drunk_scorer(
-    ui: Res<UiState>,
-    selected: Query<&Selection>,
+    ui: Res<SidePanelState>,
+    selected: Query<&Selected>,
     mut query: Query<(&Actor, &mut Score), With<Drunk>>,
 ) {
     for (Actor(actor), mut score) in query.iter_mut() {
         let mut new_score = 0.;
         if let Ok(sel) = selected.get(*actor) {
-            if ui.random_walk_all || (ui.random_walk_selected && sel.selected()) {
+            if ui.random_walk_all || (ui.random_walk_selected && sel.selected) {
                 new_score = 1.;
             }
         }
@@ -273,7 +276,7 @@ fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
 }
 
 fn show_unit_debug_info(
-    unit_query: Query<(Entity, &Selection, &Neighbours), With<HasThinker>>,
+    unit_query: Query<(Entity, &Selected, &Neighbours), With<HasThinker>>,
     thinker_query: Query<(Entity, &Actor, &Thinker)>,
     action_query: Query<(
         Entity,
@@ -284,8 +287,8 @@ fn show_unit_debug_info(
     )>,
 ) {
     let mut info = String::new();
-    for (unit_ent, selection, neighbours) in unit_query.iter() {
-        if selection.selected() {
+    for (unit_ent, selected, neighbours) in unit_query.iter() {
+        if selected.selected {
             info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
             for (thinker_ent, actor, thinker) in thinker_query.iter() {
                 if actor.0 == unit_ent {

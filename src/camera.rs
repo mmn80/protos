@@ -1,18 +1,24 @@
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
+    render::camera::CameraProjection,
 };
 use bevy_egui::EguiContext;
 use bevy_mod_picking::PickingCameraBundle;
 use bevy_mod_raycast::RayCastSource;
 
-use crate::{light::MainLightsState, slow_unit::GroundRaycastSet};
+use crate::{ai::slow_unit::GroundRaycastSet, light::MainLightsState};
 
 pub struct MainCameraPlugin;
 
 impl Plugin for MainCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_camera).add_system(main_camera);
+        app.add_startup_system(spawn_camera)
+            .add_system_to_stage(
+                CoreStage::PreUpdate,
+                update_screen_position.label("update_screen_position"),
+            )
+            .add_system(main_camera);
     }
 }
 
@@ -162,4 +168,35 @@ fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
     let window = windows.get_primary().unwrap();
     let window = Vec2::new(window.width() as f32, window.height() as f32);
     window
+}
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct ScreenPosition {
+    pub position: Vec2,
+}
+
+fn update_screen_position(
+    windows: Res<Windows>,
+    camera_query: Query<(&Transform, &MainCamera, &PerspectiveProjection)>,
+    mut units_query: Query<(&Transform, &mut ScreenPosition)>,
+) {
+    for (camera_transform, main_camera, projection) in camera_query.iter() {
+        let proj_mat = projection.get_projection_matrix();
+        let view_mat = Mat4::look_at_rh(
+            camera_transform.translation,
+            main_camera.focus,
+            camera_transform.up(),
+        );
+        let view_proj = proj_mat * view_mat;
+        let screen_size = get_primary_window_size(&windows);
+        for (transform, mut screen_position) in units_query.iter_mut() {
+            let pos_hom: Vec4 = (transform.translation, 1.).into();
+            let pos_view = view_proj * pos_hom;
+            screen_position.position = Vec2::new(
+                screen_size.x * (1. + pos_view.x / pos_view.w) / 2.,
+                screen_size.y * (1. + pos_view.y / pos_view.w) / 2.,
+            );
+        }
+        break;
+    }
 }

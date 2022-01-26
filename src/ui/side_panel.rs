@@ -6,20 +6,22 @@ use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_inspector_egui::{plugin::InspectorWindows, Inspectable, InspectorPlugin};
 use bevy_mod_picking::Selection;
 
-use crate::slow_unit::GroundMaterials;
+use crate::ai::slow_unit::GroundMaterials;
+
+use super::multi_select::Selected;
 
 pub struct SidePanelPlugin;
 
 impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(UiState::default())
+        app.insert_resource(SidePanelState::default())
             .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             .add_plugin(InspectorPlugin::<InspectedEntity>::new())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
-            .insert_resource(UiState::default())
+            .insert_resource(SidePanelState::default())
             .add_startup_system(configure_egui)
             .add_system(update_side_panel)
             .add_system(update_inspected_entity);
@@ -35,7 +37,7 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 }
 
 #[derive(Default)]
-pub struct UiState {
+pub struct SidePanelState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
     pub inspector_visible: bool,
@@ -45,8 +47,8 @@ pub struct UiState {
 fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
-    mut state: ResMut<UiState>,
-    query: Query<(&Name, &Selection, &Transform)>,
+    mut state: ResMut<SidePanelState>,
+    query: Query<(&Name, &Selected, &Transform)>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -74,7 +76,7 @@ fn update_side_panel(
                     ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
                     ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
 
-                    let sel: Vec<_> = query.iter().filter(|(_, s, _)| s.selected()).collect();
+                    let sel: Vec<_> = query.iter().filter(|(_, s, _)| s.selected).collect();
                     if !sel.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
@@ -101,7 +103,7 @@ struct InspectedEntity {
 }
 
 fn update_inspected_entity(
-    state: Res<UiState>,
+    state: Res<SidePanelState>,
     mut inspector_windows: ResMut<InspectorWindows>,
     mut inspected: ResMut<InspectedEntity>,
     query: Query<(Entity, &Selection)>,
