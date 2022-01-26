@@ -6,8 +6,32 @@ pub struct SlowUnitPlugin;
 
 impl Plugin for SlowUnitPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system_to_stage(CoreStage::PreUpdate, update_nav_grid);
+        app.add_startup_system(setup)
+            .add_system_to_stage(CoreStage::PreUpdate, update_nav_grid);
     }
+}
+
+fn setup(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Box {
+                min_x: -5.,
+                max_x: 5.,
+                min_y: 0.,
+                max_y: 8.,
+                min_z: -5.,
+                max_z: 5.,
+            })),
+            material: materials.add(Color::rgb(1., 0.3, 0.6).into()),
+            transform: Transform::from_rotation(Quat::from_rotation_y(2.)),
+            ..Default::default()
+        })
+        .insert(Name::new("Building"))
+        .insert(UpdatesNavGrid);
 }
 
 #[derive(Clone, Component, Debug)]

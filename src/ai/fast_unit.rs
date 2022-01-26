@@ -43,16 +43,15 @@ fn setup(
         let mats = {
             let mut mats = vec![];
             for _ in 1..10 {
-                mats.push(
-                    materials.add(
-                        Color::rgb(
-                            rng.gen_range(0.0..1.0),
-                            rng.gen_range(0.0..1.0),
-                            rng.gen_range(0.0..1.0),
-                        )
-                        .into(),
-                    ),
-                );
+                let mut material = StandardMaterial::from(Color::rgb(
+                    rng.gen_range(0.0..1.0),
+                    rng.gen_range(0.0..1.0),
+                    rng.gen_range(0.0..1.0),
+                ));
+                material.perceptual_roughness = rng.gen_range(0.089..1.0);
+                material.metallic = rng.gen_range(0.0..1.0);
+                material.reflectance = rng.gen_range(0.0..1.0);
+                mats.push(materials.add(material));
             }
             mats
         };

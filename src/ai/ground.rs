@@ -29,7 +29,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let w = ground.nav_grid.width;
+    let w = ground.width();
     let sz = w as f32 / 2.;
     {
         let mut material = StandardMaterial::from(Color::rgb(1.0, 1.0, 1.0));
