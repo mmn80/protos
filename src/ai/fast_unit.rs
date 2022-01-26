@@ -6,7 +6,7 @@ use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::ai::{fast_unit_index::Neighbours, slow_unit::Ground};
+use crate::ai::{fast_unit_index::Neighbours, ground::Ground};
 use crate::camera::ScreenPosition;
 use crate::ui::multi_select::Selected;
 use crate::ui::side_panel::SidePanelState;

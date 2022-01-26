@@ -5,7 +5,8 @@ use big_brain::prelude::*;
 
 use protos::{
     ai::{
-        fast_unit::FastUnitPlugin, fast_unit_index::FastUnitIndexPlugin, slow_unit::SlowUnitPlugin,
+        fast_unit::FastUnitPlugin, fast_unit_index::FastUnitIndexPlugin, ground::GroundPlugin,
+        slow_unit::SlowUnitPlugin,
     },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
@@ -28,6 +29,7 @@ fn main() {
         .add_plugin(MultiSelectPlugin)
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
+        .add_plugin(GroundPlugin)
         .add_plugin(SlowUnitPlugin)
         .add_plugin(FastUnitIndexPlugin)
         .add_plugin(FastUnitPlugin)

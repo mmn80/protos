@@ -4,9 +4,8 @@ use bevy::{
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_inspector_egui::{plugin::InspectorWindows, Inspectable, InspectorPlugin};
-use bevy_mod_picking::Selection;
 
-use crate::ai::slow_unit::GroundMaterials;
+use crate::ai::ground::GroundMaterials;
 
 use super::multi_select::Selected;
 
@@ -106,12 +105,12 @@ fn update_inspected_entity(
     state: Res<SidePanelState>,
     mut inspector_windows: ResMut<InspectorWindows>,
     mut inspected: ResMut<InspectedEntity>,
-    query: Query<(Entity, &Selection)>,
+    query: Query<(Entity, &Selected)>,
 ) {
     let window_data = inspector_windows.window_data_mut::<InspectedEntity>();
     window_data.visible = state.inspector_visible;
     for (entity, selection) in query.iter() {
-        if selection.selected() {
+        if selection.selected {
             inspected.entity = Some(entity);
             break;
         }

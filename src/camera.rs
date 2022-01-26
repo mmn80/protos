@@ -7,7 +7,7 @@ use bevy_egui::EguiContext;
 use bevy_mod_picking::PickingCameraBundle;
 use bevy_mod_raycast::RayCastSource;
 
-use crate::{ai::slow_unit::GroundRaycastSet, light::MainLightsState};
+use crate::{ai::ground::GroundRaycastSet, light::MainLightsState};
 
 pub struct MainCameraPlugin;
 
