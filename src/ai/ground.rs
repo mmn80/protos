@@ -71,31 +71,6 @@ pub struct GroundMaterial {
 #[derive(Debug, Clone, Default)]
 pub struct GroundMaterialRef(u16);
 
-#[derive(Debug, Clone)]
-pub struct Ground {
-    pub entity: Option<Entity>,
-    palette: Vec<GroundMaterial>,
-    tiles: SparseGrid<GroundMaterialRef>,
-    nav_grid: SparseGrid<u8>,
-    material: Handle<StandardMaterial>,
-    dirty_rects: Vec<Rect<u32>>,
-}
-
-impl Ground {
-    pub fn add_dirty_rect(&mut self, rect: Rect<u32>) {
-        self.dirty_rects.push(rect);
-    }
-
-    pub fn add_dirty_pos(&mut self, x: u32, y: u32) {
-        self.dirty_rects.push(Rect {
-            left: x,
-            right: x + 1,
-            top: y + 1,
-            bottom: y,
-        });
-    }
-}
-
 #[derive(PartialEq)]
 pub enum GroundMaterials {
     None,
@@ -117,6 +92,16 @@ impl GroundMaterials {
             GroundMaterials::Road => Some(Ground::ROAD),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct Ground {
+    pub entity: Option<Entity>,
+    palette: Vec<GroundMaterial>,
+    tiles: SparseGrid<GroundMaterialRef>,
+    nav_grid: SparseGrid<u8>,
+    material: Handle<StandardMaterial>,
+    dirty_rects: Vec<Rect<u32>>,
 }
 
 impl Ground {
@@ -171,21 +156,51 @@ impl Ground {
             .map(|id| &self.palette[id.0 as usize])
     }
 
-    pub fn set_tile(&mut self, pos: Vec3, tile: GroundMaterialRef) {
+    pub fn set_tile(&mut self, pos: Vec3, tile: GroundMaterialRef, add_dirty_pos: bool) {
         let (x, y) = self.tiles.grid_coords(pos);
         let pos = self.tiles.grid_pos_by_coords(x, y);
         self.tiles.insert(pos.clone(), tile.clone());
         self.nav_grid
             .insert(pos, self.palette[tile.0 as usize].nav_cost);
-        self.add_dirty_pos(x, y);
+        if add_dirty_pos {
+            self.add_dirty_pos(x, y);
+        }
     }
 
-    pub fn clear_tile(&mut self, pos: Vec3) {
+    pub fn clear_tile(&mut self, pos: Vec3, add_dirty_pos: bool) {
         let (x, y) = self.tiles.grid_coords(pos);
         let pos = self.tiles.grid_pos_by_coords(x, y);
         self.tiles.remove(pos.clone());
         self.nav_grid.remove(pos);
-        self.add_dirty_pos(x, y);
+        if add_dirty_pos {
+            self.add_dirty_pos(x, y);
+        }
+    }
+
+    pub fn add_dirty_rect(&mut self, rect: Rect<u32>) {
+        self.dirty_rects.push(rect);
+    }
+
+    pub fn add_dirty_rect_f32(&mut self, rect: Rect<f32>) {
+        let (left, bottom) = self
+            .tiles
+            .grid_coords(Vec3::new(rect.left, 0., rect.bottom));
+        let (top, right) = self.tiles.grid_coords(Vec3::new(rect.top, 0., rect.right));
+        self.dirty_rects.push(Rect {
+            left,
+            right,
+            top,
+            bottom,
+        });
+    }
+
+    pub fn add_dirty_pos(&mut self, x: u32, y: u32) {
+        self.dirty_rects.push(Rect {
+            left: x,
+            right: x + 1,
+            top: y + 1,
+            bottom: y,
+        });
     }
 }
 
@@ -265,9 +280,9 @@ fn ground_painter(
                         // info!("ground paint position: {}", pos);
                         let mat = ui.ground_material.to_material_ref();
                         if let Some(mat_ref) = mat {
-                            ground.set_tile(pos, mat_ref);
+                            ground.set_tile(pos, mat_ref, true);
                         } else {
-                            ground.clear_tile(pos);
+                            ground.clear_tile(pos, true);
                         }
                         break;
                     }
