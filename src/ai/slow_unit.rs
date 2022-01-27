@@ -1,6 +1,9 @@
 use bevy::{prelude::*, render::primitives::Aabb};
 
-use super::ground::Ground;
+use super::{
+    ground::{Ground, GroundMaterialRef},
+    sparse_grid::SparseGrid,
+};
 
 pub struct SlowUnitPlugin;
 
@@ -31,17 +34,27 @@ fn setup(
             ..Default::default()
         })
         .insert(Name::new("Building"))
-        .insert(UpdatesNavGrid);
+        .insert(NavGridCarve::default());
 }
 
 #[derive(Clone, Component, Debug)]
-pub struct UpdatesNavGrid;
+pub struct NavGridCarve {
+    backup: SparseGrid<GroundMaterialRef>,
+}
+
+impl Default for NavGridCarve {
+    fn default() -> Self {
+        Self {
+            backup: SparseGrid::new(1, 1, None),
+        }
+    }
+}
 
 fn update_nav_grid(
     mut ground: ResMut<Ground>,
-    query: Query<(&Transform, &Aabb), With<UpdatesNavGrid>>,
+    query: Query<(&Transform, &Aabb, &mut NavGridCarve)>,
 ) {
-    for (transform, aabb) in query.iter() {
+    for (transform, aabb, carve) in query.iter() {
         let (ext_x, ext_z) = (aabb.half_extents.x, aabb.half_extents.z);
 
         let bot_l = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., -ext_z));
@@ -53,6 +66,8 @@ fn update_nav_grid(
         let x_max = bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil();
         let z_min = bot_l.z.min(bot_r.z).min(top_l.z).min(top_r.z).floor();
         let z_max = bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil();
+
+        //carve.backup.resize(new_width, fill)
 
         let mat = transform.compute_matrix().inverse();
 

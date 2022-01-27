@@ -5,11 +5,13 @@ use bevy_mod_raycast::{
 
 use crate::{ai::sparse_grid::SparseGrid, ui::side_panel::SidePanelState};
 
+use super::sparse_grid::GridPos;
+
 pub struct GroundPlugin;
 
 impl Plugin for GroundPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Ground::new(1024))
+        app.insert_resource(Ground::new(1024, 1024))
             .add_plugin(DefaultRaycastingPlugin::<GroundRaycastSet>::default())
             .add_startup_system(setup)
             .add_system_set_to_stage(
@@ -68,7 +70,7 @@ pub struct GroundMaterial {
     pub nav_cost: u8,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default)]
 pub struct GroundMaterialRef(u16);
 
 #[derive(PartialEq)]
@@ -108,7 +110,7 @@ impl Ground {
     pub const GRASS: GroundMaterialRef = GroundMaterialRef(0);
     pub const ROAD: GroundMaterialRef = GroundMaterialRef(1);
 
-    pub fn new(width: u32) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         let grass = GroundMaterial {
             color: Color::rgb(0.3, 0.5, 0.3),
             nav_cost: 32,
@@ -121,8 +123,8 @@ impl Ground {
         Self {
             entity: None,
             palette: vec![grass, road],
-            tiles: SparseGrid::new(width, Some(Self::GRASS)),
-            nav_grid: SparseGrid::new(width, Some(grass_nav_cost)),
+            tiles: SparseGrid::new(width, height, Some(Self::GRASS)),
+            nav_grid: SparseGrid::new(width, height, Some(grass_nav_cost)),
             material: Default::default(),
             dirty_rects: Vec::new(),
         }
@@ -130,7 +132,12 @@ impl Ground {
 
     #[inline]
     pub fn width(&self) -> u32 {
-        self.tiles.width
+        self.tiles.width()
+    }
+
+    #[inline]
+    pub fn height(&self) -> u32 {
+        self.tiles.height()
     }
 
     pub fn register_ground_material(&mut self, tile: GroundMaterial) -> GroundMaterialRef {
@@ -145,9 +152,7 @@ impl Ground {
     }
 
     pub fn get_tile_ref(&self, pos: Vec3) -> Option<GroundMaterialRef> {
-        self.tiles
-            .get(self.tiles.grid_pos(pos))
-            .map(|id| id.clone())
+        self.tiles.get(self.tiles.grid_pos(pos)).map(|id| *id)
     }
 
     pub fn get_tile(&self, pos: Vec3) -> Option<&GroundMaterial> {
@@ -157,23 +162,21 @@ impl Ground {
     }
 
     pub fn set_tile(&mut self, pos: Vec3, tile: GroundMaterialRef, add_dirty_pos: bool) {
-        let (x, y) = self.tiles.grid_coords(pos);
-        let pos = self.tiles.grid_pos_by_coords(x, y);
-        self.tiles.insert(pos.clone(), tile.clone());
+        let pos = self.tiles.grid_pos(pos);
+        self.tiles.insert(pos, tile);
         self.nav_grid
             .insert(pos, self.palette[tile.0 as usize].nav_cost);
         if add_dirty_pos {
-            self.add_dirty_pos(x, y);
+            self.add_dirty_pos(pos.x, pos.y);
         }
     }
 
     pub fn clear_tile(&mut self, pos: Vec3, add_dirty_pos: bool) {
-        let (x, y) = self.tiles.grid_coords(pos);
-        let pos = self.tiles.grid_pos_by_coords(x, y);
-        self.tiles.remove(pos.clone());
+        let pos = self.tiles.grid_pos(pos);
+        self.tiles.remove(pos);
         self.nav_grid.remove(pos);
         if add_dirty_pos {
-            self.add_dirty_pos(x, y);
+            self.add_dirty_pos(pos.x, pos.y);
         }
     }
 
@@ -182,15 +185,13 @@ impl Ground {
     }
 
     pub fn add_dirty_rect_f32(&mut self, rect: Rect<f32>) {
-        let (left, bottom) = self
-            .tiles
-            .grid_coords(Vec3::new(rect.left, 0., rect.bottom));
-        let (top, right) = self.tiles.grid_coords(Vec3::new(rect.top, 0., rect.right));
+        let bot_l = self.tiles.grid_pos(Vec3::new(rect.left, 0., rect.bottom));
+        let top_r = self.tiles.grid_pos(Vec3::new(rect.top, 0., rect.right));
         self.dirty_rects.push(Rect {
-            left,
-            right,
-            top,
-            bottom,
+            left: bot_l.x,
+            right: top_r.x,
+            top: top_r.y,
+            bottom: bot_l.y,
         });
     }
 
@@ -222,7 +223,7 @@ fn update_ground_texture(
                     for rect in ground.dirty_rects.iter() {
                         for x in rect.left..rect.right {
                             for y in rect.bottom..rect.top {
-                                let pos = ground.tiles.grid_pos_by_coords(x, y);
+                                let pos = GridPos { x, y };
                                 let pixel = ground
                                     .tiles
                                     .get(pos)

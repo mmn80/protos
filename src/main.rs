@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
-use bevy_mod_picking::DefaultPickingPlugins;
 use big_brain::prelude::*;
 
 use protos::{
@@ -22,7 +21,6 @@ fn main() {
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(INFINITE_TEMP_COLOR))
         .add_plugins(DefaultPlugins)
-        .add_plugin(DefaultPickingPlugins)
         .add_plugin(EguiPlugin)
         .add_plugin(BigBrainPlugin)
         .add_plugin(SidePanelPlugin)
