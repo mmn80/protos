@@ -13,7 +13,7 @@ impl Plugin for GroundPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(Ground::new(1024, 1024))
             .add_plugin(DefaultRaycastingPlugin::<GroundRaycastSet>::default())
-            .add_startup_system(setup)
+            .add_startup_system(setup.label("ground_setup"))
             .add_system_set_to_stage(
                 CoreStage::PreUpdate,
                 SystemSet::new()
@@ -31,31 +31,32 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let w = ground.width();
-    let sz = w as f32 / 2.;
     {
         let mut material = StandardMaterial::from(Color::rgb(1.0, 1.0, 1.0));
         material.base_color_texture = Some(images.add(Image::default()));
         ground.material = materials.add(material);
     }
+    let width = ground.width();
     ground.add_dirty_rect(Rect {
         left: 0,
-        right: w,
-        top: w,
+        right: width,
+        top: width,
         bottom: 0,
     });
+    let width = ground.width() as f32;
     ground.entity = Some(
         commands
             .spawn_bundle(PbrBundle {
                 mesh: meshes.add(Mesh::from(shape::Box {
-                    min_x: -sz,
-                    max_x: sz,
+                    min_x: 0.,
+                    max_x: width,
                     min_y: -5.,
                     max_y: 0.,
-                    min_z: -sz,
-                    max_z: sz,
+                    min_z: 0.,
+                    max_z: width,
                 })),
                 material: ground.material.clone(),
+                transform: Transform::from_translation(Vec3::new(-width / 2., 0., -width / 2.)),
                 ..Default::default()
             })
             .insert(Name::new("Ground"))
@@ -151,18 +152,15 @@ impl Ground {
         &self.nav_grid
     }
 
-    pub fn get_tile_ref(&self, pos: Vec3) -> Option<GroundMaterialRef> {
-        self.tiles.get(self.tiles.grid_pos(pos)).map(|id| *id)
+    pub fn get_tile_ref(&self, pos: GridPos) -> Option<GroundMaterialRef> {
+        self.tiles.get(pos).map(|id| *id)
     }
 
-    pub fn get_tile(&self, pos: Vec3) -> Option<&GroundMaterial> {
-        self.tiles
-            .get(self.tiles.grid_pos(pos))
-            .map(|id| &self.palette[id.0 as usize])
+    pub fn get_tile(&self, pos: GridPos) -> Option<&GroundMaterial> {
+        self.tiles.get(pos).map(|id| &self.palette[id.0 as usize])
     }
 
-    pub fn set_tile(&mut self, pos: Vec3, tile: GroundMaterialRef, add_dirty_pos: bool) {
-        let pos = self.tiles.grid_pos(pos);
+    pub fn set_tile(&mut self, pos: GridPos, tile: GroundMaterialRef, add_dirty_pos: bool) {
         self.tiles.insert(pos, tile);
         self.nav_grid
             .insert(pos, self.palette[tile.0 as usize].nav_cost);
@@ -171,8 +169,7 @@ impl Ground {
         }
     }
 
-    pub fn clear_tile(&mut self, pos: Vec3, add_dirty_pos: bool) {
-        let pos = self.tiles.grid_pos(pos);
+    pub fn clear_tile(&mut self, pos: GridPos, add_dirty_pos: bool) {
         self.tiles.remove(pos);
         self.nav_grid.remove(pos);
         if add_dirty_pos {
@@ -182,17 +179,6 @@ impl Ground {
 
     pub fn add_dirty_rect(&mut self, rect: Rect<u32>) {
         self.dirty_rects.push(rect);
-    }
-
-    pub fn add_dirty_rect_f32(&mut self, rect: Rect<f32>) {
-        let bot_l = self.tiles.grid_pos(Vec3::new(rect.left, 0., rect.bottom));
-        let top_r = self.tiles.grid_pos(Vec3::new(rect.right, 0., rect.top));
-        self.dirty_rects.push(Rect {
-            left: bot_l.x,
-            right: top_r.x,
-            top: top_r.y,
-            bottom: bot_l.y,
-        });
     }
 
     pub fn add_dirty_pos(&mut self, x: u32, y: u32) {
@@ -283,9 +269,9 @@ fn ground_painter(
                         // info!("ground paint position: {}", pos);
                         let mat = ui.ground_material.to_material_ref();
                         if let Some(mat_ref) = mat {
-                            ground.set_tile(pos, mat_ref, true);
+                            ground.set_tile(pos.into(), mat_ref, true);
                         } else {
-                            ground.clear_tile(pos, true);
+                            ground.clear_tile(pos.into(), true);
                         }
                         break;
                     }

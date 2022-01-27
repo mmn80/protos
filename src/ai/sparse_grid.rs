@@ -1,9 +1,31 @@
+use std::ops::Add;
+
 use bevy::prelude::*;
 
 #[derive(Copy, Clone, Debug)]
 pub struct GridPos {
     pub x: u32,
     pub y: u32,
+}
+
+impl Add for GridPos {
+    type Output = Self;
+
+    fn add(self, rhs: GridPos) -> Self::Output {
+        Self {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
+impl From<Vec3> for GridPos {
+    fn from(pos: Vec3) -> Self {
+        Self {
+            x: pos.x as u32,
+            y: pos.z as u32,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -46,13 +68,6 @@ impl<V: 'static> SparseGrid<V> {
             assert!(zeros > 0, "width too large");
             1 << (32 - zeros)
         }
-    }
-
-    #[inline]
-    pub fn grid_pos(&self, pos: Vec3) -> GridPos {
-        let x = f32::max(0., pos.x + self.width as f32 / 2.).floor() as u32;
-        let y = f32::max(0., pos.z + self.width as f32 / 2.).floor() as u32;
-        GridPos { x, y }
     }
 
     fn grid_idx(&self, pos: GridPos) -> usize {

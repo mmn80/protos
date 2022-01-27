@@ -178,7 +178,7 @@ pub struct ScreenPosition {
 fn update_screen_position(
     windows: Res<Windows>,
     camera_query: Query<(&Transform, &MainCamera, &PerspectiveProjection)>,
-    mut units_query: Query<(&Transform, &mut ScreenPosition)>,
+    mut units_query: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
     for (camera_transform, main_camera, projection) in camera_query.iter() {
         let proj_mat = projection.get_projection_matrix();

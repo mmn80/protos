@@ -15,7 +15,7 @@ pub struct FastUnitPlugin;
 
 impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
+        app.add_startup_system(setup.after("ground_setup"))
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
@@ -61,16 +61,15 @@ fn setup(
             mats
         };
         let mut units = vec![];
-        let sz = ground.width() as i32 / 2 - 10;
-        for x in (-sz..sz).step_by(10) {
-            for z in (-sz..sz).step_by(10) {
+        for x in (10..ground.width() - 10).step_by(10) {
+            for z in (10..ground.width() - 10).step_by(10) {
                 let scale = get_random_radius(0.8, 0.4);
                 units.push(
                     commands
                         .spawn_bundle(PbrBundle {
                             mesh: mesh.clone(),
                             material: mats[rng.gen_range(0..mats.len())].clone(),
-                            transform: Transform::from_xyz(x as f32 + 5., 1.5, z as f32 + 5.)
+                            transform: Transform::from_xyz(x as f32, 1.5, z as f32)
                                 .with_scale(Vec3::new(scale, 1., scale)),
                             ..Default::default()
                         })
@@ -93,6 +92,8 @@ fn setup(
     };
     if let Some(ground_ent) = ground.entity {
         commands.entity(ground_ent).push_children(&units);
+    } else {
+        warn!("NO GROUND!!");
     }
 }
 
@@ -111,7 +112,7 @@ fn apply_velocity(
     let dt = time.delta_seconds();
     for (mut transform, mut velocity) in query.iter_mut() {
         let pos = transform.translation + velocity.velocity * dt;
-        if velocity.ignore_collisions || ground.get_tile(pos).is_some() {
+        if velocity.ignore_collisions || ground.get_tile(pos.into()).is_some() {
             transform.translation = pos;
         } else {
             velocity.velocity = Vec3::ZERO;
@@ -183,7 +184,7 @@ fn avoid_collisions(
             pos + Vec3::X - Vec3::Z,
             pos - Vec3::X + Vec3::Z,
         ] {
-            if ground.get_tile(cell).is_none() {
+            if ground.get_tile(cell.into()).is_none() {
                 let src_size = transform.scale.x;
                 let dir = transform.translation - cell;
                 let dist = dir.length();
@@ -256,7 +257,7 @@ fn random_move_action(
                     .clamp(Vec3::new(-sz, 0., -sz), Vec3::new(sz, 10., sz));
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
-                    if ground.get_tile(target).is_some() {
+                    if ground.get_tile(target.into()).is_some() {
                         cmd.entity(*actor).insert(MoveTarget { target, speed });
                         *state = ActionState::Executing;
                     } else {
