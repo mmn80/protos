@@ -186,7 +186,7 @@ impl Ground {
 
     pub fn add_dirty_rect_f32(&mut self, rect: Rect<f32>) {
         let bot_l = self.tiles.grid_pos(Vec3::new(rect.left, 0., rect.bottom));
-        let top_r = self.tiles.grid_pos(Vec3::new(rect.top, 0., rect.right));
+        let top_r = self.tiles.grid_pos(Vec3::new(rect.right, 0., rect.top));
         self.dirty_rects.push(Rect {
             left: bot_l.x,
             right: top_r.x,
@@ -221,8 +221,8 @@ fn update_ground_texture(
                         depth_or_array_layers: 1,
                     });
                     for rect in ground.dirty_rects.iter() {
-                        for x in rect.left..rect.right {
-                            for y in rect.bottom..rect.top {
+                        for y in rect.bottom..rect.top {
+                            for x in rect.left..rect.right {
                                 let pos = GridPos { x, y };
                                 let pixel = ground
                                     .tiles

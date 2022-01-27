@@ -92,8 +92,8 @@ fn update_nav_grid(
 
         let bot_l = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., -ext_z));
         let bot_r = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., ext_z));
-        let top_l = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., ext_z));
-        let top_r = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., -ext_z));
+        let top_l = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., -ext_z));
+        let top_r = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., ext_z));
 
         let x_min = bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor();
         let x_max = bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil();
@@ -119,11 +119,12 @@ fn update_nav_grid(
                 }
             }
             info!(
-                "restored {} tiles at {:?} (w={}, h={})",
+                "restored {} tiles at {:?} (w={}, h={}); dirty_rect={:?}",
                 count,
                 pos,
                 carve.ground.width(),
-                carve.ground.height()
+                carve.ground.height(),
+                dirty_rect
             );
 
             let x_min_old = pos.x as f32;
@@ -158,7 +159,7 @@ fn update_nav_grid(
         let mut z = 0.5 + z_min;
         while z < z_max {
             let sample = Vec3::new(x, 0., z);
-            let local = mat.transform_vector3(sample);
+            let local = mat.transform_point3(sample);
             let inside =
                 local.x >= -ext_x && local.x <= ext_x && local.z >= -ext_z && local.z <= ext_z;
             if inside {
@@ -182,11 +183,12 @@ fn update_nav_grid(
             }
         }
         info!(
-            "saved {} tiles at {:?} (w={}, h={})",
+            "saved {} tiles at {:?} (w={}, h={}); dirty_rect={:?}",
             count,
             carve.ground_pos.unwrap(),
             carve.ground.width(),
-            carve.ground.height()
+            carve.ground.height(),
+            dirty_rect
         );
 
         ground.add_dirty_rect_f32(dirty_rect);
