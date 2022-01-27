@@ -112,6 +112,8 @@ fn apply_velocity(
         let pos = transform.translation + velocity.velocity * dt;
         if ground.get_tile(pos).is_some() {
             transform.translation = pos;
+        } else {
+            velocity.velocity = Vec3::ZERO;
         }
         if velocity.breaking {
             if velocity.velocity.length() < 0.5 {
@@ -127,9 +129,11 @@ fn apply_velocity(
 
 const COLLISION_DIST: f32 = 5.;
 const COLLISION_FORCE: f32 = 5.;
+const COLLISION_BLOCK_FORCE: f32 = 50.;
 
 fn avoid_collisions(
     time: Res<Time>,
+    ground: Res<Ground>,
     mut query: Query<(&Transform, &Neighbours, &mut Velocity)>,
     neigh_query: Query<&Transform>,
 ) {
@@ -156,6 +160,30 @@ fn avoid_collisions(
                             velocity.velocity *= old_speed / new_speed;
                         }
                     }
+                }
+            }
+        }
+
+        let pos = transform.translation;
+        let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
+        for cell in [
+            pos + Vec3::X,
+            pos + Vec3::Z,
+            pos - Vec3::X,
+            pos - Vec3::Z,
+            pos + Vec3::X + Vec3::Z,
+            pos - Vec3::X - Vec3::Z,
+            pos + Vec3::X - Vec3::Z,
+            pos - Vec3::X + Vec3::Z,
+        ] {
+            if ground.get_tile(cell).is_none() {
+                let src_size = transform.scale.x;
+                let dir = transform.translation - cell;
+                let dist = dir.length();
+                let direction = dir.normalize();
+                if dist > 0. {
+                    let acceleration = COLLISION_BLOCK_FORCE * dist.powi(2) / src_size;
+                    velocity.velocity += dt * acceleration * direction;
                 }
             }
         }
