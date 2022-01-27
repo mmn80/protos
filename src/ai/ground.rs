@@ -226,7 +226,7 @@ fn update_ground_texture(
                     }
                     ground.dirty_rects.clear();
                     let dt = (std::time::Instant::now() - start).as_micros();
-                    if dt > 30 {
+                    if dt > 10 {
                         info!("ground texture update time: {}μs", dt);
                     }
                 }

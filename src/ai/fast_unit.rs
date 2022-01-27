@@ -50,7 +50,7 @@ fn setup(
                 ));
                 material.perceptual_roughness = rng.gen_range(0.089..1.0);
                 material.metallic = rng.gen_range(0.0..1.0);
-                material.reflectance = rng.gen_range(0.0..1.0);
+                // material.reflectance = rng.gen_range(0.0..1.0);
                 // material.emissive = Color::rgb(
                 //     rng.gen_range(0.0..0.2),
                 //     rng.gen_range(0.0..0.2),
@@ -251,10 +251,13 @@ fn random_move_action(
                     let mut rng = thread_rng();
                     let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
                     let dst = v * TARGET_DST;
-                    let sz = ground.width() as f32 / 2. - 10.;
+                    let width = ground.width() as f32;
                     let target = (transform.translation
                         + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst)))
-                    .clamp(Vec3::new(-sz, 0., -sz), Vec3::new(sz, 10., sz));
+                    .clamp(
+                        Vec3::new(10., 0., 10.),
+                        Vec3::new(width - 10., 10., width - 10.),
+                    );
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
                     if ground.get_tile(target.into()).is_some() {
