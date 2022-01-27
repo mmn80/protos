@@ -77,7 +77,7 @@ fn animate_light_direction(
             far: 10.0 * state.dir_light_size,
             ..Default::default()
         };
-        transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.5));
+        transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.1));
     }
 }
 

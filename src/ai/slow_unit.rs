@@ -1,9 +1,12 @@
 use bevy::{prelude::*, render::primitives::Aabb};
+use big_brain::prelude::*;
 
 use super::{
+    fast_unit::{Drunk, Idle, RandomMove, Velocity},
     ground::{Ground, GroundMaterialRef},
     sparse_grid::{GridPos, SparseGrid},
 };
+use crate::{camera::ScreenPosition, ui::multi_select::Selected};
 
 pub struct SlowUnitPlugin;
 
@@ -34,7 +37,20 @@ fn setup(
             ..Default::default()
         })
         .insert(Name::new("Building"))
-        .insert(NavGridCarve::default());
+        .insert(NavGridCarve::default())
+        .insert(ScreenPosition::default())
+        .insert(Selected::default())
+        .insert(Velocity {
+            velocity: Vec3::ZERO,
+            breaking: false,
+            ignore_collisions: true,
+        })
+        .insert(
+            Thinker::build()
+                .picker(FirstToScore { threshold: 0.8 })
+                .when(Drunk, RandomMove)
+                .otherwise(Idle),
+        );
 }
 
 #[derive(Clone, Component, Debug)]
@@ -128,15 +144,17 @@ fn update_nav_grid(
             let inside =
                 local.x >= -ext_x && local.x <= ext_x && local.z >= -ext_z && local.z <= ext_z;
             if inside {
-                let tile = ground.get_tile_ref(sample).unwrap();
+                let tile = ground.get_tile_ref(sample);
                 ground.clear_tile(sample, false);
-                carve.ground.insert(
-                    GridPos {
-                        x: (x - x_min).floor() as u32,
-                        y: (z - z_min).floor() as u32,
-                    },
-                    tile,
-                );
+                if let Some(tile) = tile {
+                    carve.ground.insert(
+                        GridPos {
+                            x: (x - x_min).floor() as u32,
+                            y: (z - z_min).floor() as u32,
+                        },
+                        tile,
+                    );
+                }
             }
             x += 1.;
             if x > x_max {

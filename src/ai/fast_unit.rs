@@ -100,6 +100,7 @@ fn setup(
 pub struct Velocity {
     pub velocity: Vec3,
     pub breaking: bool,
+    pub ignore_collisions: bool,
 }
 
 fn apply_velocity(
@@ -110,7 +111,7 @@ fn apply_velocity(
     let dt = time.delta_seconds();
     for (mut transform, mut velocity) in query.iter_mut() {
         let pos = transform.translation + velocity.velocity * dt;
-        if ground.get_tile(pos).is_some() {
+        if velocity.ignore_collisions || ground.get_tile(pos).is_some() {
             transform.translation = pos;
         } else {
             velocity.velocity = Vec3::ZERO;
@@ -123,6 +124,9 @@ fn apply_velocity(
                 let dir = velocity.velocity.normalize();
                 velocity.velocity -= dir * dt;
             }
+        }
+        if velocity.velocity.length_squared() > 0.1 {
+            transform.rotation = Quat::from_rotation_y(velocity.velocity.angle_between(Vec3::Z));
         }
     }
 }
@@ -139,6 +143,9 @@ fn avoid_collisions(
 ) {
     let dt = time.delta_seconds();
     for (transform, neighbours, mut velocity) in query.iter_mut() {
+        if velocity.ignore_collisions {
+            continue;
+        }
         let speed = velocity.velocity.length();
         if speed > 0.5 {
             if let Some(nearest) = neighbours.neighbours.first() {
