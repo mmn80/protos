@@ -182,7 +182,7 @@ fn avoid_collisions(
                 let dist = dir.length();
                 let direction = dir.normalize();
                 if dist > 0. {
-                    let acceleration = COLLISION_BLOCK_FORCE * dist.powi(2) / src_size;
+                    let acceleration = COLLISION_BLOCK_FORCE * dist.powi(4) / src_size;
                     velocity.velocity += dt * acceleration * direction;
                 }
             }
