@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use bevy::{prelude::*, render::primitives::Aabb};
 use big_brain::prelude::*;
 
@@ -33,7 +35,8 @@ fn setup(
                 max_z: 5.,
             })),
             material: materials.add(Color::rgb(1., 0.3, 0.6).into()),
-            transform: Transform::from_rotation(Quat::from_rotation_y(2.)),
+            transform: Transform::from_rotation(Quat::from_rotation_y(2.))
+                .with_translation(Vec3::new(15., 0., 25.)),
             ..Default::default()
         })
         .insert(Name::new("Building"))
@@ -55,6 +58,8 @@ fn setup(
 
 #[derive(Clone, Component, Debug)]
 pub struct NavGridCarve {
+    last_pos: Vec3,
+    last_rot: Quat,
     ground_pos: Option<GridPos>,
     ground: SparseGrid<GroundMaterialRef>,
 }
@@ -62,6 +67,8 @@ pub struct NavGridCarve {
 impl Default for NavGridCarve {
     fn default() -> Self {
         Self {
+            last_pos: Vec3::ZERO,
+            last_rot: Quat::IDENTITY,
             ground_pos: None,
             ground: SparseGrid::new(1, 1, None),
         }
@@ -70,17 +77,17 @@ impl Default for NavGridCarve {
 
 fn update_nav_grid(
     mut ground: ResMut<Ground>,
-    mut query: Query<
-        (&Transform, &Aabb, &mut NavGridCarve),
-        Or<(
-            Added<Transform>,
-            Added<Aabb>,
-            Changed<Transform>,
-            Changed<Aabb>,
-        )>,
-    >,
+    mut query: Query<(&Transform, &Aabb, &mut NavGridCarve)>,
 ) {
     for (transform, aabb, mut carve) in query.iter_mut() {
+        if (transform.translation - carve.last_pos).length() < 0.5
+            && transform.rotation.angle_between(carve.last_rot) < PI / 18.
+        {
+            continue;
+        }
+        carve.last_pos = transform.translation;
+        carve.last_rot = transform.rotation;
+
         let (ext_x, ext_z) = (aabb.half_extents.x, aabb.half_extents.z);
 
         let bot_l = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., -ext_z));
@@ -101,14 +108,24 @@ fn update_nav_grid(
         };
 
         if let Some(pos) = carve.ground_pos {
+            let mut count = 0;
             for y in 0..carve.ground.height() {
                 for x in 0..carve.ground.width() {
-                    let ground_pos = Vec3::new((x + pos.x) as f32, 0., (y + pos.y) as f32);
                     if let Some(tile) = carve.ground.get(GridPos { x, y }) {
-                        ground.set_tile(ground_pos, *tile, false);
+                        let tile_pos = Vec3::new((x + pos.x) as f32, 0., (y + pos.y) as f32);
+                        ground.set_tile(tile_pos, *tile, false);
+                        count += 1;
                     }
                 }
             }
+            info!(
+                "restored {} tiles at {:?} (w={}, h={})",
+                count,
+                pos,
+                carve.ground.width(),
+                carve.ground.height()
+            );
+
             let x_min_old = pos.x as f32;
             if x_min_old < x_min {
                 dirty_rect.left = x_min_old;
@@ -135,6 +152,7 @@ fn update_nav_grid(
             .ground
             .reset((x_max - x_min) as u32, (z_max - z_min) as u32, None);
 
+        let mut count = 0;
         let mat = transform.compute_matrix().inverse();
         let mut x = 0.5 + x_min;
         let mut z = 0.5 + z_min;
@@ -145,8 +163,8 @@ fn update_nav_grid(
                 local.x >= -ext_x && local.x <= ext_x && local.z >= -ext_z && local.z <= ext_z;
             if inside {
                 let tile = ground.get_tile_ref(sample);
-                ground.clear_tile(sample, false);
                 if let Some(tile) = tile {
+                    ground.clear_tile(sample, false);
                     carve.ground.insert(
                         GridPos {
                             x: (x - x_min).floor() as u32,
@@ -154,6 +172,7 @@ fn update_nav_grid(
                         },
                         tile,
                     );
+                    count += 1;
                 }
             }
             x += 1.;
@@ -162,6 +181,13 @@ fn update_nav_grid(
                 x = 0.5 + x_min;
             }
         }
+        info!(
+            "saved {} tiles at {:?} (w={}, h={})",
+            count,
+            carve.ground_pos.unwrap(),
+            carve.ground.width(),
+            carve.ground.height()
+        );
 
         ground.add_dirty_rect_f32(dirty_rect);
     }
