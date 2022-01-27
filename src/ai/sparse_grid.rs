@@ -96,18 +96,15 @@ impl<V: 'static> SparseGrid<V> {
         self.values.get_mut(index).and_then(|value| value.take())
     }
 
-    pub fn resize(&mut self, new_width: u32, new_height: u32, fill: Option<V>)
+    pub fn reset(&mut self, new_width: u32, new_height: u32, fill: Option<V>)
     where
         V: Clone,
     {
+        self.values.clear();
         self.width = new_width;
         self.height = new_height;
         self.po2_width = Self::po2_width(new_width);
         self.values
             .resize((self.po2_width as usize) * (new_height as usize), fill);
-    }
-
-    pub fn clear(&mut self) {
-        self.values.clear();
     }
 }

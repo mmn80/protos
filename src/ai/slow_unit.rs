@@ -2,7 +2,7 @@ use bevy::{prelude::*, render::primitives::Aabb};
 
 use super::{
     ground::{Ground, GroundMaterialRef},
-    sparse_grid::SparseGrid,
+    sparse_grid::{GridPos, SparseGrid},
 };
 
 pub struct SlowUnitPlugin;
@@ -39,22 +39,32 @@ fn setup(
 
 #[derive(Clone, Component, Debug)]
 pub struct NavGridCarve {
-    backup: SparseGrid<GroundMaterialRef>,
+    ground_pos: Option<GridPos>,
+    ground: SparseGrid<GroundMaterialRef>,
 }
 
 impl Default for NavGridCarve {
     fn default() -> Self {
         Self {
-            backup: SparseGrid::new(1, 1, None),
+            ground_pos: None,
+            ground: SparseGrid::new(1, 1, None),
         }
     }
 }
 
 fn update_nav_grid(
     mut ground: ResMut<Ground>,
-    query: Query<(&Transform, &Aabb, &mut NavGridCarve)>,
+    mut query: Query<
+        (&Transform, &Aabb, &mut NavGridCarve),
+        Or<(
+            Added<Transform>,
+            Added<Aabb>,
+            Changed<Transform>,
+            Changed<Aabb>,
+        )>,
+    >,
 ) {
-    for (transform, aabb, carve) in query.iter() {
+    for (transform, aabb, mut carve) in query.iter_mut() {
         let (ext_x, ext_z) = (aabb.half_extents.x, aabb.half_extents.z);
 
         let bot_l = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., -ext_z));
@@ -67,10 +77,49 @@ fn update_nav_grid(
         let z_min = bot_l.z.min(bot_r.z).min(top_l.z).min(top_r.z).floor();
         let z_max = bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil();
 
-        //carve.backup.resize(new_width, fill)
+        let mut dirty_rect = Rect {
+            left: x_min,
+            right: x_max,
+            top: z_max,
+            bottom: z_min,
+        };
+
+        if let Some(pos) = carve.ground_pos {
+            for y in 0..carve.ground.height() {
+                for x in 0..carve.ground.width() {
+                    let ground_pos = Vec3::new((x + pos.x) as f32, 0., (y + pos.y) as f32);
+                    if let Some(tile) = carve.ground.get(GridPos { x, y }) {
+                        ground.set_tile(ground_pos, *tile, false);
+                    }
+                }
+            }
+            let x_min_old = pos.x as f32;
+            if x_min_old < x_min {
+                dirty_rect.left = x_min_old;
+            }
+            let x_max_old = (pos.x as f32) + (carve.ground.width() as f32);
+            if x_max_old > x_max {
+                dirty_rect.right = x_max_old;
+            }
+            let z_min_old = pos.y as f32;
+            if z_min_old < z_min {
+                dirty_rect.bottom = z_min_old;
+            }
+            let z_max_old = (pos.y as f32) + (carve.ground.height() as f32);
+            if z_max_old > z_max {
+                dirty_rect.top = z_max_old;
+            }
+        }
+
+        carve.ground_pos = Some(GridPos {
+            x: x_min as u32,
+            y: z_min as u32,
+        });
+        carve
+            .ground
+            .reset((x_max - x_min) as u32, (z_max - z_min) as u32, None);
 
         let mat = transform.compute_matrix().inverse();
-
         let mut x = 0.5 + x_min;
         let mut z = 0.5 + z_min;
         while z < z_max {
@@ -79,7 +128,15 @@ fn update_nav_grid(
             let inside =
                 local.x >= -ext_x && local.x <= ext_x && local.z >= -ext_z && local.z <= ext_z;
             if inside {
+                let tile = ground.get_tile_ref(sample).unwrap();
                 ground.clear_tile(sample, false);
+                carve.ground.insert(
+                    GridPos {
+                        x: (x - x_min).floor() as u32,
+                        y: (z - z_min).floor() as u32,
+                    },
+                    tile,
+                );
             }
             x += 1.;
             if x > x_max {
@@ -88,11 +145,6 @@ fn update_nav_grid(
             }
         }
 
-        ground.add_dirty_rect_f32(Rect {
-            left: x_min,
-            right: x_max,
-            top: z_max,
-            bottom: z_min,
-        });
+        ground.add_dirty_rect_f32(dirty_rect);
     }
 }

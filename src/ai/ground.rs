@@ -214,10 +214,10 @@ fn update_ground_texture(
         if let Some(material) = materials.get_mut(ground.material.clone()) {
             if let Some(image_handle) = &material.base_color_texture {
                 if let Some(image) = images.get_mut(image_handle) {
-                    // let start = std::time::Instant::now();
+                    let start = std::time::Instant::now();
                     image.resize(Extent3d {
                         width: ground.width(),
-                        height: ground.width(),
+                        height: ground.height(),
                         depth_or_array_layers: 1,
                     });
                     for rect in ground.dirty_rects.iter() {
@@ -239,8 +239,8 @@ fn update_ground_texture(
                         }
                     }
                     ground.dirty_rects.clear();
-                    // let dt = (std::time::Instant::now() - start).as_micros();
-                    // info!("ground texture update time: {}μs", dt);
+                    let dt = (std::time::Instant::now() - start).as_micros();
+                    info!("ground texture update time: {}μs", dt);
                 }
             }
         }
