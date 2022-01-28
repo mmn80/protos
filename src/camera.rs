@@ -4,7 +4,6 @@ use bevy::{
     render::camera::CameraProjection,
 };
 use bevy_egui::EguiContext;
-use bevy_mod_picking::PickingCameraBundle;
 use bevy_mod_raycast::RayCastSource;
 
 use crate::{ai::ground::GroundRaycastSet, light::MainLightsState};
@@ -54,8 +53,7 @@ fn spawn_camera(mut commands: Commands) {
             radius,
             ..Default::default()
         })
-        .insert(RayCastSource::<GroundRaycastSet>::new())
-        .insert_bundle(PickingCameraBundle::default());
+        .insert(RayCastSource::<GroundRaycastSet>::new());
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.
