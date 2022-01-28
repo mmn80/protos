@@ -255,25 +255,29 @@ fn ground_painter(
     mut ground: ResMut<Ground>,
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
-    query: Query<&RayCastSource<GroundRaycastSet>>,
+    source_query: Query<&RayCastSource<GroundRaycastSet>>,
+    target_query: Query<&Transform, With<RayCastMesh<GroundRaycastSet>>>,
 ) {
     if keyboard.pressed(KeyCode::LAlt) && input_mouse.just_pressed(MouseButton::Left) {
-        for source in query.iter() {
-            if let Some(intersections) = source.intersect_list() {
-                if intersections.len() > 1 {
-                    info!("more then 1 intersection!");
-                }
-                for (entity, intersection) in intersections {
-                    if *entity == ground.entity.unwrap() {
-                        let pos = intersection.position();
-                        // info!("ground paint position: {}", pos);
-                        let mat = ui.ground_material.to_material_ref();
-                        if let Some(mat_ref) = mat {
-                            ground.set_tile(pos.into(), mat_ref, true);
-                        } else {
-                            ground.clear_tile(pos.into(), true);
+        if let Ok(ground_transform) = target_query.get_single() {
+            let mat = ground_transform.compute_matrix().inverse();
+            for source in source_query.iter() {
+                if let Some(intersections) = source.intersect_list() {
+                    if intersections.len() > 1 {
+                        info!("more then 1 intersection!");
+                    }
+                    for (entity, intersection) in intersections {
+                        if *entity == ground.entity.unwrap() {
+                            let pos = mat.project_point3(intersection.position());
+                            // info!("ground paint position: {}", pos);
+                            let mat = ui.ground_material.to_material_ref();
+                            if let Some(mat_ref) = mat {
+                                ground.set_tile(pos.into(), mat_ref, true);
+                            } else {
+                                ground.clear_tile(pos.into(), true);
+                            }
+                            break;
                         }
-                        break;
                     }
                 }
             }
