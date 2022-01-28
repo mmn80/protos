@@ -127,7 +127,8 @@ fn apply_velocity(
             }
         }
         if velocity.velocity.length_squared() > 0.1 {
-            transform.rotation = Quat::from_rotation_y(velocity.velocity.angle_between(Vec3::Z));
+            let look_at = transform.translation + velocity.velocity.normalize();
+            transform.look_at(look_at, Vec3::Y);
         }
         if !velocity.ignore_collisions {
             let pos = transform.translation;
