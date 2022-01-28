@@ -1,21 +1,27 @@
 use std::f32::consts::PI;
 
-use bevy::{prelude::*, render::primitives::Aabb};
+use bevy::{ecs::schedule::ShouldRun, prelude::*, render::primitives::Aabb};
+use bevy_mod_raycast::{RayCastMesh, RayCastSource};
 use big_brain::prelude::*;
+use rand::{thread_rng, Rng};
 
 use super::{
     fast_unit::{Drunk, Idle, RandomMove, Velocity},
-    ground::{Ground, GroundMaterialRef},
+    ground::{Ground, GroundMaterialRef, GroundRaycastSet},
     sparse_grid::{GridPos, SparseGrid},
 };
-use crate::{camera::ScreenPosition, ui::multi_select::Selected};
+use crate::{
+    camera::ScreenPosition,
+    ui::{multi_select::Selected, side_panel::SidePanelState},
+};
 
 pub struct SlowUnitPlugin;
 
 impl Plugin for SlowUnitPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup.after("ground_setup"))
-            .add_system_to_stage(CoreStage::PreUpdate, update_nav_grid);
+            .add_system_to_stage(CoreStage::PreUpdate, update_nav_grid)
+            .add_system(spawn_building.with_run_criteria(building_spawning));
     }
 }
 
@@ -25,18 +31,18 @@ fn setup(
     ground: Res<Ground>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_building(
+    spawn(
         &mut commands,
         &mut meshes,
         &ground,
         &mut materials,
         Vec3::new(10., 5., 10.),
-        Vec2::new(510., 500.),
-        2.,
+        Vec2::new(512., 512.),
+        0.,
     );
 }
 
-pub fn spawn_building(
+fn spawn(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     ground: &Ground,
@@ -45,6 +51,31 @@ pub fn spawn_building(
     position: Vec2,
     rotation: f32,
 ) {
+    let mut rng = thread_rng();
+    let material = materials.add(
+        Color::rgb(
+            rng.gen_range(0.0..1.0),
+            rng.gen_range(0.0..1.0),
+            rng.gen_range(0.0..1.0),
+        )
+        .into(),
+    );
+    let tower_size = size.x.min(size.z) / 10.;
+    let tower_id = commands
+        .spawn_bundle(PbrBundle {
+            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                radius: tower_size,
+                subdivisions: 4,
+            })),
+            material: material.clone(),
+            transform: Transform::from_translation(Vec3::new(
+                0.,
+                size.y + tower_size,
+                tower_size + -size.z / 2.,
+            )),
+            ..Default::default()
+        })
+        .id();
     let bld_id = commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box {
@@ -55,7 +86,7 @@ pub fn spawn_building(
                 min_z: -size.z / 2.,
                 max_z: size.z / 2.,
             })),
-            material: materials.add(Color::rgb(1., 0.3, 0.6).into()),
+            material,
             transform: Transform::from_rotation(Quat::from_rotation_y(rotation))
                 .with_translation(Vec3::new(position.x, 0., position.y)),
             ..Default::default()
@@ -75,11 +106,69 @@ pub fn spawn_building(
                 .when(Drunk, RandomMove)
                 .otherwise(Idle),
         )
+        .add_child(tower_id)
         .id();
     if let Some(ground_ent) = ground.entity {
         commands.entity(ground_ent).add_child(bld_id);
     } else {
         warn!("NO GROUND!!");
+    }
+}
+
+fn building_spawning(
+    ui: Res<SidePanelState>,
+    input_mouse: Res<Input<MouseButton>>,
+    keyboard: Res<Input<KeyCode>>,
+) -> ShouldRun {
+    if ui.spawn_building
+        && input_mouse.just_pressed(MouseButton::Left)
+        && keyboard.pressed(KeyCode::LControl)
+    {
+        ShouldRun::Yes
+    } else {
+        ShouldRun::No
+    }
+}
+
+fn spawn_building(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    ground: Res<Ground>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    source_query: Query<&RayCastSource<GroundRaycastSet>>,
+    target_query: Query<&Transform, With<RayCastMesh<GroundRaycastSet>>>,
+) {
+    if let Ok(ground_transform) = target_query.get_single() {
+        let mat = ground_transform.compute_matrix().inverse();
+        let mut rng = thread_rng();
+
+        for source in source_query.iter() {
+            if let Some(intersections) = source.intersect_list() {
+                if intersections.len() > 1 {
+                    info!("more then 1 intersection!");
+                }
+                for (entity, intersection) in intersections {
+                    if *entity == ground.entity.unwrap() {
+                        let center = mat.project_point3(intersection.position());
+                        // info!("spawn building at: {:?}", center);
+                        spawn(
+                            &mut commands,
+                            &mut meshes,
+                            &ground,
+                            &mut materials,
+                            Vec3::new(
+                                rng.gen_range(5.0..20.0),
+                                rng.gen_range(2.0..15.0),
+                                rng.gen_range(5.0..20.0),
+                            ),
+                            Vec2::new(center.x, center.z),
+                            rng.gen_range(0.0..2. * PI),
+                        );
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 

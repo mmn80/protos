@@ -41,6 +41,7 @@ pub struct SidePanelState {
     pub inspector_visible: bool,
     pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
+    pub spawn_building: bool,
 }
 
 impl Default for SidePanelState {
@@ -51,6 +52,7 @@ impl Default for SidePanelState {
             inspector_visible: Default::default(),
             ground_brush_size: 1,
             ground_material: Default::default(),
+            spawn_building: false,
         }
     }
 }
@@ -105,6 +107,12 @@ fn update_side_panel(
                     ui.radio_value(&mut state.ground_material, GroundMaterials::None, "None");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Grass, "Grass");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Road, "Road");
+                });
+
+            egui::CollapsingHeader::new("Buildings")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.checkbox(&mut state.spawn_building, "Spawn building");
                 });
         });
 }
