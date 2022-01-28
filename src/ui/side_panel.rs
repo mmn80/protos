@@ -35,12 +35,24 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
     egui_settings.scale_factor = 1.0;
 }
 
-#[derive(Default)]
 pub struct SidePanelState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
     pub inspector_visible: bool,
+    pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
+}
+
+impl Default for SidePanelState {
+    fn default() -> Self {
+        Self {
+            random_walk_selected: Default::default(),
+            random_walk_all: Default::default(),
+            inspector_visible: Default::default(),
+            ground_brush_size: 1,
+            ground_material: Default::default(),
+        }
+    }
 }
 
 fn update_side_panel(
@@ -89,6 +101,7 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Ground painter")
                 .default_open(true)
                 .show(ui, |ui| {
+                    ui.add(egui::Slider::new(&mut state.ground_brush_size, 1..=32).text("brush"));
                     ui.radio_value(&mut state.ground_material, GroundMaterials::None, "None");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Grass, "Grass");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Road, "Road");

@@ -226,7 +226,7 @@ fn update_ground_texture(
                     }
                     ground.dirty_rects.clear();
                     let dt = (std::time::Instant::now() - start).as_micros();
-                    if dt > 10 {
+                    if dt > 20 {
                         info!("ground texture update time: {}μs", dt);
                     }
                 }
@@ -268,13 +268,22 @@ fn ground_painter(
                     }
                     for (entity, intersection) in intersections {
                         if *entity == ground.entity.unwrap() {
-                            let pos = mat.project_point3(intersection.position());
-                            // info!("ground paint position: {}", pos);
+                            let center: GridPos =
+                                mat.project_point3(intersection.position()).into();
+                            // info!("ground paint center: {:?}", center);
                             let mat = ui.ground_material.to_material_ref();
-                            if let Some(mat_ref) = mat {
-                                ground.set_tile(pos.into(), mat_ref, true);
-                            } else {
-                                ground.clear_tile(pos.into(), true);
+                            for y in 0..ui.ground_brush_size {
+                                for x in 0..ui.ground_brush_size {
+                                    let pos = GridPos {
+                                        x: center.x + x as u32,
+                                        y: center.y + y as u32,
+                                    };
+                                    if let Some(mat_ref) = mat {
+                                        ground.set_tile(pos, mat_ref, true);
+                                    } else {
+                                        ground.clear_tile(pos, true);
+                                    }
+                                }
                             }
                             break;
                         }
