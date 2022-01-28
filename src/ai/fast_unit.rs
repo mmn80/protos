@@ -123,7 +123,7 @@ fn apply_velocity(
                 velocity.breaking = false;
             } else {
                 let dir = velocity.velocity.normalize();
-                velocity.velocity -= dir * dt;
+                velocity.velocity -= 20. * dir * dt;
             }
         }
         if velocity.velocity.length_squared() > 0.1 {
@@ -156,6 +156,7 @@ fn apply_velocity(
 const COLLISION_DIST: f32 = 5.;
 const COLLISION_FORCE: f32 = 5.;
 const COLLISION_BLOCK_FORCE: f32 = 50.;
+const MAX_SPEED: f32 = 30.;
 
 fn avoid_collisions(
     time: Res<Time>,
@@ -193,6 +194,7 @@ fn avoid_collisions(
             }
         }
 
+        let mut free = true;
         let pos = transform.translation;
         let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
         for cell in [
@@ -206,6 +208,7 @@ fn avoid_collisions(
             pos - Vec3::X + Vec3::Z,
         ] {
             if ground.get_tile(cell.into()).is_none() {
+                free = false;
                 let src_size = transform.scale.x;
                 let dir = transform.translation - cell;
                 let dist = dir.length();
@@ -215,6 +218,10 @@ fn avoid_collisions(
                     velocity.velocity += dt * acceleration * direction;
                 }
             }
+        }
+        let speed = velocity.velocity.length();
+        if free && speed > MAX_SPEED {
+            velocity.velocity *= MAX_SPEED / speed;
         }
     }
 }
