@@ -101,7 +101,7 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Ground painter")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.add(egui::Slider::new(&mut state.ground_brush_size, 1..=32).text("brush"));
+                    ui.add(egui::Slider::new(&mut state.ground_brush_size, 1..=32));
                     ui.radio_value(&mut state.ground_material, GroundMaterials::None, "None");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Grass, "Grass");
                     ui.radio_value(&mut state.ground_material, GroundMaterials::Road, "Road");
