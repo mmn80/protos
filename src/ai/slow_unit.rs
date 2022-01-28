@@ -31,15 +31,22 @@ fn setup(
     ground: Res<Ground>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn(
-        &mut commands,
-        &mut meshes,
-        &ground,
-        &mut materials,
-        Vec3::new(10., 5., 10.),
-        Vec2::new(512., 512.),
-        0.,
-    );
+    let mut rng = thread_rng();
+    for _ in 1..100 {
+        spawn(
+            &mut commands,
+            &mut meshes,
+            &ground,
+            &mut materials,
+            Vec3::new(
+                rng.gen_range(5.0..20.0),
+                rng.gen_range(2.0..15.0),
+                rng.gen_range(5.0..20.0),
+            ),
+            Vec2::new(rng.gen_range(124.0..900.0), rng.gen_range(124.0..900.0)),
+            rng.gen_range(0.0..2. * PI),
+        );
+    }
 }
 
 fn spawn(

@@ -144,6 +144,7 @@ fn apply_velocity(
                     if free_tile_count > 2 {
                         transform.translation = cell;
                         velocity.velocity = Vec3::ZERO;
+                        velocity.breaking = true;
                         break;
                     }
                 }
