@@ -129,6 +129,26 @@ fn apply_velocity(
         if velocity.velocity.length_squared() > 0.1 {
             transform.rotation = Quat::from_rotation_y(velocity.velocity.angle_between(Vec3::Z));
         }
+        if !velocity.ignore_collisions {
+            let pos = transform.translation;
+            let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
+            if ground.get_tile(pos.into()).is_none() {
+                let mut free_tile_count = 0;
+                for i in 1..100 {
+                    let cell = pos + (i as f32) * Vec3::X;
+                    if ground.get_tile(cell.into()).is_some() {
+                        free_tile_count += 1;
+                    } else {
+                        free_tile_count = 0;
+                    }
+                    if free_tile_count > 2 {
+                        transform.translation = cell;
+                        velocity.velocity = Vec3::ZERO;
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -25,19 +25,39 @@ fn setup(
     ground: Res<Ground>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
+    spawn_building(
+        &mut commands,
+        &mut meshes,
+        &ground,
+        &mut materials,
+        Vec3::new(10., 5., 10.),
+        Vec2::new(510., 500.),
+        2.,
+    );
+}
+
+pub fn spawn_building(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    ground: &Ground,
+    materials: &mut Assets<StandardMaterial>,
+    size: Vec3,
+    position: Vec2,
+    rotation: f32,
+) {
     let bld_id = commands
         .spawn_bundle(PbrBundle {
             mesh: meshes.add(Mesh::from(shape::Box {
-                min_x: -5.,
-                max_x: 5.,
+                min_x: -size.x / 2.,
+                max_x: size.x / 2.,
                 min_y: 0.,
-                max_y: 8.,
-                min_z: -5.,
-                max_z: 5.,
+                max_y: size.y,
+                min_z: -size.z / 2.,
+                max_z: size.z / 2.,
             })),
             material: materials.add(Color::rgb(1., 0.3, 0.6).into()),
-            transform: Transform::from_rotation(Quat::from_rotation_y(2.))
-                .with_translation(Vec3::new(510., 0., 500.)),
+            transform: Transform::from_rotation(Quat::from_rotation_y(rotation))
+                .with_translation(Vec3::new(position.x, 0., position.y)),
             ..Default::default()
         })
         .insert(Name::new("Building"))
