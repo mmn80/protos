@@ -2,10 +2,21 @@ use std::ops::Add;
 
 use bevy::prelude::*;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GridPos {
     pub x: u32,
     pub y: u32,
+}
+
+impl GridPos {
+    pub fn new(x: u32, y: u32) -> Self {
+        Self { x, y }
+    }
+
+    pub fn distance(&self, other: GridPos) -> u32 {
+        ((self.x as f32 - other.x as f32).powf(2.) + (self.y as f32 - other.y as f32).powf(2.))
+            .sqrt() as u32
+    }
 }
 
 impl Add for GridPos {

@@ -1,7 +1,9 @@
 use std::f32::consts::PI;
+use std::time::Instant;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use big_brain::{prelude::*, thinker::HasThinker};
+use pathfinding::prelude::astar;
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
@@ -9,6 +11,8 @@ use crate::ai::{fast_unit_index::Neighbours, ground::Ground};
 use crate::camera::ScreenPosition;
 use crate::ui::multi_select::Selected;
 use crate::ui::side_panel::SidePanelState;
+
+use super::sparse_grid::GridPos;
 
 pub struct FastUnitPlugin;
 
@@ -18,6 +22,7 @@ impl Plugin for FastUnitPlugin {
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
+            .add_system(compute_paths)
             .add_system(move_to_target)
             .add_system(avoid_collisions)
             .add_system(apply_velocity)
@@ -58,15 +63,17 @@ fn setup(
             mats
         };
         let mut units = vec![];
+        let area_dist = LogNormal::new(PI * 0.8 * 0.8, 0.4).unwrap();
+        let mut rng = thread_rng();
         for x in (10..ground.width() - 10).step_by(10) {
             for z in (10..ground.width() - 10).step_by(10) {
-                let scale = get_random_radius(0.8, 0.4);
+                let scale = f32::sqrt(area_dist.sample(&mut rng) / PI);
                 units.push(
                     commands
                         .spawn_bundle(PbrBundle {
                             mesh: mesh.clone(),
                             material: mats[rng.gen_range(0..mats.len())].clone(),
-                            transform: Transform::from_xyz(x as f32, 1.5, z as f32)
+                            transform: Transform::from_xyz(x as f32 + 0.5, 1.5, z as f32 + 0.5)
                                 .with_scale(Vec3::new(scale, 1., scale)),
                             ..Default::default()
                         })
@@ -94,11 +101,21 @@ fn setup(
     }
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug)]
 pub struct Velocity {
     pub velocity: Vec3,
     pub breaking: bool,
     pub ignore_collisions: bool,
+}
+
+impl Default for Velocity {
+    fn default() -> Self {
+        Self {
+            velocity: Vec3::ZERO,
+            breaking: true,
+            ignore_collisions: false,
+        }
+    }
 }
 
 fn apply_velocity(
@@ -117,7 +134,6 @@ fn apply_velocity(
         if velocity.breaking {
             if velocity.velocity.length() < 0.5 {
                 velocity.velocity = Vec3::ZERO;
-                velocity.breaking = false;
             } else {
                 let dir = velocity.velocity.normalize();
                 velocity.velocity -= 20. * dir * dt;
@@ -131,22 +147,29 @@ fn apply_velocity(
             let pos = transform.translation;
             let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
             if ground.contains(pos) && ground.get_tile(pos.into()).is_none() {
-                let mut free_tile_count = 0;
-                for i in 1..100 {
+                for i in 1..200 {
                     let cell = pos + (i as f32) * Vec3::X;
                     if !ground.contains(cell) {
                         break;
                     }
-                    if ground.get_tile(cell.into()).is_some() {
-                        free_tile_count += 1;
-                    } else {
-                        free_tile_count = 0;
-                    }
-                    if free_tile_count > 2 {
-                        transform.translation = cell;
-                        velocity.velocity = Vec3::ZERO;
-                        velocity.breaking = true;
-                        break;
+                    let c = cell.into();
+                    if ground.get_tile(c).is_some() {
+                        let neigh = vec![
+                            GridPos::new(c.x + 1, c.y),
+                            GridPos::new(c.x + 1, c.y - 1),
+                            GridPos::new(c.x, c.y - 1),
+                            GridPos::new(c.x - 1, c.y - 1),
+                            GridPos::new(c.x - 1, c.y),
+                            GridPos::new(c.x - 1, c.y + 1),
+                            GridPos::new(c.x, c.y + 1),
+                            GridPos::new(c.x + 1, c.y + 1),
+                        ];
+                        if neigh.iter().all(|p| ground.get_tile(*p).is_some()) {
+                            transform.translation = cell;
+                            velocity.velocity = Vec3::ZERO;
+                            velocity.breaking = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -167,7 +190,7 @@ fn avoid_collisions(
 ) {
     let dt = time.delta_seconds();
     for (transform, neighbours, mut velocity) in query.iter_mut() {
-        if velocity.ignore_collisions {
+        if velocity.ignore_collisions || ground.get_tile_vec3(transform.translation).is_none() {
             continue;
         }
         let speed = velocity.velocity.length();
@@ -227,50 +250,157 @@ fn avoid_collisions(
     }
 }
 
-#[derive(Clone, Component, Debug, Default)]
-pub struct MoveTarget {
+#[derive(Clone, Component, Debug)]
+pub struct MoveTo {
     pub target: Vec3,
     pub speed: f32,
+    pub start_time: Instant,
+}
+
+impl Default for MoveTo {
+    fn default() -> Self {
+        Self {
+            target: Vec3::ZERO,
+            speed: 0.,
+            start_time: Instant::now(),
+        }
+    }
+}
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct MoveToPath {
+    pub path: Vec<GridPos>,
+    pub current: usize,
+}
+
+fn compute_paths(
+    ground: Res<Ground>,
+    query: Query<(Entity, &Transform, &MoveTo), Without<MoveToPath>>,
+    mut cmd: Commands,
+) {
+    let begin = Instant::now();
+    let mut paths = 0;
+    let mut failed = 0;
+    let mut todo = vec![];
+    for (
+        entity,
+        transform,
+        MoveTo {
+            target,
+            speed: _,
+            start_time,
+        },
+    ) in query.iter()
+    {
+        let start = transform.translation.into();
+        let end = (*target).into();
+        todo.push((entity, start, end, start_time));
+    }
+    todo.sort_unstable_by_key(|(_, _, _, t)| *t);
+    todo.reverse();
+
+    let astar_begin = Instant::now();
+    for (entity, start, end, _) in todo {
+        let result = astar(
+            &start,
+            |p| ground.nav_grid_successors(*p),
+            |p| p.distance(end),
+            |p| *p == end,
+        );
+        let path = if let Some((path, _)) = result {
+            path
+        } else {
+            failed += 1;
+            vec![]
+        };
+        cmd.entity(entity).insert(MoveToPath { path, current: 0 });
+
+        paths += 1;
+        let dt = (Instant::now() - begin).as_micros();
+        if dt > 1000 {
+            break;
+        }
+    }
+    let dt = (Instant::now() - begin).as_micros();
+    if paths > 0 && dt > 5000 {
+        let dt_astar = (Instant::now() - astar_begin).as_micros();
+        info!(
+            "{} paths ({} failed) computed in {}μs (setup: {}μs)",
+            paths,
+            failed,
+            dt,
+            dt - dt_astar
+        );
+    }
 }
 
 const TURN_ACC: f32 = 10.;
 
 fn move_to_target(
     time: Res<Time>,
-    mut query: Query<(Entity, &Transform, &mut Velocity, &MoveTarget)>,
+    mut query: Query<(Entity, &Transform, &mut Velocity, &MoveTo, &mut MoveToPath)>,
     mut cmd: Commands,
 ) {
-    for (entity, transform, mut velocity, MoveTarget { target, speed }) in query.iter_mut() {
-        if (transform.translation - *target).length() > 0.5 {
-            let dt = time.delta_seconds();
-            let target_velocity = (*target - transform.translation).normalize() * *speed;
-            let acceleration = TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
-            velocity.velocity += acceleration;
-            velocity.breaking = false;
+    for (entity, transform, mut velocity, move_to, mut path) in query.iter_mut() {
+        if path.path.is_empty() {
+            let target = move_to.target;
+            if (transform.translation - target).length() > 0.5 {
+                let dt = time.delta_seconds();
+                let target_velocity = (target - transform.translation).normalize() * move_to.speed;
+                let acceleration =
+                    TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
+                velocity.velocity += acceleration;
+            } else {
+                cmd.entity(entity).remove::<MoveTo>();
+                cmd.entity(entity).remove::<MoveToPath>();
+                velocity.breaking = true;
+            }
         } else {
-            cmd.entity(entity).remove::<MoveTarget>();
-            velocity.breaking = true;
+            let p_max = path.path.len() - 1;
+            let target = {
+                let start_idx = path.current;
+                let end_idx = (start_idx + 8).min(p_max);
+                let curr = transform.translation.into();
+                for idx in start_idx..end_idx {
+                    if path.path[idx] == curr {
+                        path.current = (idx + 1).min(p_max);
+                        break;
+                    }
+                }
+                let target = path.path[path.current];
+                Vec3::new(
+                    target.x as f32 + 0.5,
+                    transform.translation.y,
+                    target.y as f32 + 0.5,
+                )
+            };
+            if (transform.translation - target).length() > 0.4 {
+                let dt = time.delta_seconds();
+                let target_velocity = (target - transform.translation).normalize() * move_to.speed;
+                let acceleration =
+                    TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
+                velocity.velocity += acceleration;
+            }
+            if path.current >= p_max {
+                cmd.entity(entity).remove::<MoveTo>();
+                cmd.entity(entity).remove::<MoveToPath>();
+                velocity.breaking = true;
+            }
         }
     }
-}
-
-pub fn get_random_radius(mean_radius: f32, stddev: f32) -> f32 {
-    let area_dist = LogNormal::new(PI * mean_radius * mean_radius, stddev).unwrap();
-    let area = area_dist.sample(&mut thread_rng());
-    f32::sqrt(area / PI)
 }
 
 #[derive(Clone, Component, Debug, Default)]
 pub struct RandomMove;
 
-const TARGET_DST: f32 = 3.;
+const TARGET_DST: f32 = 10.;
 const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
 
 fn random_move_action(
     ground: Res<Ground>,
     mut action_query: Query<(&Actor, &mut ActionState), With<RandomMove>>,
-    mut state_query: Query<(&Transform, Option<&MoveTarget>, &mut Velocity)>,
+    mut state_query: Query<(&Transform, Option<&MoveTo>, &mut Velocity)>,
     mut cmd: Commands,
 ) {
     for (Actor(actor), mut state) in action_query.iter_mut() {
@@ -290,7 +420,12 @@ fn random_move_action(
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
                     if ground.get_tile_vec3(target).is_some() {
-                        cmd.entity(*actor).insert(MoveTarget { target, speed });
+                        cmd.entity(*actor).insert(MoveTo {
+                            target,
+                            speed,
+                            start_time: Instant::now(),
+                        });
+                        velocity.breaking = false;
                         *state = ActionState::Executing;
                     } else {
                         // warn!("invalid ground tile {}", target);
@@ -302,7 +437,8 @@ fn random_move_action(
                     }
                 }
                 ActionState::Cancelled => {
-                    cmd.entity(*actor).remove::<MoveTarget>();
+                    cmd.entity(*actor).remove::<MoveTo>();
+                    cmd.entity(*actor).remove::<MoveToPath>();
                     velocity.breaking = true;
                     *state = ActionState::Failure;
                 }

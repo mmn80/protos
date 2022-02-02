@@ -158,6 +158,58 @@ impl Ground {
         &self.nav_grid
     }
 
+    pub fn nav_grid_successors(&self, GridPos { x, y }: GridPos) -> Vec<(GridPos, u32)> {
+        let w = self.width() - 1;
+        let h = self.height() - 1;
+        let ss = if x > 0 && x < w && y > 0 && y < h {
+            vec![
+                GridPos::new(x + 1, y),
+                GridPos::new(x, y - 1),
+                GridPos::new(x - 1, y),
+                GridPos::new(x, y + 1),
+            ]
+        } else if x > 0 && x < w && y <= 0 {
+            vec![
+                GridPos::new(x + 1, y),
+                GridPos::new(x - 1, y),
+                GridPos::new(x, y + 1),
+            ]
+        } else if x > 0 && x < w && y >= h {
+            vec![
+                GridPos::new(x + 1, y),
+                GridPos::new(x, y - 1),
+                GridPos::new(x - 1, y),
+            ]
+        } else if y > 0 && y < h && x <= 0 {
+            vec![
+                GridPos::new(x + 1, y),
+                GridPos::new(x, y - 1),
+                GridPos::new(x, y + 1),
+            ]
+        } else if y > 0 && y < h && x >= w {
+            vec![
+                GridPos::new(x, y - 1),
+                GridPos::new(x - 1, y),
+                GridPos::new(x, y + 1),
+            ]
+        } else if x <= 0 && y <= 0 {
+            vec![GridPos::new(x + 1, y), GridPos::new(x, y + 1)]
+        } else if x <= 0 && y >= h {
+            vec![GridPos::new(x + 1, y), GridPos::new(x, y - 1)]
+        } else if x >= w && y <= 0 {
+            vec![GridPos::new(x - 1, y), GridPos::new(x, y + 1)]
+        } else if x >= w && y >= h {
+            vec![GridPos::new(x, y - 1), GridPos::new(x - 1, y)]
+        } else {
+            panic!("IMPOSSIBRU")
+        };
+        ss.into_iter()
+            .map(|p| (p, self.nav_grid.get(p)))
+            .filter(|(_, c)| c.is_some())
+            .map(|(p, c)| (p, c.unwrap().get() as u32))
+            .collect()
+    }
+
     pub fn get_tile_ref(&self, pos: GridPos) -> Option<GroundMaterialRef> {
         self.tiles.get(pos).map(|id| *id)
     }
