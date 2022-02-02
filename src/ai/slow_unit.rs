@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     camera::ScreenPosition,
-    ui::{multi_select::Selected, side_panel::SidePanelState},
+    ui::{multi_select::Selectable, side_panel::SidePanelState},
 };
 
 pub struct SlowUnitPlugin;
@@ -124,7 +124,7 @@ fn spawn(
         .insert(Name::new("Building"))
         .insert(NavGridCarve::default())
         .insert(ScreenPosition::default())
-        .insert(Selected::default())
+        .insert(Selectable)
         .add_child(tower_id)
         .id();
     if !is_static {

@@ -56,7 +56,7 @@ fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    query: Query<(&Name, &Selected, &Transform)>,
+    query: Query<(&Name, &Transform), With<Selected>>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -83,11 +83,10 @@ fn update_side_panel(
                     ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
                     ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
 
-                    let sel: Vec<_> = query.iter().filter(|(_, s, _)| s.selected).collect();
-                    if !sel.is_empty() {
+                    if !query.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
-                        for (name, _, transform) in sel {
+                        for (name, transform) in query.iter() {
                             let pos = transform.translation;
                             ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
                         }

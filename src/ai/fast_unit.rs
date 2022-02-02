@@ -9,7 +9,7 @@ use rand_distr::{Distribution, LogNormal};
 
 use crate::ai::{fast_unit_index::Neighbours, ground::Ground};
 use crate::camera::ScreenPosition;
-use crate::ui::multi_select::Selected;
+use crate::ui::multi_select::{Selectable, Selected};
 use crate::ui::side_panel::SidePanelState;
 
 use super::sparse_grid::GridPos;
@@ -79,7 +79,7 @@ fn setup(
                         })
                         .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
                         .insert(ScreenPosition::default())
-                        .insert(Selected::default())
+                        .insert(Selectable)
                         .insert(Velocity::default())
                         .insert(Neighbours::default())
                         .insert(
@@ -455,13 +455,15 @@ pub struct Drunk;
 
 pub fn drunk_scorer(
     ui: Res<SidePanelState>,
-    selected: Query<&Selected>,
+    selected: Query<With<Selected>>,
     mut query: Query<(&Actor, &mut Score), With<Drunk>>,
 ) {
     for (Actor(actor), mut score) in query.iter_mut() {
         let mut new_score = 0.;
-        if let Ok(sel) = selected.get(*actor) {
-            if ui.random_walk_all || (ui.random_walk_selected && sel.selected) {
+        if ui.random_walk_all {
+            new_score = 1.;
+        } else if selected.get(*actor).is_ok() {
+            if ui.random_walk_selected {
                 new_score = 1.;
             }
         }
@@ -495,7 +497,7 @@ fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
 }
 
 fn show_unit_debug_info(
-    unit_query: Query<(Entity, &Selected, &Neighbours), With<HasThinker>>,
+    unit_query: Query<(Entity, &Neighbours), (With<Selected>, With<HasThinker>)>,
     thinker_query: Query<(Entity, &Actor, &Thinker)>,
     action_query: Query<(
         Entity,
@@ -506,39 +508,35 @@ fn show_unit_debug_info(
     )>,
 ) {
     let mut info = String::new();
-    for (unit_ent, selected, neighbours) in unit_query.iter() {
-        if selected.selected {
-            info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
-            for (thinker_ent, actor, thinker) in thinker_query.iter() {
-                if actor.0 == unit_ent {
-                    info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
-                    info.push_str(format!("{:?}\n", thinker).as_str());
-                    break;
-                }
+    for (unit_ent, neighbours) in unit_query.iter() {
+        info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
+        for (thinker_ent, actor, thinker) in thinker_query.iter() {
+            if actor.0 == unit_ent {
+                info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
+                info.push_str(format!("{:?}\n", thinker).as_str());
+                break;
             }
-            info.push_str(
-                format!(
-                    "neighbours (<{}m): {:?}\n",
-                    neighbours.range, neighbours.neighbours
-                )
-                .as_str(),
-            );
-            for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
-                if actor.0 == unit_ent {
-                    info.push_str(
-                        format!("action: {:?} ({:?})", action_ent, action_state).as_str(),
-                    );
-                    if let Some(random_move) = random_move {
-                        info.push_str(format!(" {:?}\n", random_move).as_str());
-                    } else if let Some(idle) = idle {
-                        info.push_str(format!(" {:?}\n", idle).as_str());
-                    } else {
-                        info.push_str(" mistery action\n");
-                    }
-                }
-            }
-            break;
         }
+        info.push_str(
+            format!(
+                "neighbours (<{}m): {:?}\n",
+                neighbours.range, neighbours.neighbours
+            )
+            .as_str(),
+        );
+        for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
+            if actor.0 == unit_ent {
+                info.push_str(format!("action: {:?} ({:?})", action_ent, action_state).as_str());
+                if let Some(random_move) = random_move {
+                    info.push_str(format!(" {:?}\n", random_move).as_str());
+                } else if let Some(idle) = idle {
+                    info.push_str(format!(" {:?}\n", idle).as_str());
+                } else {
+                    info.push_str(" mistery action\n");
+                }
+            }
+        }
+        break;
     }
     info!("{}", info);
 }

@@ -69,9 +69,10 @@ impl SelectionState {
 }
 
 #[derive(Clone, Component, Debug, Default)]
-pub struct Selected {
-    pub selected: bool,
-}
+pub struct Selectable;
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct Selected;
 
 fn update_units_selected(
     mut selection: ResMut<SelectionState>,
@@ -79,7 +80,8 @@ fn update_units_selected(
     input_mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     egui_ctx: ResMut<bevy_egui::EguiContext>,
-    mut units_query: Query<(&ScreenPosition, &mut Selected)>,
+    mut units_query: Query<(Entity, &ScreenPosition), With<Selectable>>,
+    mut cmd: Commands,
 ) {
     if egui_ctx.ctx().wants_pointer_input() {
         return;
@@ -109,15 +111,15 @@ fn update_units_selected(
     };
 
     if let Some(rect) = do_select_rect {
-        for (ScreenPosition { position }, mut selected) in units_query.iter_mut() {
+        for (entity, ScreenPosition { position }) in units_query.iter_mut() {
             if position.x > rect.left
                 && position.x < rect.right
                 && position.y < rect.top
                 && position.y > rect.bottom
             {
-                selected.selected = true;
+                cmd.entity(entity).insert(Selected);
             } else if selection.clear_previous {
-                selected.selected = false;
+                cmd.entity(entity).remove::<Selected>();
             }
         }
         selection.begin = None;
