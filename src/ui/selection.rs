@@ -2,12 +2,12 @@ use bevy::prelude::*;
 
 use crate::camera::ScreenPosition;
 
-pub struct MultiSelectPlugin;
+pub struct SelectionPlugin;
 
-impl Plugin for MultiSelectPlugin {
+impl Plugin for SelectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup)
-            .insert_resource(SelectionState::default())
+            .insert_resource(SelectionRect::default())
             .add_system_to_stage(
                 CoreStage::PreUpdate,
                 update_units_selected.after("update_screen_position"),
@@ -15,9 +15,6 @@ impl Plugin for MultiSelectPlugin {
             .add_system(update_select_ui_rect);
     }
 }
-
-#[derive(Clone, Component, Debug, Default)]
-pub struct MultiSelectUiNode;
 
 fn setup(mut commands: Commands) {
     commands.spawn_bundle(UiCameraBundle::default());
@@ -42,18 +39,27 @@ fn setup(mut commands: Commands) {
                     visibility: Visibility { is_visible: false },
                     ..Default::default()
                 })
-                .insert(MultiSelectUiNode);
+                .insert(SelectionRectUiNode);
         });
 }
 
+#[derive(Clone, Component, Debug, Default)]
+pub struct Selectable;
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct Selected;
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct SelectionRectUiNode;
+
 #[derive(Debug, Clone, Default)]
-pub struct SelectionState {
+pub struct SelectionRect {
     pub clear_previous: bool,
     pub begin: Option<Vec2>,
     pub end: Option<Vec2>,
 }
 
-impl SelectionState {
+impl SelectionRect {
     pub fn get_rect(&self) -> Option<Rect<f32>> {
         if let (Some(begin), Some(end)) = (self.begin, self.end) {
             Some(Rect {
@@ -68,14 +74,8 @@ impl SelectionState {
     }
 }
 
-#[derive(Clone, Component, Debug, Default)]
-pub struct Selectable;
-
-#[derive(Clone, Component, Debug, Default)]
-pub struct Selected;
-
 fn update_units_selected(
-    mut selection: ResMut<SelectionState>,
+    mut selection_rect: ResMut<SelectionRect>,
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
@@ -87,24 +87,24 @@ fn update_units_selected(
         return;
     }
     let do_select_rect = {
-        selection.clear_previous = !keyboard.pressed(KeyCode::LShift);
+        selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
         let mouse_pos = windows.get_primary().unwrap().cursor_position();
         if input_mouse.just_pressed(MouseButton::Left) {
-            selection.begin = mouse_pos.map(|pos| Vec2::new(pos.x, pos.y));
-            selection.end = selection.begin;
+            selection_rect.begin = mouse_pos.map(|pos| Vec2::new(pos.x, pos.y));
+            selection_rect.end = selection_rect.begin;
             // info!("start selecting at {:?}", selection.begin);
-        } else if selection.begin.is_some() {
+        } else if selection_rect.begin.is_some() {
             if input_mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
-                selection.end = Some(mouse_pos.unwrap());
+                selection_rect.end = Some(mouse_pos.unwrap());
             } else if !input_mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
                 // info!("cancel selecting at {:?}", selection.end);
-                selection.begin = None;
-                selection.end = None;
+                selection_rect.begin = None;
+                selection_rect.end = None;
             }
         }
         if input_mouse.just_released(MouseButton::Left) {
             // info!("end selecting at {:?}", selection.end);
-            selection.get_rect()
+            selection_rect.get_rect()
         } else {
             None
         }
@@ -118,21 +118,21 @@ fn update_units_selected(
                 && position.y > rect.bottom
             {
                 cmd.entity(entity).insert(Selected);
-            } else if selection.clear_previous {
+            } else if selection_rect.clear_previous {
                 cmd.entity(entity).remove::<Selected>();
             }
         }
-        selection.begin = None;
-        selection.end = None;
+        selection_rect.begin = None;
+        selection_rect.end = None;
     }
 }
 
 fn update_select_ui_rect(
-    selection: Res<SelectionState>,
-    mut ui_query: Query<(&mut Style, &mut Visibility), With<MultiSelectUiNode>>,
+    selection_rect: Res<SelectionRect>,
+    mut ui_query: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
     for (mut style, mut visibility) in ui_query.iter_mut() {
-        if let Some(rect) = selection.get_rect() {
+        if let Some(rect) = selection_rect.get_rect() {
             style.size.width = Val::Px(rect.right - rect.left);
             style.size.height = Val::Px(rect.top - rect.bottom);
             style.position.left = Val::Px(rect.left);

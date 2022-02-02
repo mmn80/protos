@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     camera::ScreenPosition,
-    ui::{multi_select::Selectable, side_panel::SidePanelState},
+    ui::{selection::Selectable, side_panel::SidePanelState},
 };
 
 pub struct SlowUnitPlugin;

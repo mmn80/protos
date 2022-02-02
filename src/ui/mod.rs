@@ -1,2 +1,2 @@
-pub mod multi_select;
+pub mod selection;
 pub mod side_panel;

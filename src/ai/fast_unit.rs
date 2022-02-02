@@ -9,7 +9,7 @@ use rand_distr::{Distribution, LogNormal};
 
 use crate::ai::{fast_unit_index::Neighbours, ground::Ground};
 use crate::camera::ScreenPosition;
-use crate::ui::multi_select::{Selectable, Selected};
+use crate::ui::selection::{Selectable, Selected};
 use crate::ui::side_panel::SidePanelState;
 
 use super::sparse_grid::GridPos;

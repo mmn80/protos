@@ -9,7 +9,7 @@ use protos::{
     },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
-    ui::{multi_select::MultiSelectPlugin, side_panel::SidePanelPlugin},
+    ui::{selection::SelectionPlugin, side_panel::SidePanelPlugin},
 };
 
 fn main() {
@@ -24,7 +24,7 @@ fn main() {
         .add_plugin(EguiPlugin)
         .add_plugin(BigBrainPlugin)
         .add_plugin(SidePanelPlugin)
-        .add_plugin(MultiSelectPlugin)
+        .add_plugin(SelectionPlugin)
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
         .add_plugin(GroundPlugin)

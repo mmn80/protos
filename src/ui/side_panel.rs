@@ -6,7 +6,7 @@ use bevy_egui::{egui, EguiContext, EguiSettings};
 
 use crate::ai::ground::GroundMaterials;
 
-use super::multi_select::Selected;
+use super::selection::Selected;
 
 pub struct SidePanelPlugin;
 
