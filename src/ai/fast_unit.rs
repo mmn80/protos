@@ -109,7 +109,7 @@ fn apply_velocity(
     let dt = time.delta_seconds();
     for (mut transform, mut velocity) in query.iter_mut() {
         let pos = transform.translation + velocity.velocity * dt;
-        if velocity.ignore_collisions || ground.get_tile(pos.into()).is_some() {
+        if velocity.ignore_collisions || ground.get_tile_vec3(pos).is_some() {
             transform.translation = pos;
         } else {
             velocity.velocity = Vec3::ZERO;
@@ -130,12 +130,14 @@ fn apply_velocity(
         if !velocity.ignore_collisions {
             let pos = transform.translation;
             let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
-            if ground.get_tile(pos.into()).is_none() {
+            if ground.contains(pos) && ground.get_tile(pos.into()).is_none() {
                 let mut free_tile_count = 0;
                 for i in 1..100 {
                     let cell = pos + (i as f32) * Vec3::X;
-                    let grid_pos = cell.into();
-                    if ground.contains(grid_pos) && ground.get_tile(grid_pos).is_some() {
+                    if !ground.contains(cell) {
+                        break;
+                    }
+                    if ground.get_tile(cell.into()).is_some() {
                         free_tile_count += 1;
                     } else {
                         free_tile_count = 0;
@@ -206,7 +208,7 @@ fn avoid_collisions(
             pos + Vec3::X - Vec3::Z,
             pos - Vec3::X + Vec3::Z,
         ] {
-            if ground.get_tile(cell.into()).is_none() {
+            if ground.get_tile_vec3(cell).is_none() {
                 free = false;
                 let src_size = transform.scale.x;
                 let dir = transform.translation - cell;
@@ -287,7 +289,7 @@ fn random_move_action(
                     );
                     let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
                     let speed = rng.gen_range(min_s..max_s);
-                    if ground.get_tile(target.into()).is_some() {
+                    if ground.get_tile_vec3(target).is_some() {
                         cmd.entity(*actor).insert(MoveTarget { target, speed });
                         *state = ActionState::Executing;
                     } else {

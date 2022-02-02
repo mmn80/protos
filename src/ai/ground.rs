@@ -1,3 +1,5 @@
+use std::num::NonZeroU8;
+
 use bevy::{prelude::*, render::render_resource::Extent3d};
 use bevy_mod_raycast::{
     DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
@@ -68,7 +70,7 @@ fn setup(
 #[derive(Debug, Clone)]
 pub struct GroundMaterial {
     pub color: Color,
-    pub nav_cost: u8,
+    pub nav_cost: NonZeroU8,
 }
 
 #[derive(Debug, Copy, Clone, Default)]
@@ -102,7 +104,7 @@ pub struct Ground {
     pub entity: Option<Entity>,
     palette: Vec<GroundMaterial>,
     tiles: SparseGrid<GroundMaterialRef>,
-    nav_grid: SparseGrid<u8>,
+    nav_grid: SparseGrid<NonZeroU8>,
     material: Handle<StandardMaterial>,
     dirty_rects: Vec<Rect<u32>>,
 }
@@ -114,12 +116,12 @@ impl Ground {
     pub fn new(width: u32, height: u32) -> Self {
         let grass = GroundMaterial {
             color: Color::rgb(0.3, 0.5, 0.3),
-            nav_cost: 32,
+            nav_cost: NonZeroU8::new(32).unwrap(),
         };
         let grass_nav_cost = grass.nav_cost;
         let road = GroundMaterial {
             color: Color::rgb(0.8, 0.7, 0.5),
-            nav_cost: 1,
+            nav_cost: NonZeroU8::new(1).unwrap(),
         };
         Self {
             entity: None,
@@ -141,8 +143,8 @@ impl Ground {
         self.tiles.height()
     }
 
-    pub fn contains(&self, pos: GridPos) -> bool {
-        pos.x < self.width() && pos.y < self.height()
+    pub fn contains(&self, pos: Vec3) -> bool {
+        pos.x >= 0. && pos.x < self.width() as f32 && pos.z >= 0. && pos.z < self.height() as f32
     }
 
     pub fn register_ground_material(&mut self, tile: GroundMaterial) -> GroundMaterialRef {
@@ -152,12 +154,22 @@ impl Ground {
         GroundMaterialRef(id as u16)
     }
 
-    pub fn nav_grid(&self) -> &SparseGrid<u8> {
+    pub fn nav_grid(&self) -> &SparseGrid<NonZeroU8> {
         &self.nav_grid
     }
 
     pub fn get_tile_ref(&self, pos: GridPos) -> Option<GroundMaterialRef> {
         self.tiles.get(pos).map(|id| *id)
+    }
+
+    pub fn get_tile_vec3(&self, pos: Vec3) -> Option<&GroundMaterial> {
+        if !self.contains(pos) {
+            None
+        } else {
+            self.tiles
+                .get(pos.into())
+                .map(|id| &self.palette[id.0 as usize])
+        }
     }
 
     pub fn get_tile(&self, pos: GridPos) -> Option<&GroundMaterial> {
