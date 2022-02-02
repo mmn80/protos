@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
-use bevy_inspector_egui::{Inspectable, RegisterInspectable};
 use big_brain::{prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
@@ -22,9 +21,7 @@ impl Plugin for FastUnitPlugin {
             .add_system(move_to_target)
             .add_system(avoid_collisions)
             .add_system(apply_velocity)
-            .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed))
-            .register_inspectable::<Velocity>()
-            .register_inspectable::<MoveTarget>();
+            .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed));
     }
 }
 
@@ -97,7 +94,7 @@ fn setup(
     }
 }
 
-#[derive(Clone, Component, Debug, Default, Inspectable)]
+#[derive(Clone, Component, Debug, Default)]
 pub struct Velocity {
     pub velocity: Vec3,
     pub breaking: bool,
@@ -227,7 +224,7 @@ fn avoid_collisions(
     }
 }
 
-#[derive(Clone, Component, Debug, Default, Inspectable)]
+#[derive(Clone, Component, Debug, Default)]
 pub struct MoveTarget {
     pub target: Vec3,
     pub speed: f32,

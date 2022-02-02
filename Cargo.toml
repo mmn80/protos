@@ -10,7 +10,6 @@ publish = false
 bevy = "0.6"
 bevy_egui = "0.10"
 bevy_mod_raycast = "0.3"
-bevy-inspector-egui = "0.7"
 big-brain = "0.10"
 
 rand = "0.8"

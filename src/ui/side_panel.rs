@@ -3,7 +3,6 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
-use bevy_inspector_egui::{plugin::InspectorWindows, Inspectable, InspectorPlugin};
 
 use crate::ai::ground::GroundMaterials;
 
@@ -15,15 +14,13 @@ impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(SidePanelState::default())
             .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-            .add_plugin(InspectorPlugin::<InspectedEntity>::new())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
             .insert_resource(SidePanelState::default())
             .add_startup_system(configure_egui)
-            .add_system(update_side_panel)
-            .add_system(update_inspected_entity);
+            .add_system(update_side_panel);
     }
 }
 
@@ -38,7 +35,6 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 pub struct SidePanelState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
-    pub inspector_visible: bool,
     pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
     pub spawn_building: bool,
@@ -49,7 +45,6 @@ impl Default for SidePanelState {
         Self {
             random_walk_selected: Default::default(),
             random_walk_all: Default::default(),
-            inspector_visible: Default::default(),
             ground_brush_size: 1,
             ground_material: Default::default(),
             spawn_building: false,
@@ -85,7 +80,6 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.inspector_visible, "Show inspector");
                     ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
                     ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
 
@@ -115,25 +109,4 @@ fn update_side_panel(
                     ui.checkbox(&mut state.spawn_building, "Spawn building");
                 });
         });
-}
-
-#[derive(Inspectable, Default)]
-struct InspectedEntity {
-    entity: Option<Entity>,
-}
-
-fn update_inspected_entity(
-    state: Res<SidePanelState>,
-    mut inspector_windows: ResMut<InspectorWindows>,
-    mut inspected: ResMut<InspectedEntity>,
-    query: Query<(Entity, &Selected)>,
-) {
-    let window_data = inspector_windows.window_data_mut::<InspectedEntity>();
-    window_data.visible = state.inspector_visible;
-    for (entity, selection) in query.iter() {
-        if selection.selected {
-            inspected.entity = Some(entity);
-            break;
-        }
-    }
 }
