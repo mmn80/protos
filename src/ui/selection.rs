@@ -1,6 +1,11 @@
-use bevy::prelude::*;
+use bevy::{pbr::NotShadowCaster, prelude::*};
 
-use crate::camera::ScreenPosition;
+use crate::{
+    ai::{fast_unit::MoveToPath, ground::Ground},
+    camera::ScreenPosition,
+};
+
+use super::side_panel::SidePanelState;
 
 pub struct SelectionPlugin;
 
@@ -12,7 +17,8 @@ impl Plugin for SelectionPlugin {
                 CoreStage::PreUpdate,
                 update_units_selected.after("update_screen_position"),
             )
-            .add_system(update_select_ui_rect);
+            .add_system(update_select_ui_rect)
+            .add_system(update_nav_path_trails);
     }
 }
 
@@ -142,6 +148,75 @@ fn update_select_ui_rect(
             visibility.is_visible = true;
         } else {
             visibility.is_visible = false;
+        }
+    }
+}
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct NavPathTrail {
+    path: Vec<Entity>,
+}
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct NavPathTrailElement;
+
+fn update_nav_path_trails(
+    mut meshes: ResMut<Assets<Mesh>>,
+    ui: Res<SidePanelState>,
+    ground: Res<Ground>,
+    selected_query: Query<
+        (Entity, &Handle<StandardMaterial>, &MoveToPath),
+        (With<Selected>, Without<NavPathTrail>),
+    >,
+    all_query: Query<(
+        Entity,
+        &NavPathTrail,
+        Option<&Selected>,
+        Option<&MoveToPath>,
+    )>,
+    mut visibility_query: Query<&mut Visibility, With<NavPathTrailElement>>,
+    mut cmd: Commands,
+) {
+    if ui.show_path_selected {
+        for (entity, material, nav_path) in selected_query.iter() {
+            let mesh = meshes.add(Mesh::from(shape::Icosphere {
+                radius: 0.2,
+                subdivisions: 2,
+            }));
+            let path: Vec<_> = nav_path
+                .path
+                .iter()
+                .map(|p| {
+                    cmd.spawn_bundle(PbrBundle {
+                        mesh: mesh.clone(),
+                        material: material.clone(),
+                        transform: Transform::from_translation(Vec3::new(
+                            p.x as f32 + 0.5,
+                            0.2,
+                            p.y as f32 + 0.5,
+                        )),
+                        ..Default::default()
+                    })
+                    .insert(NavPathTrailElement)
+                    .insert(NotShadowCaster)
+                    .id()
+                })
+                .collect();
+            cmd.entity(ground.entity.unwrap()).push_children(&path);
+            cmd.entity(entity).insert(NavPathTrail { path });
+        }
+    }
+    for (entity, trail, selected, path) in all_query.iter() {
+        if !ui.show_path_selected || selected.is_none() || path.is_none() {
+            cmd.entity(entity).remove::<NavPathTrail>();
+            for marker in &trail.path {
+                cmd.entity(*marker).despawn_recursive();
+            }
+        } else if let Some(path) = path {
+            for i in 0..path.current {
+                let marker_ent = trail.path[i];
+                visibility_query.get_mut(marker_ent).unwrap().is_visible = false;
+            }
         }
     }
 }

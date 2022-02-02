@@ -273,6 +273,13 @@ pub struct MoveToPath {
     pub current: usize,
 }
 
+fn clear_path_components(commands: &mut Commands, entity: Entity) {
+    commands
+        .entity(entity)
+        .remove::<MoveTo>()
+        .remove::<MoveToPath>();
+}
+
 fn compute_paths(
     ground: Res<Ground>,
     query: Query<(Entity, &Transform, &MoveTo), Without<MoveToPath>>,
@@ -351,8 +358,7 @@ fn move_to_target(
                     TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
                 velocity.velocity += acceleration;
             } else {
-                cmd.entity(entity).remove::<MoveTo>();
-                cmd.entity(entity).remove::<MoveToPath>();
+                clear_path_components(&mut cmd, entity);
                 velocity.breaking = true;
             }
         } else {
@@ -382,8 +388,7 @@ fn move_to_target(
                 velocity.velocity += acceleration;
             }
             if path.current >= p_max {
-                cmd.entity(entity).remove::<MoveTo>();
-                cmd.entity(entity).remove::<MoveToPath>();
+                clear_path_components(&mut cmd, entity);
                 velocity.breaking = true;
             }
         }
@@ -437,8 +442,7 @@ fn random_move_action(
                     }
                 }
                 ActionState::Cancelled => {
-                    cmd.entity(*actor).remove::<MoveTo>();
-                    cmd.entity(*actor).remove::<MoveToPath>();
+                    clear_path_components(&mut cmd, *actor);
                     velocity.breaking = true;
                     *state = ActionState::Failure;
                 }

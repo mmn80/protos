@@ -35,6 +35,7 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 pub struct SidePanelState {
     pub random_walk_selected: bool,
     pub random_walk_all: bool,
+    pub show_path_selected: bool,
     pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
     pub spawn_building: bool,
@@ -43,8 +44,9 @@ pub struct SidePanelState {
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
-            random_walk_selected: Default::default(),
-            random_walk_all: Default::default(),
+            random_walk_selected: false,
+            random_walk_all: false,
+            show_path_selected: true,
             ground_brush_size: 1,
             ground_material: Default::default(),
             spawn_building: false,
@@ -56,7 +58,7 @@ fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    query: Query<(&Name, &Transform), With<Selected>>,
+    selected_query: Query<(&Name, &Transform), With<Selected>>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -82,11 +84,12 @@ fn update_side_panel(
                 .show(ui, |ui| {
                     ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
                     ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
+                    ui.checkbox(&mut state.show_path_selected, "Show paths (selected)");
 
-                    if !query.is_empty() {
+                    if !selected_query.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
-                        for (name, transform) in query.iter() {
+                        for (name, transform) in selected_query.iter() {
                             let pos = transform.translation;
                             ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
                         }
