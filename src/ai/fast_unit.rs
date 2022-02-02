@@ -134,7 +134,8 @@ fn apply_velocity(
                 let mut free_tile_count = 0;
                 for i in 1..100 {
                     let cell = pos + (i as f32) * Vec3::X;
-                    if ground.get_tile(cell.into()).is_some() {
+                    let grid_pos = cell.into();
+                    if ground.contains(grid_pos) && ground.get_tile(grid_pos).is_some() {
                         free_tile_count += 1;
                     } else {
                         free_tile_count = 0;

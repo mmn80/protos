@@ -141,6 +141,10 @@ impl Ground {
         self.tiles.height()
     }
 
+    pub fn contains(&self, pos: GridPos) -> bool {
+        pos.x < self.width() && pos.y < self.height()
+    }
+
     pub fn register_ground_material(&mut self, tile: GroundMaterial) -> GroundMaterialRef {
         let id = self.palette.len();
         assert!(id < u16::MAX as usize);

@@ -33,18 +33,29 @@ fn setup(
 ) {
     let mut rng = thread_rng();
     for _ in 1..100 {
+        let is_static = rng.gen_bool(0.8);
+        let size = if is_static {
+            Vec3::new(
+                rng.gen_range(5.0..50.0),
+                rng.gen_range(2.0..15.0),
+                rng.gen_range(5.0..50.0),
+            )
+        } else {
+            Vec3::new(
+                rng.gen_range(5.0..20.0),
+                rng.gen_range(2.0..15.0),
+                rng.gen_range(5.0..20.0),
+            )
+        };
         spawn(
             &mut commands,
             &mut meshes,
             &ground,
             &mut materials,
-            Vec3::new(
-                rng.gen_range(5.0..20.0),
-                rng.gen_range(2.0..15.0),
-                rng.gen_range(5.0..20.0),
-            ),
+            size,
             Vec2::new(rng.gen_range(124.0..900.0), rng.gen_range(124.0..900.0)),
             rng.gen_range(0.0..2. * PI),
+            is_static,
         );
     }
 }
@@ -57,6 +68,7 @@ fn spawn(
     size: Vec3,
     position: Vec2,
     rotation: f32,
+    is_static: bool,
 ) {
     let mut rng = thread_rng();
     let material = materials.add(
@@ -70,10 +82,21 @@ fn spawn(
     let tower_size = size.x.min(size.z) / 10.;
     let tower_id = commands
         .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Icosphere {
-                radius: tower_size,
-                subdivisions: 4,
-            })),
+            mesh: meshes.add(if is_static {
+                Mesh::from(shape::Box {
+                    min_x: -tower_size,
+                    max_x: tower_size,
+                    min_y: -tower_size,
+                    max_y: tower_size,
+                    min_z: -tower_size,
+                    max_z: tower_size,
+                })
+            } else {
+                Mesh::from(shape::Icosphere {
+                    radius: tower_size,
+                    subdivisions: 4,
+                })
+            }),
             material: material.clone(),
             transform: Transform::from_translation(Vec3::new(
                 0.,
@@ -102,19 +125,23 @@ fn spawn(
         .insert(NavGridCarve::default())
         .insert(ScreenPosition::default())
         .insert(Selected::default())
-        .insert(Velocity {
-            velocity: Vec3::ZERO,
-            breaking: false,
-            ignore_collisions: true,
-        })
-        .insert(
-            Thinker::build()
-                .picker(FirstToScore { threshold: 0.8 })
-                .when(Drunk, RandomMove)
-                .otherwise(Idle),
-        )
         .add_child(tower_id)
         .id();
+    if !is_static {
+        commands
+            .entity(bld_id)
+            .insert(Velocity {
+                velocity: Vec3::ZERO,
+                breaking: false,
+                ignore_collisions: true,
+            })
+            .insert(
+                Thinker::build()
+                    .picker(FirstToScore { threshold: 0.8 })
+                    .when(Drunk, RandomMove)
+                    .otherwise(Idle),
+            );
+    }
     if let Some(ground_ent) = ground.entity {
         commands.entity(ground_ent).add_child(bld_id);
     } else {
@@ -138,6 +165,7 @@ fn building_spawning(
 }
 
 fn spawn_building(
+    keyboard: Res<Input<KeyCode>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     ground: Res<Ground>,
@@ -170,6 +198,7 @@ fn spawn_building(
                             ),
                             Vec2::new(center.x, center.z),
                             rng.gen_range(0.0..2. * PI),
+                            keyboard.pressed(KeyCode::LShift),
                         );
                         break;
                     }
