@@ -190,11 +190,7 @@ fn update_nav_path_trails(
                     cmd.spawn_bundle(PbrBundle {
                         mesh: mesh.clone(),
                         material: material.clone(),
-                        transform: Transform::from_translation(Vec3::new(
-                            p.x as f32 + 0.5,
-                            0.2,
-                            p.y as f32 + 0.5,
-                        )),
+                        transform: Transform::from_translation(Vec3::new(p.x, 0.2, p.z)),
                         ..Default::default()
                     })
                     .insert(NavPathTrailElement)

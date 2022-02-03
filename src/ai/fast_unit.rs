@@ -269,8 +269,16 @@ impl Default for MoveTo {
 
 #[derive(Clone, Component, Debug, Default)]
 pub struct MoveToPath {
-    pub path: Vec<GridPos>,
+    pub path: Vec<Vec3>,
     pub current: usize,
+}
+
+impl MoveToPath {
+    pub fn clean_up_grid_path(path: Vec<GridPos>, y: f32) -> Vec<Vec3> {
+        path.iter()
+            .map(|p| Vec3::new(p.x as f32 + 0.5, y, p.y as f32 + 0.5))
+            .collect()
+    }
 }
 
 fn clear_path_components(commands: &mut Commands, entity: Entity) {
@@ -301,13 +309,13 @@ fn compute_paths(
     {
         let start = transform.translation.into();
         let end = (*target).into();
-        todo.push((entity, start, end, start_time));
+        todo.push((entity, start, end, transform.translation.y, start_time));
     }
-    todo.sort_unstable_by_key(|(_, _, _, t)| *t);
+    todo.sort_unstable_by_key(|(_, _, _, _, t)| *t);
     todo.reverse();
 
     let astar_begin = Instant::now();
-    for (entity, start, end, _) in todo {
+    for (entity, start, end, y, _) in todo {
         let result = astar(
             &start,
             |p| ground.nav_grid_successors(*p),
@@ -315,7 +323,7 @@ fn compute_paths(
             |p| *p == end,
         );
         let path = if let Some((path, _)) = result {
-            path
+            MoveToPath::clean_up_grid_path(path, y)
         } else {
             failed += 1;
             vec![]
@@ -366,21 +374,16 @@ fn move_to_target(
             let target = {
                 let start_idx = path.current;
                 let end_idx = (start_idx + 8).min(p_max);
-                let curr = transform.translation.into();
+                let curr = transform.translation;
                 for idx in start_idx..end_idx {
-                    if path.path[idx] == curr {
+                    if (path.path[idx] - curr).length() < 1. {
                         path.current = (idx + 1).min(p_max);
                         break;
                     }
                 }
-                let target = path.path[path.current];
-                Vec3::new(
-                    target.x as f32 + 0.5,
-                    transform.translation.y,
-                    target.y as f32 + 0.5,
-                )
+                path.path[path.current]
             };
-            if (transform.translation - target).length() > 0.4 {
+            if (transform.translation - target).length() > 0.2 {
                 let dt = time.delta_seconds();
                 let target_velocity = (target - transform.translation).normalize() * move_to.speed;
                 let acceleration =
