@@ -14,13 +14,13 @@ impl Plugin for PathfindingPlugin {
 }
 
 #[derive(Clone, Component, Debug)]
-pub struct MoveTo {
+pub struct Moving {
     pub target: Vec3,
     pub speed: f32,
     pub start_time: Instant,
 }
 
-impl Default for MoveTo {
+impl Default for Moving {
     fn default() -> Self {
         Self {
             target: Vec3::ZERO,
@@ -31,12 +31,12 @@ impl Default for MoveTo {
 }
 
 #[derive(Clone, Component, Debug, Default)]
-pub struct MoveToPath {
+pub struct MovingPath {
     pub path: Vec<Vec3>,
     pub current: usize,
 }
 
-impl MoveToPath {
+impl MovingPath {
     pub fn smoothify_path(path: Vec<GridPos>, start: Vec3, end: Vec3) -> Vec<Vec3> {
         if path.is_empty() {
             return Vec::new();
@@ -74,13 +74,13 @@ impl MoveToPath {
 pub fn clear_path_components(commands: &mut Commands, entity: Entity) {
     commands
         .entity(entity)
-        .remove::<MoveTo>()
-        .remove::<MoveToPath>();
+        .remove::<Moving>()
+        .remove::<MovingPath>();
 }
 
 fn compute_paths(
     ground: Res<Ground>,
-    query: Query<(Entity, &Transform, &MoveTo), Without<MoveToPath>>,
+    query: Query<(Entity, &Transform, &Moving), Without<MovingPath>>,
     mut cmd: Commands,
 ) {
     let begin = Instant::now();
@@ -98,6 +98,7 @@ fn compute_paths(
         })
         .collect();
     todo.sort_unstable_by_key(|(_, _, _, t)| *t);
+    let total_todo = todo.len();
 
     let astar_begin = Instant::now();
     for (entity, start, end, _) in todo {
@@ -109,12 +110,12 @@ fn compute_paths(
             |p| *p == end_grid,
         );
         let path = if let Some((path, _)) = result {
-            MoveToPath::smoothify_path(path, start, end)
+            MovingPath::smoothify_path(path, start, end)
         } else {
             failed += 1;
             vec![]
         };
-        cmd.entity(entity).insert(MoveToPath { path, current: 0 });
+        cmd.entity(entity).insert(MovingPath { path, current: 0 });
 
         paths += 1;
         let dt = (Instant::now() - begin).as_micros();
@@ -123,11 +124,12 @@ fn compute_paths(
         }
     }
     let dt = (Instant::now() - begin).as_micros();
-    if paths > 0 && dt > 10000 {
+    if paths > 0 && dt > 1000 {
         let dt_astar = (Instant::now() - astar_begin).as_micros();
         info!(
-            "{} paths ({} failed) computed in {}μs (setup: {}μs)",
+            "{} / {} paths ({} failed) computed in {}μs (setup: {}μs)",
             paths,
+            total_todo,
             failed,
             dt,
             dt - dt_astar
@@ -139,7 +141,7 @@ const TURN_ACC: f32 = 10.;
 
 fn move_to_target(
     time: Res<Time>,
-    mut query: Query<(Entity, &Transform, &mut Velocity, &MoveTo, &mut MoveToPath)>,
+    mut query: Query<(Entity, &Transform, &mut Velocity, &Moving, &mut MovingPath)>,
     mut cmd: Commands,
 ) {
     for (entity, transform, mut velocity, move_to, mut path) in query.iter_mut() {

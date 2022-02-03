@@ -1,7 +1,7 @@
 use bevy::{pbr::NotShadowCaster, prelude::*};
 
 use crate::{
-    ai::{ground::Ground, pathfind::MoveToPath},
+    ai::{ground::Ground, pathfind::MovingPath},
     camera::ScreenPosition,
 };
 
@@ -165,14 +165,14 @@ fn update_nav_path_trails(
     ui: Res<SidePanelState>,
     ground: Res<Ground>,
     selected_query: Query<
-        (Entity, &Handle<StandardMaterial>, &MoveToPath),
+        (Entity, &Handle<StandardMaterial>, &MovingPath),
         (With<Selected>, Without<NavPathTrail>),
     >,
     all_query: Query<(
         Entity,
         &NavPathTrail,
         Option<&Selected>,
-        Option<&MoveToPath>,
+        Option<&MovingPath>,
     )>,
     mut visibility_query: Query<&mut Visibility, With<NavPathTrailElement>>,
     mut cmd: Commands,

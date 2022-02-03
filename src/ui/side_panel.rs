@@ -33,8 +33,8 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 }
 
 pub struct SidePanelState {
-    pub random_walk_selected: bool,
-    pub random_walk_all: bool,
+    pub ai_active_selected: bool,
+    pub ai_active_all: bool,
     pub show_path_selected: bool,
     pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
@@ -44,8 +44,8 @@ pub struct SidePanelState {
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
-            random_walk_selected: false,
-            random_walk_all: false,
+            ai_active_selected: false,
+            ai_active_all: false,
             show_path_selected: true,
             ground_brush_size: 1,
             ground_material: Default::default(),
@@ -82,8 +82,8 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.random_walk_selected, "Random walk (selected)");
-                    ui.checkbox(&mut state.random_walk_all, "Random walk (all)");
+                    ui.checkbox(&mut state.ai_active_selected, "Ai active (selected)");
+                    ui.checkbox(&mut state.ai_active_all, "Ai active (all)");
                     ui.checkbox(&mut state.show_path_selected, "Show paths (selected)");
 
                     if !selected_query.is_empty() {

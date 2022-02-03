@@ -6,7 +6,7 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use super::{
-    fast_unit::{Drunk, Idle, RandomMove},
+    fast_unit::{Drunk, HighestScoreAbove, RandomMove, Sleep, Sleeping, Sleepy},
     ground::{Ground, GroundMaterialRef, GroundRaycastSet},
     sparse_grid::{GridPos, SparseGrid},
     velocity::Velocity,
@@ -136,11 +136,14 @@ fn spawn(
                 breaking: false,
                 ignore_collisions: true,
             })
+            .insert(Sleeping {
+                since: std::time::Instant::now(),
+            })
             .insert(
                 Thinker::build()
-                    .picker(FirstToScore { threshold: 0.8 })
+                    .picker(HighestScoreAbove { threshold: 0.8 })
                     .when(Drunk, RandomMove)
-                    .otherwise(Idle),
+                    .when(Sleepy, Sleep),
             );
     }
     if let Some(ground_ent) = ground.entity {

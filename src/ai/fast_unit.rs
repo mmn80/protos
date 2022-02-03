@@ -1,14 +1,14 @@
 use std::{f32::consts::PI, time::Instant};
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
-use big_brain::{prelude::*, thinker::HasThinker};
+use big_brain::{choices::Choice, prelude::*, thinker::HasThinker};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
 use super::{
     fast_unit_index::Neighbours,
     ground::Ground,
-    pathfind::{clear_path_components, MoveTo},
+    pathfind::{clear_path_components, Moving},
     velocity::{Velocity, MAX_SPEED},
 };
 use crate::{
@@ -24,8 +24,9 @@ pub struct FastUnitPlugin;
 impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup.after("ground_setup"))
-            .add_system_to_stage(BigBrainStage::Actions, idle_action)
+            .add_system_to_stage(BigBrainStage::Actions, sleep_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
+            .add_system_to_stage(BigBrainStage::Scorers, sleepy_scorer)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
             .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed));
     }
@@ -67,6 +68,7 @@ fn setup(
         let area_dist = LogNormal::new(PI * 0.8 * 0.8, 0.4).unwrap();
         let mut rng = thread_rng();
         let mut agent_id = 0;
+        let now = Instant::now();
         for x in (10..ground.width() - 10).step_by(10) {
             for z in (10..ground.width() - 10).step_by(10) {
                 agent_id += 1;
@@ -85,11 +87,12 @@ fn setup(
                         .insert(Selectable)
                         .insert(Velocity::default())
                         .insert(Neighbours::default())
+                        .insert(Sleeping { since: now })
                         .insert(
                             Thinker::build()
-                                .picker(FirstToScore { threshold: 0.8 })
+                                .picker(HighestScoreAbove { threshold: 0.8 })
                                 .when(Drunk, RandomMove)
-                                .otherwise(Idle),
+                                .when(Sleepy, Sleep),
                         )
                         .id(),
                 );
@@ -104,22 +107,52 @@ fn setup(
     }
 }
 
+// picker
+
+#[derive(Debug, Clone, Default)]
+pub struct HighestScoreAbove {
+    pub threshold: f32,
+}
+
+impl HighestScoreAbove {
+    pub fn new(threshold: f32) -> Self {
+        Self { threshold }
+    }
+}
+
+impl Picker for HighestScoreAbove {
+    fn pick<'a>(&self, choices: &'a [Choice], scores: &Query<&Score>) -> Option<&'a Choice> {
+        let mut picked = None;
+        let mut max_score = 0.0;
+        for choice in choices {
+            let score = choice.calculate(scores);
+            if score >= self.threshold && score > max_score {
+                picked = Some(choice);
+                max_score = score;
+            }
+        }
+        picked
+    }
+}
+
+// random walk
+
 #[derive(Clone, Component, Debug, Default)]
 pub struct RandomMove;
 
 const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
-const TARGET_TIME: f32 = 10.;
+const TARGET_TIME: f32 = 4.;
 const TARGET_TIME_D: f32 = 1.;
 
 fn random_move_action(
     ground: Res<Ground>,
-    mut action_query: Query<(&Actor, &mut ActionState), With<RandomMove>>,
-    mut state_query: Query<(&Transform, Option<&MoveTo>, &mut Velocity)>,
+    mut action_q: Query<(&Actor, &mut ActionState), With<RandomMove>>,
+    mut state_q: Query<(&Transform, Option<&Moving>, &mut Velocity)>,
     mut cmd: Commands,
 ) {
-    for (Actor(actor), mut state) in action_query.iter_mut() {
-        if let Ok((transform, move_target, mut velocity)) = state_query.get_mut(*actor) {
+    for (Actor(actor), mut state) in action_q.iter_mut() {
+        if let Ok((transform, move_target, mut velocity)) = state_q.get_mut(*actor) {
             match *state {
                 ActionState::Requested => {
                     let mut rng = thread_rng();
@@ -139,7 +172,7 @@ fn random_move_action(
                         10.,
                     );
                     if ground.get_tile_vec3(target).is_some() {
-                        cmd.entity(*actor).insert(MoveTo {
+                        cmd.entity(*actor).insert(Moving {
                             target,
                             speed: target_speed,
                             start_time: Instant::now(),
@@ -171,55 +204,106 @@ fn random_move_action(
 #[derive(Clone, Component, Debug)]
 pub struct Drunk;
 
-const NEW_PATHS_PER_FRAME: u32 = 1;
-
 pub fn drunk_scorer(
     ui: Res<SidePanelState>,
-    selected: Query<With<Selected>>,
-    mut query: Query<(&Actor, &mut Score), With<Drunk>>,
-    moving_query: Query<With<MoveTo>>,
+    selected_q: Query<With<Selected>>,
+    mut drunk_q: Query<(&Actor, &mut Score), With<Drunk>>,
 ) {
-    for (Actor(actor), mut score) in query.iter_mut() {
+    for (Actor(actor), mut score) in drunk_q.iter_mut() {
         let mut new_score = 0.;
-        if ui.random_walk_all {
-            if score.get() > 0.9 {
-                new_score = 1.;
-            } else {
-                let moving = moving_query.iter().count();
-                let mut rng = thread_rng();
-                if rng.gen_bool(
-                    (NEW_PATHS_PER_FRAME as f64 / (10000. - moving as f64))
-                        .min(0.999)
-                        .max(0.001),
-                ) {
-                    new_score = 1.;
-                };
-            }
-        } else if selected.get(*actor).is_ok() {
-            if ui.random_walk_selected {
-                new_score = 1.;
+        if ui.ai_active_all {
+            new_score = 0.9;
+        } else if selected_q.get(*actor).is_ok() {
+            if ui.ai_active_selected {
+                new_score = 0.9;
             }
         }
         score.set(new_score);
     }
 }
 
-#[derive(Clone, Component, Debug)]
-pub struct Idle;
+// sleep
 
-fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle>)>) {
-    for mut state in action_query.iter_mut() {
+#[derive(Clone, Component, Debug)]
+pub struct Sleeping {
+    pub since: Instant,
+}
+
+#[derive(Clone, Component, Debug)]
+pub struct Awake {
+    pub since: Instant,
+}
+
+#[derive(Clone, Component, Debug)]
+pub struct Sleep;
+
+fn sleep_action(mut action_q: Query<(&Actor, &mut ActionState), With<Sleep>>, mut cmd: Commands) {
+    for (Actor(actor), mut state) in action_q.iter_mut() {
         match *state {
             ActionState::Requested => {
+                cmd.entity(*actor).remove::<Awake>().insert(Sleeping {
+                    since: Instant::now(),
+                });
                 *state = ActionState::Executing;
             }
             ActionState::Cancelled => {
-                *state = ActionState::Failure;
+                cmd.entity(*actor).remove::<Sleeping>().insert(Awake {
+                    since: Instant::now(),
+                });
+                *state = ActionState::Success;
             }
             _ => {}
         }
     }
 }
+
+#[derive(Clone, Component, Debug)]
+pub struct Sleepy;
+
+const AWAKE_TIME: f64 = 20.;
+const AWAKE_TIME_D: f64 = 5.;
+const SLEEP_TIME: f64 = 2000.;
+const SLEEP_TIME_D: f64 = 1990.;
+
+pub fn sleepy_scorer(
+    time: Res<Time>,
+    mut sleepy_q: Query<(&Actor, &mut Score), With<Sleepy>>,
+    awake_q: Query<&Awake>,
+    sleeping_q: Query<&Sleeping>,
+) {
+    for (Actor(actor), mut score) in sleepy_q.iter_mut() {
+        let mut new_score = 0.;
+        if let Ok(awake) = awake_q.get(*actor) {
+            let dt = Instant::now() - awake.since;
+            if dt.as_secs_f64() > AWAKE_TIME - AWAKE_TIME_D {
+                let mut rng = thread_rng();
+                if rng.gen_bool(
+                    (time.delta_seconds_f64() / (2. * AWAKE_TIME_D))
+                        .min(1.0)
+                        .max(0.0),
+                ) {
+                    new_score = 1.;
+                }
+            }
+        } else if let Ok(sleeping) = sleeping_q.get(*actor) {
+            new_score = 1.;
+            let dt = Instant::now() - sleeping.since;
+            if dt.as_secs_f64() > SLEEP_TIME - SLEEP_TIME_D {
+                let mut rng = thread_rng();
+                if rng.gen_bool(
+                    (time.delta_seconds_f64() / (2. * SLEEP_TIME_D))
+                        .min(1.0)
+                        .max(0.0),
+                ) {
+                    new_score = 0.;
+                }
+            }
+        }
+        score.set(new_score);
+    }
+}
+
+// debug
 
 fn f1_just_pressed(keyboard: Res<Input<KeyCode>>) -> ShouldRun {
     if keyboard.just_pressed(KeyCode::F1) {
@@ -237,7 +321,7 @@ fn show_unit_debug_info(
         &Actor,
         &ActionState,
         Option<&RandomMove>,
-        Option<&Idle>,
+        Option<&Sleep>,
     )>,
 ) {
     let mut info = String::new();
