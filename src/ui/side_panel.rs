@@ -4,9 +4,11 @@ use bevy::{
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
-use crate::ai::ground::GroundMaterials;
-
 use super::selection::Selected;
+use crate::ai::{
+    fast_unit::{Awake, Sleeping},
+    ground::GroundMaterials,
+};
 
 pub struct SidePanelPlugin;
 
@@ -58,7 +60,7 @@ fn update_side_panel(
     egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    selected_query: Query<(&Name, &Transform), With<Selected>>,
+    selected_q: Query<(&Name, Option<&Awake>, Option<&Sleeping>), With<Selected>>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -86,12 +88,26 @@ fn update_side_panel(
                     ui.checkbox(&mut state.ai_active_all, "Ai active (all)");
                     ui.checkbox(&mut state.show_path_selected, "Show paths (selected)");
 
-                    if !selected_query.is_empty() {
+                    if !selected_q.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(egui::Color32::DARK_GREEN, "Selected objects:");
-                        for (name, transform) in selected_query.iter() {
-                            let pos = transform.translation;
-                            ui.label(format!("- {}: {:.1},{:.1}", name.as_str(), pos.x, pos.z));
+                        for (name, awake, sleeping) in selected_q.iter() {
+                            let status = {
+                                if let Some(awake) = awake {
+                                    format!(
+                                        "awake: {}s",
+                                        (std::time::Instant::now() - awake.since).as_secs()
+                                    )
+                                } else if let Some(sleeping) = sleeping {
+                                    format!(
+                                        "sleeping: {}s",
+                                        (std::time::Instant::now() - sleeping.since).as_secs()
+                                    )
+                                } else {
+                                    format!("?")
+                                }
+                            };
+                            ui.label(format!("- {}: {}", name.as_str(), status));
                         }
                     }
                 });

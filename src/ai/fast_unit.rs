@@ -144,6 +144,7 @@ const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
 const TARGET_TIME: f32 = 4.;
 const TARGET_TIME_D: f32 = 1.;
+const TARGET_MAX_DIST: f32 = 32.;
 
 fn random_move_action(
     ground: Res<Ground>,
@@ -168,7 +169,8 @@ fn random_move_action(
                         .mul_vec3(Vec3::X)
                         .normalize();
                     let target = ground.clamp(
-                        transform.translation + target_speed * target_time * target_dir,
+                        transform.translation
+                            + (target_speed * target_time).min(TARGET_MAX_DIST) * target_dir,
                         10.,
                     );
                     if ground.get_tile_vec3(target).is_some() {

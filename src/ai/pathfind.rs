@@ -124,7 +124,7 @@ fn compute_paths(
         }
     }
     let dt = (Instant::now() - begin).as_micros();
-    if paths > 0 && dt > 1000 {
+    if paths > 0 && dt > 2000 {
         let dt_astar = (Instant::now() - astar_begin).as_micros();
         info!(
             "{} / {} paths ({} failed) computed in {}μs (setup: {}μs)",
