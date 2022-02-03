@@ -274,10 +274,37 @@ pub struct MoveToPath {
 }
 
 impl MoveToPath {
-    pub fn clean_up_grid_path(path: Vec<GridPos>, y: f32) -> Vec<Vec3> {
-        path.iter()
-            .map(|p| Vec3::new(p.x as f32 + 0.5, y, p.y as f32 + 0.5))
-            .collect()
+    pub fn smoothify_path(path: Vec<GridPos>, start: Vec3, end: Vec3) -> Vec<Vec3> {
+        if path.is_empty() {
+            return Vec::new();
+        }
+        let mut res = vec![start];
+        let no_dir = GridPos::new(0, 0);
+        let mut dir = no_dir;
+        let mut curr = path[0];
+        for p in path.iter().skip(1) {
+            let new_dir = *p - curr;
+            assert!(new_dir.x.abs() <= 1 && new_dir.y.abs() <= 1, "invalid path");
+            if new_dir != dir && dir != no_dir {
+                let mut pos = Vec3::new(p.x as f32, start.y, p.y as f32);
+                if new_dir.x == 1 {
+                    pos.z += 0.5;
+                } else if new_dir.x == -1 {
+                    pos.x += 1.0;
+                    pos.z += 0.5;
+                } else if new_dir.y == 1 {
+                    pos.x += 0.5;
+                } else if new_dir.y == -1 {
+                    pos.x += 0.5;
+                    pos.z += 1.0;
+                }
+                res.push(pos);
+            }
+            dir = new_dir;
+            curr = *p;
+        }
+        res.push(end);
+        res
     }
 }
 
@@ -296,34 +323,30 @@ fn compute_paths(
     let begin = Instant::now();
     let mut paths = 0;
     let mut failed = 0;
-    let mut todo = vec![];
-    for (
-        entity,
-        transform,
-        MoveTo {
-            target,
-            speed: _,
-            start_time,
-        },
-    ) in query.iter()
-    {
-        let start = transform.translation.into();
-        let end = (*target).into();
-        todo.push((entity, start, end, transform.translation.y, start_time));
-    }
-    todo.sort_unstable_by_key(|(_, _, _, _, t)| *t);
-    todo.reverse();
+    let mut todo: Vec<_> = query
+        .iter()
+        .map(|(entity, transform, move_to)| {
+            (
+                entity,
+                transform.translation,
+                move_to.target,
+                move_to.start_time,
+            )
+        })
+        .collect();
+    todo.sort_unstable_by_key(|(_, _, _, t)| *t);
 
     let astar_begin = Instant::now();
-    for (entity, start, end, y, _) in todo {
+    for (entity, start, end, _) in todo {
+        let end_grid = end.into();
         let result = astar(
-            &start,
+            &start.into(),
             |p| ground.nav_grid_successors(*p),
-            |p| p.distance(end),
-            |p| *p == end,
+            |p| p.distance(end_grid),
+            |p| *p == end_grid,
         );
         let path = if let Some((path, _)) = result {
-            MoveToPath::clean_up_grid_path(path, y)
+            MoveToPath::smoothify_path(path, start, end)
         } else {
             failed += 1;
             vec![]
@@ -337,7 +360,7 @@ fn compute_paths(
         }
     }
     let dt = (Instant::now() - begin).as_micros();
-    if paths > 0 && dt > 5000 {
+    if paths > 0 && dt > 10000 {
         let dt_astar = (Instant::now() - astar_begin).as_micros();
         info!(
             "{} paths ({} failed) computed in {}μs (setup: {}μs)",

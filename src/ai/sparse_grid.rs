@@ -1,4 +1,4 @@
-use std::ops::Add;
+use std::ops::{Add, Sub};
 
 use bevy::prelude::*;
 
@@ -33,6 +33,17 @@ impl Add for GridPos {
         Self {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
+        }
+    }
+}
+
+impl Sub for GridPos {
+    type Output = Self;
+
+    fn sub(self, rhs: GridPos) -> Self::Output {
+        Self {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
         }
     }
 }
