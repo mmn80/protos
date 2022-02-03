@@ -38,7 +38,7 @@ fn setup(
         material.base_color_texture = Some(images.add(Image::default()));
         ground.material = materials.add(material);
     }
-    let width = ground.width();
+    let width = ground.width() as i32;
     ground.add_dirty_rect(Rect {
         left: 0,
         right: width,
@@ -106,7 +106,7 @@ pub struct Ground {
     tiles: SparseGrid<GroundMaterialRef>,
     nav_grid: SparseGrid<NonZeroU8>,
     material: Handle<StandardMaterial>,
-    dirty_rects: Vec<Rect<u32>>,
+    dirty_rects: Vec<Rect<i32>>,
 }
 
 impl Ground {
@@ -158,52 +158,13 @@ impl Ground {
         &self.nav_grid
     }
 
-    pub fn nav_grid_successors(&self, GridPos { x, y }: GridPos) -> Vec<(GridPos, u32)> {
+    pub fn nav_grid_successors(&self, pos: GridPos) -> Vec<(GridPos, u32)> {
         let w = self.width() - 1;
         let h = self.height() - 1;
-        let ss = if x > 0 && x < w && y > 0 && y < h {
-            vec![
-                GridPos::new(x + 1, y),
-                GridPos::new(x, y - 1),
-                GridPos::new(x - 1, y),
-                GridPos::new(x, y + 1),
-            ]
-        } else if x > 0 && x < w && y <= 0 {
-            vec![
-                GridPos::new(x + 1, y),
-                GridPos::new(x - 1, y),
-                GridPos::new(x, y + 1),
-            ]
-        } else if x > 0 && x < w && y >= h {
-            vec![
-                GridPos::new(x + 1, y),
-                GridPos::new(x, y - 1),
-                GridPos::new(x - 1, y),
-            ]
-        } else if y > 0 && y < h && x <= 0 {
-            vec![
-                GridPos::new(x + 1, y),
-                GridPos::new(x, y - 1),
-                GridPos::new(x, y + 1),
-            ]
-        } else if y > 0 && y < h && x >= w {
-            vec![
-                GridPos::new(x, y - 1),
-                GridPos::new(x - 1, y),
-                GridPos::new(x, y + 1),
-            ]
-        } else if x <= 0 && y <= 0 {
-            vec![GridPos::new(x + 1, y), GridPos::new(x, y + 1)]
-        } else if x <= 0 && y >= h {
-            vec![GridPos::new(x + 1, y), GridPos::new(x, y - 1)]
-        } else if x >= w && y <= 0 {
-            vec![GridPos::new(x - 1, y), GridPos::new(x, y + 1)]
-        } else if x >= w && y >= h {
-            vec![GridPos::new(x, y - 1), GridPos::new(x - 1, y)]
-        } else {
-            panic!("IMPOSSIBRU")
-        };
-        ss.into_iter()
+        GridPos::VN_OFFSETS
+            .iter()
+            .map(|offset| pos + *offset)
+            .filter(|GridPos { x, y }| *x > 0 && *x < w as i32 && *y > 0 && *y < h as i32)
             .map(|p| (p, self.nav_grid.get(p)))
             .filter(|(_, c)| c.is_some())
             .map(|(p, c)| (p, c.unwrap().get() as u32))
@@ -245,11 +206,11 @@ impl Ground {
         }
     }
 
-    pub fn add_dirty_rect(&mut self, rect: Rect<u32>) {
+    pub fn add_dirty_rect(&mut self, rect: Rect<i32>) {
         self.dirty_rects.push(rect);
     }
 
-    pub fn add_dirty_pos(&mut self, x: u32, y: u32) {
+    pub fn add_dirty_pos(&mut self, x: i32, y: i32) {
         self.dirty_rects.push(Rect {
             left: x,
             right: x + 1,
@@ -284,7 +245,7 @@ fn update_ground_texture(
                                     .map_or(Color::BLACK, |t| ground.palette[t.0 as usize].color)
                                     .as_rgba_f32()
                                     .map(|c| (c * 255.) as u8);
-                                let idx = 4 * (y * ground.width() + x) as usize;
+                                let idx = 4 * (y * ground.width() as i32 + x) as usize;
                                 image
                                     .data
                                     .get_mut(idx..idx + 4)
@@ -343,8 +304,8 @@ fn ground_painter(
                             for y in 0..ui.ground_brush_size {
                                 for x in 0..ui.ground_brush_size {
                                     let pos = GridPos {
-                                        x: center.x + x as u32,
-                                        y: center.y + y as u32,
+                                        x: center.x + x as i32,
+                                        y: center.y + y as i32,
                                     };
                                     if let Some(mat_ref) = mat {
                                         ground.set_tile(pos, mat_ref, true);

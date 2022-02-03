@@ -248,10 +248,10 @@ fn update_nav_grid(
             let top_l = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., -ext_z));
             let top_r = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., ext_z));
             Rect {
-                left: bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor() as u32,
-                right: bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil() as u32,
-                top: bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil() as u32,
-                bottom: bot_l.z.min(bot_r.z).min(top_l.z).min(top_r.z).floor() as u32,
+                left: bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor() as i32,
+                right: bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil() as i32,
+                top: bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil() as i32,
+                bottom: bot_l.z.min(bot_r.z).min(top_l.z).min(top_r.z).floor() as i32,
             }
         };
 
@@ -260,25 +260,30 @@ fn update_nav_grid(
         if let Some(pos) = carve.ground_pos {
             for y in 0..carve.ground.height() {
                 for x in 0..carve.ground.width() {
-                    let local_pos = GridPos { x, y };
+                    let local_pos = GridPos {
+                        x: x as i32,
+                        y: y as i32,
+                    };
                     if let Some(tile) = carve.ground.get(local_pos) {
                         ground.set_tile(pos + local_pos, *tile, false);
                     }
                 }
             }
             dirty_rect.left = dirty_rect.left.min(pos.x);
-            dirty_rect.right = dirty_rect.right.max(pos.x + carve.ground.width());
+            dirty_rect.right = dirty_rect.right.max(pos.x + carve.ground.width() as i32);
             dirty_rect.bottom = dirty_rect.bottom.min(pos.y);
-            dirty_rect.top = dirty_rect.top.max(pos.y + carve.ground.height());
+            dirty_rect.top = dirty_rect.top.max(pos.y + carve.ground.height() as i32);
         }
 
         carve.ground_pos = Some(GridPos {
             x: bounds.left,
             y: bounds.bottom,
         });
-        carve
-            .ground
-            .reset(bounds.right - bounds.left, bounds.top - bounds.bottom, None);
+        carve.ground.reset(
+            (bounds.right - bounds.left) as u32,
+            (bounds.top - bounds.bottom) as u32,
+            None,
+        );
 
         let mat = transform.compute_matrix().inverse();
         for y in bounds.bottom..bounds.top {

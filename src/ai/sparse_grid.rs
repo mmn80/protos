@@ -4,19 +4,26 @@ use bevy::prelude::*;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct GridPos {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl GridPos {
-    pub fn new(x: u32, y: u32) -> Self {
+    #[inline]
+    pub const fn new(x: i32, y: i32) -> Self {
         Self { x, y }
     }
 
     pub fn distance(&self, other: GridPos) -> u32 {
-        ((self.x as f32 - other.x as f32).powf(2.) + (self.y as f32 - other.y as f32).powf(2.))
-            .sqrt() as u32
+        (((self.x - other.x).pow(2) + (self.y - other.y).pow(2)) as f32).sqrt() as u32
     }
+
+    pub const VN_OFFSETS: [GridPos; 4] = [
+        GridPos::new(-1, 0),
+        GridPos::new(1, 0),
+        GridPos::new(0, -1),
+        GridPos::new(0, 1),
+    ];
 }
 
 impl Add for GridPos {
@@ -33,8 +40,8 @@ impl Add for GridPos {
 impl From<Vec3> for GridPos {
     fn from(pos: Vec3) -> Self {
         Self {
-            x: pos.x as u32,
-            y: pos.z as u32,
+            x: pos.x as i32,
+            y: pos.z as i32,
         }
     }
 }
@@ -52,7 +59,7 @@ impl<V: 'static> SparseGrid<V> {
     where
         V: Clone,
     {
-        let po2_width = Self::po2_width(width);
+        let po2_width = width.next_power_of_two();
         let mut values = Vec::new();
         values.resize((po2_width as usize) * (height as usize), fill);
         Self {
@@ -69,16 +76,6 @@ impl<V: 'static> SparseGrid<V> {
 
     pub fn height(&self) -> u32 {
         self.height
-    }
-
-    fn po2_width(width: u32) -> u32 {
-        if (width & (width - 1)) == 0 {
-            width
-        } else {
-            let zeros = width.leading_zeros() as u32;
-            assert!(zeros > 0, "width too large");
-            1 << (32 - zeros)
-        }
     }
 
     fn grid_idx(&self, pos: GridPos) -> usize {
@@ -129,7 +126,7 @@ impl<V: 'static> SparseGrid<V> {
         self.values.clear();
         self.width = new_width;
         self.height = new_height;
-        self.po2_width = Self::po2_width(new_width);
+        self.po2_width = new_width.next_power_of_two();
         self.values
             .resize((self.po2_width as usize) * (new_height as usize), fill);
     }
