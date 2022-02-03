@@ -5,7 +5,7 @@ use big_brain::prelude::*;
 use protos::{
     ai::{
         fast_unit::FastUnitPlugin, fast_unit_index::FastUnitIndexPlugin, ground::GroundPlugin,
-        slow_unit::SlowUnitPlugin,
+        pathfind::PathfindingPlugin, slow_unit::SlowUnitPlugin, velocity::VelocityPlugin,
     },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
@@ -30,6 +30,8 @@ fn main() {
         .add_plugin(GroundPlugin)
         .add_plugin(SlowUnitPlugin)
         .add_plugin(FastUnitIndexPlugin)
+        .add_plugin(VelocityPlugin)
+        .add_plugin(PathfindingPlugin)
         .add_plugin(FastUnitPlugin)
         .add_system(bevy::input::system::exit_on_esc_system)
         .run();

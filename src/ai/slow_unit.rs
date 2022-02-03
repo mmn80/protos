@@ -6,9 +6,10 @@ use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use super::{
-    fast_unit::{Drunk, Idle, RandomMove, Velocity},
+    fast_unit::{Drunk, Idle, RandomMove},
     ground::{Ground, GroundMaterialRef, GroundRaycastSet},
     sparse_grid::{GridPos, SparseGrid},
+    velocity::Velocity,
 };
 use crate::{
     camera::ScreenPosition,

@@ -1,18 +1,23 @@
-use std::f32::consts::PI;
-use std::time::Instant;
+use std::{f32::consts::PI, time::Instant};
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
 use big_brain::{prelude::*, thinker::HasThinker};
-use pathfinding::prelude::astar;
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use crate::ai::{fast_unit_index::Neighbours, ground::Ground};
-use crate::camera::ScreenPosition;
-use crate::ui::selection::{Selectable, Selected};
-use crate::ui::side_panel::SidePanelState;
-
-use super::sparse_grid::GridPos;
+use super::{
+    fast_unit_index::Neighbours,
+    ground::Ground,
+    pathfind::{clear_path_components, MoveTo},
+    velocity::{Velocity, MAX_SPEED},
+};
+use crate::{
+    camera::ScreenPosition,
+    ui::{
+        selection::{Selectable, Selected},
+        side_panel::SidePanelState,
+    },
+};
 
 pub struct FastUnitPlugin;
 
@@ -22,10 +27,6 @@ impl Plugin for FastUnitPlugin {
             .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, drunk_scorer)
-            .add_system(compute_paths)
-            .add_system(move_to_target)
-            .add_system(avoid_collisions)
-            .add_system(apply_velocity)
             .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed));
     }
 }
@@ -65,8 +66,10 @@ fn setup(
         let mut units = vec![];
         let area_dist = LogNormal::new(PI * 0.8 * 0.8, 0.4).unwrap();
         let mut rng = thread_rng();
+        let mut agent_id = 0;
         for x in (10..ground.width() - 10).step_by(10) {
             for z in (10..ground.width() - 10).step_by(10) {
+                agent_id += 1;
                 let scale = f32::sqrt(area_dist.sample(&mut rng) / PI);
                 units.push(
                     commands
@@ -77,7 +80,7 @@ fn setup(
                                 .with_scale(Vec3::new(scale, 1., scale)),
                             ..Default::default()
                         })
-                        .insert(Name::new(format!("Agent[{},{}]", x / 10, z / 10)))
+                        .insert(Name::new(format!("Agent_{}", agent_id)))
                         .insert(ScreenPosition::default())
                         .insert(Selectable)
                         .insert(Velocity::default())
@@ -101,332 +104,13 @@ fn setup(
     }
 }
 
-#[derive(Clone, Component, Debug)]
-pub struct Velocity {
-    pub velocity: Vec3,
-    pub breaking: bool,
-    pub ignore_collisions: bool,
-}
-
-impl Default for Velocity {
-    fn default() -> Self {
-        Self {
-            velocity: Vec3::ZERO,
-            breaking: true,
-            ignore_collisions: false,
-        }
-    }
-}
-
-fn apply_velocity(
-    time: Res<Time>,
-    ground: Res<Ground>,
-    mut query: Query<(&mut Transform, &mut Velocity)>,
-) {
-    let dt = time.delta_seconds();
-    for (mut transform, mut velocity) in query.iter_mut() {
-        let pos = transform.translation + velocity.velocity * dt;
-        if velocity.ignore_collisions || ground.get_tile_vec3(pos).is_some() {
-            transform.translation = pos;
-        } else {
-            velocity.velocity = Vec3::ZERO;
-        }
-        if velocity.breaking {
-            if velocity.velocity.length() < 0.5 {
-                velocity.velocity = Vec3::ZERO;
-            } else {
-                let dir = velocity.velocity.normalize();
-                velocity.velocity -= 20. * dir * dt;
-            }
-        }
-        if velocity.velocity.length_squared() > 0.1 {
-            let look_at = transform.translation + velocity.velocity.normalize();
-            transform.look_at(look_at, Vec3::Y);
-        }
-        if !velocity.ignore_collisions {
-            let pos = transform.translation;
-            let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
-            if ground.contains(pos) && ground.get_tile(pos.into()).is_none() {
-                for i in 1..200 {
-                    let cell = pos + (i as f32) * Vec3::X;
-                    if !ground.contains(cell) {
-                        break;
-                    }
-                    let c = cell.into();
-                    if ground.get_tile(c).is_some() {
-                        let neigh = vec![
-                            GridPos::new(c.x + 1, c.y),
-                            GridPos::new(c.x + 1, c.y - 1),
-                            GridPos::new(c.x, c.y - 1),
-                            GridPos::new(c.x - 1, c.y - 1),
-                            GridPos::new(c.x - 1, c.y),
-                            GridPos::new(c.x - 1, c.y + 1),
-                            GridPos::new(c.x, c.y + 1),
-                            GridPos::new(c.x + 1, c.y + 1),
-                        ];
-                        if neigh.iter().all(|p| ground.get_tile(*p).is_some()) {
-                            transform.translation = cell;
-                            velocity.velocity = Vec3::ZERO;
-                            velocity.breaking = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-const COLLISION_DIST: f32 = 5.;
-const COLLISION_FORCE: f32 = 5.;
-const COLLISION_BLOCK_FORCE: f32 = 50.;
-const MAX_SPEED: f32 = 30.;
-
-fn avoid_collisions(
-    time: Res<Time>,
-    ground: Res<Ground>,
-    mut query: Query<(&Transform, &Neighbours, &mut Velocity)>,
-    neigh_query: Query<&Transform>,
-) {
-    let dt = time.delta_seconds();
-    for (transform, neighbours, mut velocity) in query.iter_mut() {
-        if velocity.ignore_collisions || ground.get_tile_vec3(transform.translation).is_none() {
-            continue;
-        }
-        let speed = velocity.velocity.length();
-        if speed > 0.5 {
-            if let Some(nearest) = neighbours.neighbours.first() {
-                if let Ok(neigh_tran) = neigh_query.get(nearest.entity) {
-                    let src_size = transform.scale.x;
-                    let dest_size = neigh_tran.scale.x;
-                    let dist = f32::max(0., nearest.distance - src_size - dest_size);
-                    let force = 1. - dist / COLLISION_DIST;
-                    if force > 0. {
-                        let acceleration =
-                            COLLISION_FORCE * f32::min(speed, 10.) * force.powi(5) / src_size;
-                        let direction = (transform.translation - neigh_tran.translation)
-                            .normalize()
-                            .cross(Vec3::Y);
-                        let old_speed = velocity.velocity.length();
-                        velocity.velocity += dt * acceleration * direction;
-                        let new_speed = velocity.velocity.length();
-                        if new_speed > old_speed {
-                            velocity.velocity *= old_speed / new_speed;
-                        }
-                    }
-                }
-            }
-        }
-
-        let mut free = true;
-        let pos = transform.translation;
-        let pos = Vec3::new(pos.x.floor() + 0.5, pos.y, pos.z.floor() + 0.5);
-        for cell in [
-            pos + Vec3::X,
-            pos + Vec3::Z,
-            pos - Vec3::X,
-            pos - Vec3::Z,
-            pos + Vec3::X + Vec3::Z,
-            pos - Vec3::X - Vec3::Z,
-            pos + Vec3::X - Vec3::Z,
-            pos - Vec3::X + Vec3::Z,
-        ] {
-            if ground.get_tile_vec3(cell).is_none() {
-                free = false;
-                let src_size = transform.scale.x;
-                let dir = transform.translation - cell;
-                let dist = dir.length();
-                let direction = dir.normalize();
-                if dist > 0. {
-                    let acceleration = COLLISION_BLOCK_FORCE * dist.powi(4) / src_size;
-                    velocity.velocity += dt * acceleration * direction;
-                }
-            }
-        }
-        let speed = velocity.velocity.length();
-        if free && speed > MAX_SPEED {
-            velocity.velocity *= MAX_SPEED / speed;
-        }
-    }
-}
-
-#[derive(Clone, Component, Debug)]
-pub struct MoveTo {
-    pub target: Vec3,
-    pub speed: f32,
-    pub start_time: Instant,
-}
-
-impl Default for MoveTo {
-    fn default() -> Self {
-        Self {
-            target: Vec3::ZERO,
-            speed: 0.,
-            start_time: Instant::now(),
-        }
-    }
-}
-
-#[derive(Clone, Component, Debug, Default)]
-pub struct MoveToPath {
-    pub path: Vec<Vec3>,
-    pub current: usize,
-}
-
-impl MoveToPath {
-    pub fn smoothify_path(path: Vec<GridPos>, start: Vec3, end: Vec3) -> Vec<Vec3> {
-        if path.is_empty() {
-            return Vec::new();
-        }
-        let mut res = vec![start];
-        let no_dir = GridPos::new(0, 0);
-        let mut dir = no_dir;
-        let mut curr = path[0];
-        for p in path.iter().skip(1) {
-            let new_dir = *p - curr;
-            assert!(new_dir.x.abs() <= 1 && new_dir.y.abs() <= 1, "invalid path");
-            if new_dir != dir && dir != no_dir {
-                let mut pos = Vec3::new(p.x as f32, start.y, p.y as f32);
-                if new_dir.x == 1 {
-                    pos.z += 0.5;
-                } else if new_dir.x == -1 {
-                    pos.x += 1.0;
-                    pos.z += 0.5;
-                } else if new_dir.y == 1 {
-                    pos.x += 0.5;
-                } else if new_dir.y == -1 {
-                    pos.x += 0.5;
-                    pos.z += 1.0;
-                }
-                res.push(pos);
-            }
-            dir = new_dir;
-            curr = *p;
-        }
-        res.push(end);
-        res
-    }
-}
-
-fn clear_path_components(commands: &mut Commands, entity: Entity) {
-    commands
-        .entity(entity)
-        .remove::<MoveTo>()
-        .remove::<MoveToPath>();
-}
-
-fn compute_paths(
-    ground: Res<Ground>,
-    query: Query<(Entity, &Transform, &MoveTo), Without<MoveToPath>>,
-    mut cmd: Commands,
-) {
-    let begin = Instant::now();
-    let mut paths = 0;
-    let mut failed = 0;
-    let mut todo: Vec<_> = query
-        .iter()
-        .map(|(entity, transform, move_to)| {
-            (
-                entity,
-                transform.translation,
-                move_to.target,
-                move_to.start_time,
-            )
-        })
-        .collect();
-    todo.sort_unstable_by_key(|(_, _, _, t)| *t);
-
-    let astar_begin = Instant::now();
-    for (entity, start, end, _) in todo {
-        let end_grid = end.into();
-        let result = astar(
-            &start.into(),
-            |p| ground.nav_grid_successors(*p),
-            |p| p.distance(end_grid),
-            |p| *p == end_grid,
-        );
-        let path = if let Some((path, _)) = result {
-            MoveToPath::smoothify_path(path, start, end)
-        } else {
-            failed += 1;
-            vec![]
-        };
-        cmd.entity(entity).insert(MoveToPath { path, current: 0 });
-
-        paths += 1;
-        let dt = (Instant::now() - begin).as_micros();
-        if dt > 1000 {
-            break;
-        }
-    }
-    let dt = (Instant::now() - begin).as_micros();
-    if paths > 0 && dt > 10000 {
-        let dt_astar = (Instant::now() - astar_begin).as_micros();
-        info!(
-            "{} paths ({} failed) computed in {}μs (setup: {}μs)",
-            paths,
-            failed,
-            dt,
-            dt - dt_astar
-        );
-    }
-}
-
-const TURN_ACC: f32 = 10.;
-
-fn move_to_target(
-    time: Res<Time>,
-    mut query: Query<(Entity, &Transform, &mut Velocity, &MoveTo, &mut MoveToPath)>,
-    mut cmd: Commands,
-) {
-    for (entity, transform, mut velocity, move_to, mut path) in query.iter_mut() {
-        if path.path.is_empty() {
-            let target = move_to.target;
-            if (transform.translation - target).length() > 0.5 {
-                let dt = time.delta_seconds();
-                let target_velocity = (target - transform.translation).normalize() * move_to.speed;
-                let acceleration =
-                    TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
-                velocity.velocity += acceleration;
-            } else {
-                clear_path_components(&mut cmd, entity);
-                velocity.breaking = true;
-            }
-        } else {
-            let p_max = path.path.len() - 1;
-            let target = {
-                let start_idx = path.current;
-                let end_idx = (start_idx + 8).min(p_max);
-                let curr = transform.translation;
-                for idx in start_idx..end_idx {
-                    if (path.path[idx] - curr).length() < 1. {
-                        path.current = (idx + 1).min(p_max);
-                        break;
-                    }
-                }
-                path.path[path.current]
-            };
-            if (transform.translation - target).length() > 0.2 {
-                let dt = time.delta_seconds();
-                let target_velocity = (target - transform.translation).normalize() * move_to.speed;
-                let acceleration =
-                    TURN_ACC * (target_velocity - velocity.velocity).normalize() * dt;
-                velocity.velocity += acceleration;
-            }
-            if path.current >= p_max {
-                clear_path_components(&mut cmd, entity);
-                velocity.breaking = true;
-            }
-        }
-    }
-}
-
 #[derive(Clone, Component, Debug, Default)]
 pub struct RandomMove;
 
-const TARGET_DST: f32 = 10.;
 const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
+const TARGET_TIME: f32 = 10.;
+const TARGET_TIME_D: f32 = 1.;
 
 fn random_move_action(
     ground: Res<Ground>,
@@ -439,21 +123,25 @@ fn random_move_action(
             match *state {
                 ActionState::Requested => {
                     let mut rng = thread_rng();
-                    let v = f32::max(0.2, TARGET_SPD / transform.scale.x);
-                    let dst = v * TARGET_DST;
-                    let width = ground.width() as f32;
-                    let target = (transform.translation
-                        + Vec3::new(rng.gen_range(-dst..dst), 0., rng.gen_range(-dst..dst)))
-                    .clamp(
-                        Vec3::new(10., 0., 10.),
-                        Vec3::new(width - 10., 10., width - 10.),
+                    let speed = (TARGET_SPD / transform.scale.x).max(0.2);
+                    let (min_s, max_s) = (
+                        (speed - TARGET_SPD_D).max(0.1),
+                        (speed + TARGET_SPD_D).min(MAX_SPEED),
                     );
-                    let (min_s, max_s) = (f32::max(0.1, v - TARGET_SPD_D), v + TARGET_SPD_D);
-                    let speed = rng.gen_range(min_s..max_s);
+                    let target_speed = rng.gen_range(min_s..max_s);
+                    let target_time =
+                        rng.gen_range(TARGET_TIME - TARGET_TIME_D..TARGET_TIME + TARGET_TIME_D);
+                    let target_dir = Quat::from_rotation_y(rng.gen_range(0.0..2.0 * PI))
+                        .mul_vec3(Vec3::X)
+                        .normalize();
+                    let target = ground.clamp(
+                        transform.translation + target_speed * target_time * target_dir,
+                        10.,
+                    );
                     if ground.get_tile_vec3(target).is_some() {
                         cmd.entity(*actor).insert(MoveTo {
                             target,
-                            speed,
+                            speed: target_speed,
                             start_time: Instant::now(),
                         });
                         velocity.breaking = false;
@@ -483,15 +171,30 @@ fn random_move_action(
 #[derive(Clone, Component, Debug)]
 pub struct Drunk;
 
+const NEW_PATHS_PER_FRAME: u32 = 1;
+
 pub fn drunk_scorer(
     ui: Res<SidePanelState>,
     selected: Query<With<Selected>>,
     mut query: Query<(&Actor, &mut Score), With<Drunk>>,
+    moving_query: Query<With<MoveTo>>,
 ) {
     for (Actor(actor), mut score) in query.iter_mut() {
         let mut new_score = 0.;
         if ui.random_walk_all {
-            new_score = 1.;
+            if score.get() > 0.9 {
+                new_score = 1.;
+            } else {
+                let moving = moving_query.iter().count();
+                let mut rng = thread_rng();
+                if rng.gen_bool(
+                    (NEW_PATHS_PER_FRAME as f64 / (10000. - moving as f64))
+                        .min(0.999)
+                        .max(0.001),
+                ) {
+                    new_score = 1.;
+                };
+            }
         } else if selected.get(*actor).is_ok() {
             if ui.random_walk_selected {
                 new_score = 1.;

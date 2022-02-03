@@ -1,7 +1,7 @@
 use bevy::{pbr::NotShadowCaster, prelude::*};
 
 use crate::{
-    ai::{fast_unit::MoveToPath, ground::Ground},
+    ai::{ground::Ground, pathfind::MoveToPath},
     camera::ScreenPosition,
 };
 

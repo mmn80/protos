@@ -147,6 +147,17 @@ impl Ground {
         pos.x >= 0. && pos.x < self.width() as f32 && pos.z >= 0. && pos.z < self.height() as f32
     }
 
+    pub fn clamp(&self, pos: Vec3, buffer: f32) -> Vec3 {
+        pos.clamp(
+            Vec3::ZERO,
+            Vec3::new(
+                self.width() as f32 - buffer,
+                10.,
+                self.height() as f32 - buffer,
+            ),
+        )
+    }
+
     pub fn register_ground_material(&mut self, tile: GroundMaterial) -> GroundMaterialRef {
         let id = self.palette.len();
         assert!(id < u16::MAX as usize);

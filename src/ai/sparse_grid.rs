@@ -14,8 +14,8 @@ impl GridPos {
         Self { x, y }
     }
 
-    pub fn distance(&self, other: GridPos) -> u32 {
-        (((self.x - other.x).pow(2) + (self.y - other.y).pow(2)) as f32).sqrt() as u32
+    pub fn distance(&self, other: GridPos) -> f32 {
+        (((self.x - other.x).pow(2) + (self.y - other.y).pow(2)) as f32).sqrt()
     }
 
     pub const VN_OFFSETS: [GridPos; 4] = [
