@@ -24,6 +24,7 @@ pub struct FastUnitPlugin;
 impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup.after("ground_setup"))
+            .add_system_to_stage(BigBrainStage::Actions, idle_action)
             .add_system_to_stage(BigBrainStage::Actions, sleep_action)
             .add_system_to_stage(BigBrainStage::Actions, random_move_action)
             .add_system_to_stage(BigBrainStage::Scorers, sleepy_scorer)
@@ -92,7 +93,8 @@ fn setup(
                             Thinker::build()
                                 .picker(HighestScoreAbove { threshold: 0.8 })
                                 .when(Drunk, RandomMove)
-                                .when(Sleepy, Sleep),
+                                .when(Sleepy, Sleep)
+                                .otherwise(Idle),
                         )
                         .id(),
                 );
@@ -144,7 +146,7 @@ const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
 const TARGET_TIME: f32 = 4.;
 const TARGET_TIME_D: f32 = 1.;
-const TARGET_MAX_DIST: f32 = 32.;
+const TARGET_MAX_DIST: f32 = 16.;
 
 fn random_move_action(
     ground: Res<Ground>,
@@ -152,11 +154,11 @@ fn random_move_action(
     mut state_q: Query<(&Transform, Option<&Moving>, &mut Velocity)>,
     mut cmd: Commands,
 ) {
+    let mut rng = thread_rng();
     for (Actor(actor), mut state) in action_q.iter_mut() {
         if let Ok((transform, move_target, mut velocity)) = state_q.get_mut(*actor) {
             match *state {
                 ActionState::Requested => {
-                    let mut rng = thread_rng();
                     let speed = (TARGET_SPD / transform.scale.x).max(0.2);
                     let (min_s, max_s) = (
                         (speed - TARGET_SPD_D).max(0.1),
@@ -273,17 +275,14 @@ pub fn sleepy_scorer(
     awake_q: Query<&Awake>,
     sleeping_q: Query<&Sleeping>,
 ) {
+    let delta = time.delta_seconds_f64();
+    let mut rng = thread_rng();
     for (Actor(actor), mut score) in sleepy_q.iter_mut() {
         let mut new_score = 0.;
         if let Ok(awake) = awake_q.get(*actor) {
             let dt = Instant::now() - awake.since;
             if dt.as_secs_f64() > AWAKE_TIME - AWAKE_TIME_D {
-                let mut rng = thread_rng();
-                if rng.gen_bool(
-                    (time.delta_seconds_f64() / (2. * AWAKE_TIME_D))
-                        .min(1.0)
-                        .max(0.0),
-                ) {
+                if rng.gen_bool((delta / (2. * AWAKE_TIME_D)).min(1.0).max(0.0)) {
                     new_score = 1.;
                 }
             }
@@ -291,17 +290,31 @@ pub fn sleepy_scorer(
             new_score = 1.;
             let dt = Instant::now() - sleeping.since;
             if dt.as_secs_f64() > SLEEP_TIME - SLEEP_TIME_D {
-                let mut rng = thread_rng();
-                if rng.gen_bool(
-                    (time.delta_seconds_f64() / (2. * SLEEP_TIME_D))
-                        .min(1.0)
-                        .max(0.0),
-                ) {
+                if rng.gen_bool((delta / (2. * SLEEP_TIME_D)).min(1.0).max(0.0)) {
                     new_score = 0.;
                 }
             }
         }
         score.set(new_score);
+    }
+}
+
+// idle
+
+#[derive(Clone, Component, Debug)]
+pub struct Idle;
+
+fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle>)>) {
+    for mut state in action_query.iter_mut() {
+        match *state {
+            ActionState::Requested => {
+                *state = ActionState::Executing;
+            }
+            ActionState::Cancelled => {
+                *state = ActionState::Failure;
+            }
+            _ => {}
+        }
     }
 }
 

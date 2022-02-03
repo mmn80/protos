@@ -112,6 +112,10 @@ fn compute_paths(
         let path = if let Some((path, _)) = result {
             MovingPath::smoothify_path(path, start, end)
         } else {
+            warn!(
+                "failed to find a path for {:?} from {} to {}",
+                entity, start, end
+            );
             failed += 1;
             vec![]
         };
