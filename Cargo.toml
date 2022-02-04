@@ -16,6 +16,7 @@ rand = "0.8"
 rand_distr = "0.4"
 kiddo = "0.2"
 pathfinding = "3.0"
+futures-lite = "1.12"
 
 [profile.dev]
 opt-level = 3

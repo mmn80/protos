@@ -1,4 +1,7 @@
-use std::ops::{Add, Sub};
+use std::{
+    num::NonZeroU8,
+    ops::{Add, Sub},
+};
 
 use bevy::prelude::*;
 
@@ -6,6 +9,12 @@ use bevy::prelude::*;
 pub struct GridPos {
     pub x: i32,
     pub y: i32,
+}
+
+impl std::fmt::Display for GridPos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
 }
 
 impl GridPos {
@@ -140,5 +149,20 @@ impl<V: 'static> SparseGrid<V> {
         self.po2_width = new_width.next_power_of_two();
         self.values
             .resize((self.po2_width as usize) * (new_height as usize), fill);
+    }
+}
+
+impl SparseGrid<NonZeroU8> {
+    pub fn successors(&self, pos: GridPos) -> Vec<(GridPos, u32)> {
+        let w = self.width() - 1;
+        let h = self.height() - 1;
+        GridPos::VN_OFFSETS
+            .iter()
+            .map(|offset| pos + *offset)
+            .filter(|GridPos { x, y }| *x > 0 && *x < w as i32 && *y > 0 && *y < h as i32)
+            .map(|p| (p, self.get(p)))
+            .filter(|(_, c)| c.is_some())
+            .map(|(p, c)| (p, c.unwrap().get() as u32))
+            .collect()
     }
 }

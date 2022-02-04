@@ -1,6 +1,10 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
-use bevy::prelude::*;
+use bevy::{
+    prelude::*,
+    tasks::{AsyncComputeTaskPool, Task},
+};
+use futures_lite::future;
 use pathfinding::prelude::astar;
 
 use super::{ground::Ground, sparse_grid::GridPos, velocity::Velocity};
@@ -9,7 +13,9 @@ pub struct PathfindingPlugin;
 
 impl Plugin for PathfindingPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(compute_paths).add_system(move_to_target);
+        app.add_system(spawn_pathfinding_tasks)
+            .add_system(handle_pathfinding_tasks)
+            .add_system(move_to_target);
     }
 }
 
@@ -78,66 +84,74 @@ pub fn clear_path_components(commands: &mut Commands, entity: Entity) {
         .remove::<MovingPath>();
 }
 
-fn compute_paths(
+struct PathfindingTaskResult {
+    path: Vec<Vec3>,
+}
+
+fn spawn_pathfinding_tasks(
+    thread_pool: Res<AsyncComputeTaskPool>,
     ground: Res<Ground>,
-    query: Query<(Entity, &Transform, &Moving), Without<MovingPath>>,
+    query: Query<
+        (Entity, &Name, &Transform, &Moving),
+        (Without<MovingPath>, Without<Task<PathfindingTaskResult>>),
+    >,
     mut cmd: Commands,
 ) {
-    let begin = Instant::now();
-    let mut paths = 0;
-    let mut failed = 0;
-    let mut todo: Vec<_> = query
-        .iter()
-        .map(|(entity, transform, move_to)| {
-            (
-                entity,
-                transform.translation,
-                move_to.target,
-                move_to.start_time,
-            )
-        })
-        .collect();
-    todo.sort_unstable_by_key(|(_, _, _, t)| *t);
-    let total_todo = todo.len();
-
-    let astar_begin = Instant::now();
-    for (entity, start, end, _) in todo {
-        let end_grid = end.into();
-        let result = astar(
-            &start.into(),
-            |p| ground.nav_grid_successors(*p),
-            |p| p.distance(end_grid) as u32,
-            |p| *p == end_grid,
-        );
-        let path = if let Some((path, _)) = result {
-            MovingPath::smoothify_path(path, start, end)
-        } else {
-            warn!(
-                "failed to find a path for {:?} from {} to {}",
-                entity, start, end
+    let shared_grid = Arc::new(ground.nav_grid().clone());
+    for (entity, name, transform, move_to) in query.iter() {
+        let name = name.to_string();
+        let from = transform.translation;
+        let to = move_to.target;
+        let grid = shared_grid.clone();
+        let task = thread_pool.spawn(async move {
+            let from_grid = from.into();
+            let to_grid = to.into();
+            let begin_time = Instant::now();
+            let result = astar(
+                &from_grid,
+                |p| grid.successors(*p),
+                |p| p.distance(to_grid) as u32,
+                |p| *p == to_grid,
             );
-            failed += 1;
-            vec![]
-        };
-        cmd.entity(entity).insert(MovingPath { path, current: 0 });
-
-        paths += 1;
-        let dt = (Instant::now() - begin).as_micros();
-        if dt > 1000 {
-            break;
-        }
+            let path = if let Some((path, _)) = result {
+                MovingPath::smoothify_path(path, from, to)
+            } else {
+                warn!(
+                    "failed to find a path for {} from {} to {} in {}μs",
+                    name,
+                    from_grid,
+                    to_grid,
+                    (Instant::now() - begin_time).as_micros()
+                );
+                vec![]
+            };
+            let duration = Instant::now() - begin_time;
+            let dt = duration.as_micros();
+            if dt > 1000 && !path.is_empty() {
+                info!(
+                    "path for {} from {} to {} computed in {}μs",
+                    name, from_grid, to_grid, dt
+                );
+            }
+            PathfindingTaskResult { path }
+        });
+        cmd.entity(entity).insert(task);
     }
-    let dt = (Instant::now() - begin).as_micros();
-    if paths > 0 && dt > 2000 {
-        let dt_astar = (Instant::now() - astar_begin).as_micros();
-        info!(
-            "{} / {} paths ({} failed) computed in {}μs (setup: {}μs)",
-            paths,
-            total_todo,
-            failed,
-            dt,
-            dt - dt_astar
-        );
+}
+
+fn handle_pathfinding_tasks(
+    mut tasks: Query<(Entity, &mut Task<PathfindingTaskResult>)>,
+    mut cmd: Commands,
+) {
+    for (entity, mut task) in tasks.iter_mut() {
+        if let Some(result) = future::block_on(future::poll_once(&mut *task)) {
+            cmd.entity(entity)
+                .insert(MovingPath {
+                    path: result.path,
+                    current: 0,
+                })
+                .remove::<Task<PathfindingTaskResult>>();
+        }
     }
 }
 

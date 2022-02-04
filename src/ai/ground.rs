@@ -169,19 +169,6 @@ impl Ground {
         &self.nav_grid
     }
 
-    pub fn nav_grid_successors(&self, pos: GridPos) -> Vec<(GridPos, u32)> {
-        let w = self.width() - 1;
-        let h = self.height() - 1;
-        GridPos::VN_OFFSETS
-            .iter()
-            .map(|offset| pos + *offset)
-            .filter(|GridPos { x, y }| *x > 0 && *x < w as i32 && *y > 0 && *y < h as i32)
-            .map(|p| (p, self.nav_grid.get(p)))
-            .filter(|(_, c)| c.is_some())
-            .map(|(p, c)| (p, c.unwrap().get() as u32))
-            .collect()
-    }
-
     pub fn get_tile_ref(&self, pos: GridPos) -> Option<GroundMaterialRef> {
         self.tiles.get(pos).map(|id| *id)
     }
