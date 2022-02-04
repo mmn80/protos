@@ -260,8 +260,8 @@ impl Awake {
 #[derive(Clone, Component, Debug)]
 pub struct Sleep;
 
-const SLEEP_TIME: f64 = 1000.;
-const SLEEP_TIME_D: f64 = 990.;
+const SLEEP_TIME: f64 = 200.;
+const SLEEP_TIME_D: f64 = 190.;
 const AWAKE_TIME: f64 = 20.;
 const AWAKE_TIME_D: f64 = 5.;
 
