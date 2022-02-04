@@ -120,20 +120,23 @@ fn spawn_pathfinding_tasks(
                 MovingPath::smoothify_path(path, from, to)
             } else {
                 warn!(
-                    "failed to find a path for {} from {} to {} in {}μs",
+                    "failed to find a path for {} from {} to {} in {}ms",
                     name,
                     from_grid,
                     to_grid,
-                    (Instant::now() - begin_time).as_micros()
+                    (Instant::now() - begin_time).as_millis()
                 );
                 vec![]
             };
             let duration = Instant::now() - begin_time;
-            let dt = duration.as_micros();
-            if dt > 5000 && !path.is_empty() {
+            let dt = duration.as_millis();
+            if dt > 100 && !path.is_empty() {
                 info!(
-                    "path for {} from {} to {} computed in {}μs",
-                    name, from_grid, to_grid, dt
+                    "path for {} from {} to {} computed in {}ms",
+                    name,
+                    from_grid,
+                    to_grid,
+                    dt / 1000
                 );
             }
             PathfindingTaskResult { path }

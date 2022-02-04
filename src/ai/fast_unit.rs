@@ -143,9 +143,9 @@ pub struct RandomMove;
 
 const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
-const TARGET_TIME: f32 = 10.;
-const TARGET_TIME_D: f32 = 2.;
-const TARGET_MAX_DIST: f32 = 64.;
+const TARGET_TIME: f32 = 20.;
+const TARGET_TIME_D: f32 = 5.;
+const TARGET_MAX_DIST: f32 = 128.;
 
 fn random_move_action(
     ground: Res<Ground>,
@@ -260,9 +260,9 @@ impl Awake {
 #[derive(Clone, Component, Debug)]
 pub struct Sleep;
 
-const SLEEP_TIME: f64 = 200.;
-const SLEEP_TIME_D: f64 = 190.;
-const AWAKE_TIME: f64 = 20.;
+const SLEEP_TIME: f64 = 240.;
+const SLEEP_TIME_D: f64 = 239.;
+const AWAKE_TIME: f64 = 60.;
 const AWAKE_TIME_D: f64 = 5.;
 
 fn sleep_action(
