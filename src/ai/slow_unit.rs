@@ -136,9 +136,7 @@ fn spawn(
                 breaking: false,
                 ignore_collisions: true,
             })
-            .insert(Sleeping {
-                since: std::time::Instant::now(),
-            })
+            .insert(Sleeping::default())
             .insert(
                 Thinker::build()
                     .picker(HighestScoreAbove { threshold: 0.8 })

@@ -97,6 +97,9 @@ fn spawn_pathfinding_tasks(
     >,
     mut cmd: Commands,
 ) {
+    if query.is_empty() {
+        return;
+    }
     let shared_grid = Arc::new(ground.nav_grid().clone());
     for (entity, name, transform, move_to) in query.iter() {
         let name = name.to_string();
@@ -127,7 +130,7 @@ fn spawn_pathfinding_tasks(
             };
             let duration = Instant::now() - begin_time;
             let dt = duration.as_micros();
-            if dt > 1000 && !path.is_empty() {
+            if dt > 5000 && !path.is_empty() {
                 info!(
                     "path for {} from {} to {} computed in {}μs",
                     name, from_grid, to_grid, dt
@@ -140,17 +143,21 @@ fn spawn_pathfinding_tasks(
 }
 
 fn handle_pathfinding_tasks(
-    mut tasks: Query<(Entity, &mut Task<PathfindingTaskResult>)>,
+    mut tasks: Query<(Entity, &mut Task<PathfindingTaskResult>, Option<&Moving>)>,
     mut cmd: Commands,
 ) {
-    for (entity, mut task) in tasks.iter_mut() {
+    for (entity, mut task, moving) in tasks.iter_mut() {
         if let Some(result) = future::block_on(future::poll_once(&mut *task)) {
-            cmd.entity(entity)
-                .insert(MovingPath {
-                    path: result.path,
-                    current: 0,
-                })
-                .remove::<Task<PathfindingTaskResult>>();
+            if moving.is_some() {
+                cmd.entity(entity)
+                    .insert(MovingPath {
+                        path: result.path,
+                        current: 0,
+                    })
+                    .remove::<Task<PathfindingTaskResult>>();
+            } else {
+                cmd.entity(entity).remove::<Task<PathfindingTaskResult>>();
+            }
         }
     }
 }

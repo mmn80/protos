@@ -69,7 +69,6 @@ fn setup(
         let area_dist = LogNormal::new(PI * 0.8 * 0.8, 0.4).unwrap();
         let mut rng = thread_rng();
         let mut agent_id = 0;
-        let now = Instant::now();
         for x in (10..ground.width() - 10).step_by(10) {
             for z in (10..ground.width() - 10).step_by(10) {
                 agent_id += 1;
@@ -88,7 +87,7 @@ fn setup(
                         .insert(Selectable)
                         .insert(Velocity::default())
                         .insert(Neighbours::default())
-                        .insert(Sleeping { since: now })
+                        .insert(Sleeping::default())
                         .insert(
                             Thinker::build()
                                 .picker(HighestScoreAbove { threshold: 0.8 })
@@ -144,9 +143,9 @@ pub struct RandomMove;
 
 const TARGET_SPD: f32 = 10.0;
 const TARGET_SPD_D: f32 = 0.5;
-const TARGET_TIME: f32 = 4.;
-const TARGET_TIME_D: f32 = 1.;
-const TARGET_MAX_DIST: f32 = 16.;
+const TARGET_TIME: f32 = 10.;
+const TARGET_TIME_D: f32 = 2.;
+const TARGET_MAX_DIST: f32 = 64.;
 
 fn random_move_action(
     ground: Res<Ground>,
@@ -231,30 +230,71 @@ pub fn drunk_scorer(
 #[derive(Clone, Component, Debug)]
 pub struct Sleeping {
     pub since: Instant,
+    pub duration: f64, // seconds
+}
+
+impl Default for Sleeping {
+    fn default() -> Self {
+        Self {
+            since: Instant::now(),
+            duration: SLEEP_TIME,
+        }
+    }
 }
 
 #[derive(Clone, Component, Debug)]
 pub struct Awake {
     pub since: Instant,
+    pub duration: f64, // seconds
+}
+
+impl Awake {
+    pub fn new() -> Self {
+        Self {
+            since: Instant::now(),
+            duration: AWAKE_TIME + thread_rng().gen_range(-AWAKE_TIME_D..AWAKE_TIME_D),
+        }
+    }
 }
 
 #[derive(Clone, Component, Debug)]
 pub struct Sleep;
 
-fn sleep_action(mut action_q: Query<(&Actor, &mut ActionState), With<Sleep>>, mut cmd: Commands) {
+const SLEEP_TIME: f64 = 1000.;
+const SLEEP_TIME_D: f64 = 990.;
+const AWAKE_TIME: f64 = 20.;
+const AWAKE_TIME_D: f64 = 5.;
+
+fn sleep_action(
+    mut action_q: Query<(&Actor, &mut ActionState), With<Sleep>>,
+    sleeping_q: Query<&Sleeping>,
+    mut cmd: Commands,
+) {
+    let mut rng = thread_rng();
     for (Actor(actor), mut state) in action_q.iter_mut() {
         match *state {
             ActionState::Requested => {
                 cmd.entity(*actor).remove::<Awake>().insert(Sleeping {
                     since: Instant::now(),
+                    duration: SLEEP_TIME + rng.gen_range(-SLEEP_TIME_D..SLEEP_TIME_D),
                 });
                 *state = ActionState::Executing;
             }
+            ActionState::Executing => {
+                if let Ok(sleeping) = sleeping_q.get(*actor) {
+                    let dt = Instant::now() - sleeping.since;
+                    if dt.as_secs_f64() > sleeping.duration {
+                        cmd.entity(*actor).remove::<Sleeping>().insert(Awake::new());
+                        *state = ActionState::Success;
+                    }
+                } else {
+                    cmd.entity(*actor).insert(Awake::new());
+                    *state = ActionState::Failure;
+                }
+            }
             ActionState::Cancelled => {
-                cmd.entity(*actor).remove::<Sleeping>().insert(Awake {
-                    since: Instant::now(),
-                });
-                *state = ActionState::Success;
+                cmd.entity(*actor).remove::<Sleeping>().insert(Awake::new());
+                *state = ActionState::Failure;
             }
             _ => {}
         }
@@ -264,36 +304,20 @@ fn sleep_action(mut action_q: Query<(&Actor, &mut ActionState), With<Sleep>>, mu
 #[derive(Clone, Component, Debug)]
 pub struct Sleepy;
 
-const AWAKE_TIME: f64 = 20.;
-const AWAKE_TIME_D: f64 = 5.;
-const SLEEP_TIME: f64 = 2000.;
-const SLEEP_TIME_D: f64 = 1990.;
-
 pub fn sleepy_scorer(
-    time: Res<Time>,
     mut sleepy_q: Query<(&Actor, &mut Score), With<Sleepy>>,
     awake_q: Query<&Awake>,
-    sleeping_q: Query<&Sleeping>,
+    sleeping_q: Query<With<Sleeping>>,
 ) {
-    let delta = time.delta_seconds_f64();
-    let mut rng = thread_rng();
     for (Actor(actor), mut score) in sleepy_q.iter_mut() {
         let mut new_score = 0.;
         if let Ok(awake) = awake_q.get(*actor) {
             let dt = Instant::now() - awake.since;
-            if dt.as_secs_f64() > AWAKE_TIME - AWAKE_TIME_D {
-                if rng.gen_bool((delta / (2. * AWAKE_TIME_D)).min(1.0).max(0.0)) {
-                    new_score = 1.;
-                }
+            if dt.as_secs_f64() > awake.duration {
+                new_score = 1.;
             }
-        } else if let Ok(sleeping) = sleeping_q.get(*actor) {
+        } else if sleeping_q.get(*actor).is_ok() {
             new_score = 1.;
-            let dt = Instant::now() - sleeping.since;
-            if dt.as_secs_f64() > SLEEP_TIME - SLEEP_TIME_D {
-                if rng.gen_bool((delta / (2. * SLEEP_TIME_D)).min(1.0).max(0.0)) {
-                    new_score = 0.;
-                }
-            }
         }
         score.set(new_score);
     }
