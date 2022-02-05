@@ -37,7 +37,8 @@ fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiS
 pub struct SidePanelState {
     pub ai_active_selected: bool,
     pub ai_active_all: bool,
-    pub show_path_selected: bool,
+    pub selected_show_names: bool,
+    pub selected_show_path: bool,
     pub ground_brush_size: u8,
     pub ground_material: GroundMaterials,
     pub spawn_building: bool,
@@ -48,7 +49,8 @@ impl Default for SidePanelState {
         Self {
             ai_active_selected: false,
             ai_active_all: false,
-            show_path_selected: true,
+            selected_show_names: true,
+            selected_show_path: true,
             ground_brush_size: 1,
             ground_material: Default::default(),
             spawn_building: false,
@@ -87,7 +89,8 @@ fn update_side_panel(
                 .show(ui, |ui| {
                     ui.checkbox(&mut state.ai_active_selected, "Ai active (selected)");
                     ui.checkbox(&mut state.ai_active_all, "Ai active (all)");
-                    ui.checkbox(&mut state.show_path_selected, "Show paths (selected)");
+                    ui.checkbox(&mut state.selected_show_names, "Show names (selected)");
+                    ui.checkbox(&mut state.selected_show_path, "Show paths (selected)");
 
                     ui.colored_label(
                         egui::Color32::DARK_GREEN,

@@ -12,17 +12,19 @@ pub struct SelectionPlugin;
 impl Plugin for SelectionPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup)
+            .add_event::<DeselectedEvent>()
             .insert_resource(SelectionRect::default())
             .add_system_to_stage(
                 CoreStage::PreUpdate,
                 update_units_selected.after("update_screen_position"),
             )
+            .add_system(update_selected_unit_names)
             .add_system(update_select_ui_rect)
             .add_system(update_nav_path_trails);
     }
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(UiCameraBundle::default());
     commands
         .spawn_bundle(NodeBundle {
@@ -47,6 +49,7 @@ fn setup(mut commands: Commands) {
                 })
                 .insert(SelectionRectUiNode);
         });
+    commands.insert_resource(LoadedFont(asset_server.load("fonts/FiraMono-Medium.ttf")));
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -80,6 +83,8 @@ impl SelectionRect {
     }
 }
 
+struct DeselectedEvent(Entity);
+
 fn update_units_selected(
     mut selection_rect: ResMut<SelectionRect>,
     keyboard: Res<Input<KeyCode>>,
@@ -87,6 +92,7 @@ fn update_units_selected(
     windows: Res<Windows>,
     egui_ctx: ResMut<bevy_egui::EguiContext>,
     mut units_query: Query<(Entity, &ScreenPosition), With<Selectable>>,
+    mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
     if egui_ctx.ctx().wants_pointer_input() {
@@ -126,6 +132,7 @@ fn update_units_selected(
                 cmd.entity(entity).insert(Selected);
             } else if selection_rect.clear_previous {
                 cmd.entity(entity).remove::<Selected>();
+                ev_deselected.send(DeselectedEvent(entity));
             }
         }
         selection_rect.begin = None;
@@ -148,6 +155,80 @@ fn update_select_ui_rect(
             visibility.is_visible = true;
         } else {
             visibility.is_visible = false;
+        }
+    }
+}
+
+struct LoadedFont(Handle<Font>);
+
+#[derive(Clone, Component, Debug, Default)]
+pub struct UnitNameUiNode;
+
+#[derive(Clone, Component, Debug)]
+pub struct UnitNameUiNodeRef(Entity);
+
+fn update_selected_unit_names(
+    panel: Res<SidePanelState>,
+    loaded_font: Res<LoadedFont>,
+    added_q: Query<(Entity, &Name, &ScreenPosition), Added<Selected>>,
+    moved_q: Query<(Entity, &ScreenPosition, &UnitNameUiNodeRef)>,
+    mut nodes_q: Query<&mut Style, With<UnitNameUiNode>>,
+    mut ev_deselected: EventReader<DeselectedEvent>,
+    mut cmd: Commands,
+) {
+    if panel.selected_show_names {
+        let text_style = TextStyle {
+            font: loaded_font.0.clone(),
+            font_size: 14.0,
+            color: Color::SILVER,
+        };
+        let text_alignment = TextAlignment {
+            vertical: VerticalAlign::Center,
+            horizontal: HorizontalAlign::Center,
+        };
+
+        for (entity, name, screen_pos) in added_q.iter() {
+            let text_ent = cmd
+                .spawn_bundle(TextBundle {
+                    style: Style {
+                        position_type: PositionType::Absolute,
+                        position: Rect {
+                            left: Val::Px(screen_pos.position.x - 35.),
+                            right: Val::Auto,
+                            top: Val::Auto,
+                            bottom: Val::Px(screen_pos.position.y + 20.),
+                        },
+                        ..Default::default()
+                    },
+                    text: Text::with_section(
+                        name.to_string(),
+                        text_style.clone(),
+                        text_alignment.clone(),
+                    ),
+                    ..Default::default()
+                })
+                .insert(UnitNameUiNode)
+                .id();
+            cmd.entity(entity).insert(UnitNameUiNodeRef(text_ent));
+        }
+    }
+
+    for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in moved_q.iter() {
+        if panel.selected_show_names {
+            if let Ok(mut style) = nodes_q.get_mut(*ui_node) {
+                style.position.left = Val::Px(screen_pos.position.x - 35.);
+                style.position.bottom = Val::Px(screen_pos.position.y + 20.);
+            }
+        } else {
+            cmd.entity(*ui_node).despawn_recursive();
+            cmd.entity(entity).remove::<UnitNameUiNodeRef>();
+        }
+    }
+
+    for DeselectedEvent(unit_ent) in ev_deselected.iter() {
+        if let Ok((_, _, UnitNameUiNodeRef(ui_node))) = moved_q.get(*unit_ent) {
+            cmd.entity(*ui_node).despawn_recursive();
+            cmd.entity(*unit_ent).remove::<UnitNameUiNodeRef>();
         }
     }
 }
@@ -177,7 +258,7 @@ fn update_nav_path_trails(
     mut visibility_query: Query<&mut Visibility, With<NavPathTrailElement>>,
     mut cmd: Commands,
 ) {
-    if ui.show_path_selected {
+    if ui.selected_show_path {
         for (entity, material, nav_path) in selected_query.iter() {
             let mesh = meshes.add(Mesh::from(shape::Icosphere {
                 radius: 0.2,
@@ -203,7 +284,7 @@ fn update_nav_path_trails(
         }
     }
     for (entity, trail, selected, path) in all_query.iter() {
-        if !ui.show_path_selected || selected.is_none() || path.is_none() {
+        if !ui.selected_show_path || selected.is_none() || path.is_none() {
             cmd.entity(entity).remove::<NavPathTrail>();
             for marker in &trail.path {
                 cmd.entity(*marker).despawn_recursive();
