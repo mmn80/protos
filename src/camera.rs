@@ -171,6 +171,7 @@ fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
 #[derive(Clone, Component, Debug, Default)]
 pub struct ScreenPosition {
     pub position: Vec2,
+    pub camera_dist: f32,
 }
 
 fn update_screen_position(
@@ -194,6 +195,8 @@ fn update_screen_position(
                 screen_size.x * (1. + pos_view.x / pos_view.w) / 2.,
                 screen_size.y * (1. + pos_view.y / pos_view.w) / 2.,
             );
+            screen_position.camera_dist =
+                (transform.translation - camera_transform.translation).length();
         }
         break;
     }

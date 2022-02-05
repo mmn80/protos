@@ -1,11 +1,10 @@
 use bevy::{pbr::NotShadowCaster, prelude::*};
 
+use super::side_panel::SidePanelState;
 use crate::{
     ai::{ground::Ground, pathfind::MovingPath},
     camera::ScreenPosition,
 };
-
-use super::side_panel::SidePanelState;
 
 pub struct SelectionPlugin;
 
@@ -123,7 +122,14 @@ fn update_units_selected(
     };
 
     if let Some(rect) = do_select_rect {
-        for (entity, ScreenPosition { position }) in units_query.iter_mut() {
+        for (
+            entity,
+            ScreenPosition {
+                position,
+                camera_dist: _,
+            },
+        ) in units_query.iter_mut()
+        {
             if position.x > rect.left
                 && position.x < rect.right
                 && position.y < rect.top
@@ -172,31 +178,32 @@ fn update_selected_unit_names(
     loaded_font: Res<LoadedFont>,
     added_q: Query<(Entity, &Name, &ScreenPosition), Added<Selected>>,
     moved_q: Query<(Entity, &ScreenPosition, &UnitNameUiNodeRef)>,
-    mut nodes_q: Query<&mut Style, With<UnitNameUiNode>>,
+    mut nodes_q: Query<(&mut Transform, &mut Style), With<UnitNameUiNode>>,
     mut ev_deselected: EventReader<DeselectedEvent>,
     mut cmd: Commands,
 ) {
     if panel.selected_show_names {
-        let text_style = TextStyle {
-            font: loaded_font.0.clone(),
-            font_size: 14.0,
-            color: Color::SILVER,
-        };
         let text_alignment = TextAlignment {
             vertical: VerticalAlign::Center,
             horizontal: HorizontalAlign::Center,
         };
+        let text_style = TextStyle {
+            font: loaded_font.0.clone(),
+            font_size: 20.0,
+            color: Color::SILVER,
+        };
 
         for (entity, name, screen_pos) in added_q.iter() {
+            let cam_fact = 1. / screen_pos.camera_dist;
             let text_ent = cmd
                 .spawn_bundle(TextBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
                         position: Rect {
-                            left: Val::Px(screen_pos.position.x - 35.),
+                            left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
                             right: Val::Auto,
                             top: Val::Auto,
-                            bottom: Val::Px(screen_pos.position.y + 20.),
+                            bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
                         },
                         ..Default::default()
                     },
@@ -205,6 +212,7 @@ fn update_selected_unit_names(
                         text_style.clone(),
                         text_alignment.clone(),
                     ),
+                    transform: Transform::from_scale(Vec3::ONE * (50. * cam_fact)),
                     ..Default::default()
                 })
                 .insert(UnitNameUiNode)
@@ -215,9 +223,11 @@ fn update_selected_unit_names(
 
     for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in moved_q.iter() {
         if panel.selected_show_names {
-            if let Ok(mut style) = nodes_q.get_mut(*ui_node) {
-                style.position.left = Val::Px(screen_pos.position.x - 35.);
-                style.position.bottom = Val::Px(screen_pos.position.y + 20.);
+            if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
+                let cam_fact = 1. / screen_pos.camera_dist;
+                style.position.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
+                style.position.bottom = Val::Px(screen_pos.position.y - 3000. * cam_fact);
+                transform.scale = Vec3::ONE * (50. * cam_fact);
             }
         } else {
             cmd.entity(*ui_node).despawn_recursive();
