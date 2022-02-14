@@ -41,7 +41,7 @@ pub fn update_grid(
             .ok();
     }
     // let dt = (std::time::Instant::now() - start).as_micros();
-    // info!("grid construction time: {}μs, len={}", dt, res.grid.size(),);
+    // info!("grid construction time: {dt}μs, len={}", res.grid.size());
 }
 
 #[derive(Clone, Debug)]
@@ -91,5 +91,5 @@ pub fn find_neighbours(
             .sort_unstable_by(|n1, n2| n1.distance.partial_cmp(&n2.distance).unwrap());
     });
     // let dt = (std::time::Instant::now() - start).as_micros();
-    // info!("Neighbours update time: {}μs", dt);
+    // info!("Neighbours update time: {dt}μs");
 }

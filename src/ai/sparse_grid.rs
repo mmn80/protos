@@ -108,7 +108,7 @@ impl<V: 'static> SparseGrid<V> {
         if index < self.values.len() {
             self.values[index] = Some(value);
         } else {
-            warn!("out of bounds grid index {:?}, ignoring", pos);
+            warn!("out of bounds grid index {pos}, ignoring");
         }
     }
 

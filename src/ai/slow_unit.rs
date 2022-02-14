@@ -188,7 +188,7 @@ fn spawn_building(
                 for (entity, intersection) in intersections {
                     if *entity == ground.entity.unwrap() {
                         let center = mat.project_point3(intersection.position());
-                        // info!("spawn building at: {:?}", center);
+                        // info!("spawn building at: {center:?}");
                         spawn(
                             &mut commands,
                             &mut meshes,

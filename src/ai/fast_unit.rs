@@ -183,7 +183,7 @@ fn random_move_action(
                         velocity.breaking = false;
                         *state = ActionState::Executing;
                     } else {
-                        // warn!("invalid ground tile {}", target);
+                        // warn!("invalid ground tile {target}");
                     }
                 }
                 ActionState::Executing => {
@@ -394,5 +394,5 @@ fn show_unit_debug_info(
         }
         break;
     }
-    info!("{}", info);
+    info!("{info}");
 }

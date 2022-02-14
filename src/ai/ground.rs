@@ -254,7 +254,7 @@ fn update_ground_texture(
                     ground.dirty_rects.clear();
                     let dt = (std::time::Instant::now() - start).as_micros();
                     if dt > 1000 {
-                        info!("ground texture update time: {}μs", dt);
+                        info!("ground texture update time: {dt}μs");
                     }
                 }
             }
@@ -297,7 +297,7 @@ fn ground_painter(
                         if *entity == ground.entity.unwrap() {
                             let center: GridPos =
                                 mat.project_point3(intersection.position()).into();
-                            // info!("ground paint center: {:?}", center);
+                            // info!("ground paint center: {center:?}");
                             let mat = ui.ground_material.to_material_ref();
                             for y in 0..ui.ground_brush_size {
                                 for x in 0..ui.ground_brush_size {
