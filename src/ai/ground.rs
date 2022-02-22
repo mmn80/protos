@@ -1,6 +1,6 @@
-use std::num::NonZeroU8;
+use std::num::{NonZeroI32, NonZeroU8};
 
-use bevy::{prelude::*, render::render_resource::Extent3d};
+use bevy::{prelude::*, render::render_resource::Extent3d, utils::HashMap};
 use bevy_mod_raycast::{
     DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
 };
@@ -319,4 +319,57 @@ fn ground_painter(
             }
         }
     }
+}
+
+// new API (WIP)
+
+#[derive(Debug, Clone)]
+pub struct InternalPortalId(u8);
+
+#[derive(Debug, Clone)]
+pub struct InternalConnection {
+    dest: InternalPortalId,
+    cost: u8,
+}
+
+#[derive(Debug, Clone)]
+pub struct InternalPortal {
+    start: u8,
+    end: u8,
+    connections: Vec<InternalConnection>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FlowFieldConfig {
+    pub agent_radius: f32,
+    pub target_portal: InternalPortalId,
+}
+
+#[derive(Debug, Clone)]
+pub struct NavGridTile {
+    color: SparseGrid<Color>,
+    cost: SparseGrid<NonZeroU8>,
+    height: SparseGrid<NonZeroI32>,
+    flow: HashMap<FlowFieldConfig, SparseGrid<NonZeroU8>>,
+    internal_portals: [Vec<InternalPortal>; 4],
+    external_portals: Vec<ExternalPortalId>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternalPortalId(usize);
+
+#[derive(Debug, Clone)]
+pub struct ExternalPortal {
+    target_grid: Entity,
+    position: Vec2,
+    portal: Vec2,
+    cost: u8,
+}
+
+#[derive(Debug, Clone, Component)]
+pub struct NavGrid {
+    tiles: SparseGrid<NavGridTile>,
+    material: Handle<StandardMaterial>,
+    dirty_rects: Vec<Rect<i32>>,
+    portals: Vec<ExternalPortal>,
 }
