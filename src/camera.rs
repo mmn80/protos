@@ -66,7 +66,7 @@ fn main_camera(
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<Input<MouseButton>>,
     mut query: Query<(&mut MainCamera, &mut Transform)>,
-    egui_ctx: ResMut<EguiContext>,
+    mut egui_ctx: ResMut<EguiContext>,
 ) {
     let orbit_button = MouseButton::Right;
 
@@ -74,7 +74,7 @@ fn main_camera(
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
 
-    if !egui_ctx.ctx().wants_pointer_input() {
+    if !egui_ctx.ctx_mut().wants_pointer_input() {
         if input_mouse.pressed(orbit_button) {
             for ev in ev_motion.iter() {
                 rotation_move += ev.delta;

@@ -26,8 +26,8 @@ impl Plugin for SidePanelPlugin {
     }
 }
 
-fn configure_egui(egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiSettings>) {
-    egui_ctx.ctx().set_visuals(egui::Visuals {
+fn configure_egui(mut egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiSettings>) {
+    egui_ctx.ctx_mut().set_visuals(egui::Visuals {
         window_corner_radius: 0.0,
         ..Default::default()
     });
@@ -59,7 +59,7 @@ impl Default for SidePanelState {
 }
 
 fn update_side_panel(
-    egui_ctx: ResMut<EguiContext>,
+    mut egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
     selected_q: Query<(&Name, Option<&Awake>, Option<&Sleeping>), With<Selected>>,
@@ -67,7 +67,7 @@ fn update_side_panel(
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
-        .show(egui_ctx.ctx(), |ui| {
+        .show(egui_ctx.ctx_mut(), |ui| {
             let fps = diagnostics
                 .get_measurement(FrameTimeDiagnosticsPlugin::FPS)
                 .map(|d| d.value.round() as u32)

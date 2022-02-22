@@ -89,12 +89,12 @@ fn update_units_selected(
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    egui_ctx: ResMut<bevy_egui::EguiContext>,
+    mut egui_ctx: ResMut<bevy_egui::EguiContext>,
     mut units_query: Query<(Entity, &ScreenPosition), With<Selectable>>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if egui_ctx.ctx().wants_pointer_input() {
+    if egui_ctx.ctx_mut().wants_pointer_input() {
         return;
     }
     let do_select_rect = {
