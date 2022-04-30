@@ -1,6 +1,6 @@
-use std::num::{NonZeroI32, NonZeroU8};
+use std::num::NonZeroU8;
 
-use bevy::{prelude::*, render::render_resource::Extent3d, utils::HashMap};
+use bevy::{prelude::*, render::render_resource::Extent3d};
 use bevy_mod_raycast::{
     DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
 };
@@ -63,6 +63,7 @@ fn setup(
             })
             .insert(Name::new("Ground"))
             .insert(RayCastMesh::<GroundRaycastSet>::default())
+            //.insert(NavGrid::new())
             .id(),
     );
 }
@@ -323,53 +324,100 @@ fn ground_painter(
 
 // new API (WIP)
 
-#[derive(Debug, Clone)]
-pub struct InternalPortalId(u8);
+// #[derive(Debug, Clone)]
+// pub struct TilePortalId(u8);
 
-#[derive(Debug, Clone)]
-pub struct InternalConnection {
-    dest: InternalPortalId,
-    cost: u8,
-}
+// #[derive(Debug, Clone)]
+// pub struct GridPortalId(usize);
 
-#[derive(Debug, Clone)]
-pub struct InternalPortal {
-    start: u8,
-    end: u8,
-    connections: Vec<InternalConnection>,
-}
+// #[derive(Debug, Clone)]
+// pub enum NavPoint {
+//     Grid {
+//         grid: Entity,
+//         portal: GridPortalId,
+//     },
+//     Tile {
+//         grid: Entity,
+//         tile: GridPos,
+//         portal: TilePortalId,
+//     },
+//     Point {
+//         grid: Entity,
+//         point: GridPos,
+//     },
+// }
 
-#[derive(Debug, Clone)]
-pub struct FlowFieldConfig {
-    pub agent_radius: f32,
-    pub target_portal: InternalPortalId,
-}
+// #[derive(Debug, Clone, Component)]
+// pub struct NavPath {
+//     path: Vec<NavPoint>,
+//     current: usize,
+// }
 
-#[derive(Debug, Clone)]
-pub struct NavGridTile {
-    color: SparseGrid<Color>,
-    cost: SparseGrid<NonZeroU8>,
-    height: SparseGrid<NonZeroI32>,
-    flow: HashMap<FlowFieldConfig, SparseGrid<NonZeroU8>>,
-    internal_portals: [Vec<InternalPortal>; 4],
-    external_portals: Vec<ExternalPortalId>,
-}
+// #[derive(Debug, Clone)]
+// struct GridPortal {
+//     dest_grid: Entity,
+//     dest_portal: GridPortalId,
+//     position: Vec2,
+//     portal: Vec2,
+//     cost: u8,
+// }
 
-#[derive(Debug, Clone)]
-pub struct ExternalPortalId(usize);
+// #[derive(Debug, Clone)]
+// enum TileNavPoint {
+//     Grid(GridPortalId),
+//     Tile(TilePortalId),
+//     Point(GridPos),
+// }
 
-#[derive(Debug, Clone)]
-pub struct ExternalPortal {
-    target_grid: Entity,
-    position: Vec2,
-    portal: Vec2,
-    cost: u8,
-}
+// #[derive(Debug, Clone)]
+// struct FlowFieldConfig {
+//     pub agent_radius: f32,
+//     pub flow_dest: TileNavPoint,
+// }
 
-#[derive(Debug, Clone, Component)]
-pub struct NavGrid {
-    tiles: SparseGrid<NavGridTile>,
-    material: Handle<StandardMaterial>,
-    dirty_rects: Vec<Rect<i32>>,
-    portals: Vec<ExternalPortal>,
-}
+// type TilePortalLink = (TileNavPoint, u8);
+
+// #[derive(Debug, Clone)]
+// enum TilePortal {
+//     Grid {
+//         portal: GridPortalId,
+//         links: Vec<TilePortalLink>,
+//     },
+//     Tile {
+//         side: u8,
+//         start: u8,
+//         end: u8,
+//         links: Vec<TilePortalLink>,
+//     },
+//     Point {
+//         point: GridPos,
+//         links: Vec<TilePortalLink>,
+//     },
+// }
+
+// #[derive(Debug, Clone)]
+// pub struct NavGridTile {
+//     position: GridPos,
+//     cost: SparseGrid<NonZeroU8>,
+//     height: SparseGrid<NonZeroI32>,
+//     dirty_since: Option<Instant>,
+//     flow: HashMap<FlowFieldConfig, SparseGrid<NonZeroU8>>,
+//     portals: Vec<TilePortal>,
+// }
+
+// #[derive(Debug, Clone, Component)]
+// pub struct NavGrid {
+//     tiles: SparseGrid<NavGridTile>,
+//     material: Handle<StandardMaterial>,
+//     portals: Vec<GridPortal>,
+// }
+
+// impl NavGrid {
+//     pub fn new() -> Self {
+//         Self {
+//             tiles: SparseGrid::new(0, 0, None),
+//             material: Default::default(),
+//             portals: Default::default(),
+//         }
+//     }
+// }

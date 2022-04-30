@@ -26,11 +26,7 @@ impl Plugin for SidePanelPlugin {
     }
 }
 
-fn configure_egui(mut egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiSettings>) {
-    egui_ctx.ctx_mut().set_visuals(egui::Visuals {
-        window_corner_radius: 0.0,
-        ..Default::default()
-    });
+fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.0;
 }
 

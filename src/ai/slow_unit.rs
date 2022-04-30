@@ -246,10 +246,10 @@ fn update_nav_grid(
         let (ext_x, ext_z) = (aabb.half_extents.x, aabb.half_extents.z);
 
         let bounds = {
-            let bot_l = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., -ext_z));
-            let bot_r = transform.mul_vec3(aabb.center + Vec3::new(-ext_x, 0., ext_z));
-            let top_l = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., -ext_z));
-            let top_r = transform.mul_vec3(aabb.center + Vec3::new(ext_x, 0., ext_z));
+            let bot_l = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., -ext_z));
+            let bot_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., ext_z));
+            let top_l = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., -ext_z));
+            let top_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., ext_z));
             Rect {
                 left: bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor() as i32,
                 right: bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil() as i32,
