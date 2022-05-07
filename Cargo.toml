@@ -8,9 +8,9 @@ publish = false
 
 [dependencies]
 bevy = "0.7"
-bevy_egui = "0.13"
+bevy_egui = "0.14.0"
 bevy_mod_raycast = "0.4"
-big-brain = "0.10"
+big-brain = "0.11.0"
 
 rand = "0.8"
 rand_distr = "0.4"
@@ -26,4 +26,4 @@ opt-level = 3
 
 [patch.crates-io]
 #bevy = { path = "../bevy" }
-big-brain = { path = "../big-brain" }
+#big-brain = { path = "../big-brain" }
