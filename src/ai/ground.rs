@@ -19,8 +19,12 @@ impl Plugin for GroundPlugin {
             .add_system_set_to_stage(
                 CoreStage::PreUpdate,
                 SystemSet::new()
-                    .with_system(update_ground_raycast.before(RaycastSystem::BuildRays))
-                    .with_system(ground_painter.after(RaycastSystem::UpdateRaycast)),
+                    .with_system(
+                        update_ground_raycast.before(RaycastSystem::BuildRays::<GroundRaycastSet>),
+                    )
+                    .with_system(
+                        ground_painter.after(RaycastSystem::UpdateRaycast::<GroundRaycastSet>),
+                    ),
             )
             .add_system(update_ground_texture);
     }

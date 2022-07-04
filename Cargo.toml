@@ -8,9 +8,9 @@ publish = false
 
 [dependencies]
 bevy = "0.7"
-bevy_egui = "0.14.0"
-bevy_mod_raycast = "0.4"
-big-brain = "0.11.0"
+bevy_egui = "0.14"
+bevy_mod_raycast = "0.5"
+big-brain = "0.11"
 
 rand = "0.8"
 rand_distr = "0.4"
