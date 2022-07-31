@@ -104,7 +104,7 @@ fn spawn(
                 size.y + tower_size,
                 tower_size + -size.z / 2.,
             )),
-            ..Default::default()
+            ..default()
         })
         .id();
     let bld_id = commands
@@ -120,7 +120,7 @@ fn spawn(
             material,
             transform: Transform::from_rotation(Quat::from_rotation_y(rotation))
                 .with_translation(Vec3::new(position.x, 0., position.y)),
-            ..Default::default()
+            ..default()
         })
         .insert(Name::new("Building"))
         .insert(NavGridCarve::default())

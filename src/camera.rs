@@ -46,11 +46,11 @@ fn spawn_camera(mut commands: Commands) {
     commands
         .spawn_bundle(Camera3dBundle {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
-            ..Default::default()
+            ..default()
         })
         .insert(MainCamera {
             radius,
-            ..Default::default()
+            ..default()
         })
         .insert(RayCastSource::<GroundRaycastSet>::new());
 }

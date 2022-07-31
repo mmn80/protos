@@ -48,17 +48,17 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
                 top: state.dir_light_size,
                 near: -10.0 * state.dir_light_size,
                 far: 10.0 * state.dir_light_size,
-                ..Default::default()
+                ..default()
             },
             shadows_enabled: true,
-            ..Default::default()
+            ..default()
         },
         transform: Transform {
             translation: Vec3::new(0.0, 2.0, 0.0),
             rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),
-            ..Default::default()
+            ..default()
         },
-        ..Default::default()
+        ..default()
     });
 }
 
@@ -75,7 +75,7 @@ fn animate_light_direction(
             top: state.dir_light_size,
             near: -10.0 * state.dir_light_size,
             far: 10.0 * state.dir_light_size,
-            ..Default::default()
+            ..default()
         };
         transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.1));
     }

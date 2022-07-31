@@ -42,7 +42,7 @@ fn setup(
     let units = {
         let mesh = meshes.add(Mesh::from(shape::Capsule {
             depth: 2.,
-            ..Default::default()
+            ..default()
         }));
         let mut rng = thread_rng();
         let mats = {
@@ -80,7 +80,7 @@ fn setup(
                             material: mats[rng.gen_range(0..mats.len())].clone(),
                             transform: Transform::from_xyz(x as f32 + 0.5, 1.5, z as f32 + 0.5)
                                 .with_scale(Vec3::new(scale, 1., scale)),
-                            ..Default::default()
+                            ..default()
                         })
                         .insert(Name::new(format!("Agent_{}", agent_id)))
                         .insert(ScreenPosition::default())

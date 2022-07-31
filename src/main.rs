@@ -16,7 +16,7 @@ fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
             title: "Prototypes".to_string(),
-            ..Default::default()
+            ..default()
         })
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(INFINITE_TEMP_COLOR))

@@ -44,7 +44,7 @@ fn setup(
         let mut material = StandardMaterial::from(Color::rgb(1.0, 1.0, 1.0));
         material.base_color_texture = Some(images.add(Image {
             sampler_descriptor: ImageSampler::nearest(),
-            ..Default::default()
+            ..default()
         }));
         ground.material = materials.add(material);
     }
@@ -69,7 +69,7 @@ fn setup(
                 })),
                 material: ground.material.clone(),
                 transform: Transform::from_translation(Vec3::new(-width / 2., 0., -width / 2.)),
-                ..Default::default()
+                ..default()
             })
             .insert(Name::new("Ground"))
             .insert(RayCastMesh::<GroundRaycastSet>::default())

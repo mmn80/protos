@@ -30,21 +30,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::SpaceBetween,
-                ..Default::default()
+                ..default()
             },
             color: Color::NONE.into(),
-            ..Default::default()
+            ..default()
         })
         .with_children(|parent| {
             parent
                 .spawn_bundle(NodeBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
-                        ..Default::default()
+                        ..default()
                     },
                     color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
                     visibility: Visibility { is_visible: false },
-                    ..Default::default()
+                    ..default()
                 })
                 .insert(SelectionRectUiNode);
         });
@@ -209,12 +209,12 @@ fn update_selected_unit_names(
                             top: Val::Auto,
                             bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
                         },
-                        ..Default::default()
+                        ..default()
                     },
                     text: Text::from_section(name.to_string(), text_style.clone())
                         .with_alignment(text_alignment.clone()),
                     transform: Transform::from_scale(Vec3::ONE * (50. * cam_fact)),
-                    ..Default::default()
+                    ..default()
                 })
                 .insert(UnitNameUiNode)
                 .id();
@@ -283,7 +283,7 @@ fn update_nav_path_trails(
                         mesh: mesh.clone(),
                         material: material.clone(),
                         transform: Transform::from_translation(Vec3::new(p.x, 0.2, p.z)),
-                        ..Default::default()
+                        ..default()
                     })
                     .insert(NavPathTrailElement)
                     .insert(NotShadowCaster)
