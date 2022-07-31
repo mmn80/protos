@@ -1,7 +1,6 @@
 use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
-    render::camera::CameraProjection,
 };
 use bevy_egui::EguiContext;
 use bevy_mod_raycast::RayCastSource;
@@ -175,28 +174,16 @@ pub struct ScreenPosition {
 }
 
 fn update_screen_position(
-    windows: Res<Windows>,
-    camera_query: Query<(&Transform, &MainCamera, &PerspectiveProjection)>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
     mut units_query: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
-    for (camera_transform, main_camera, projection) in &camera_query {
-        let proj_mat = projection.get_projection_matrix();
-        let view_mat = Mat4::look_at_rh(
-            camera_transform.translation,
-            main_camera.focus,
-            camera_transform.up(),
-        );
-        let view_proj = proj_mat * view_mat;
-        let screen_size = get_primary_window_size(&windows);
+    for (camera_transform, camera) in &camera_query {
         for (transform, mut screen_position) in &mut units_query {
-            let pos_hom: Vec4 = (transform.translation(), 1.).into();
-            let pos_view = view_proj * pos_hom;
-            screen_position.position = Vec2::new(
-                screen_size.x * (1. + pos_view.x / pos_view.w) / 2.,
-                screen_size.y * (1. + pos_view.y / pos_view.w) / 2.,
-            );
-            screen_position.camera_dist =
-                (transform.translation() - camera_transform.translation).length();
+            if let Some(pos) = camera.world_to_viewport(camera_transform, transform.translation()) {
+                screen_position.position = pos;
+                screen_position.camera_dist =
+                    (transform.translation() - camera_transform.translation()).length();
+            }
         }
         break;
     }
