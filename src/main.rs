@@ -33,6 +33,6 @@ fn main() {
         .add_plugin(VelocityPlugin)
         .add_plugin(PathfindingPlugin)
         .add_plugin(FastUnitPlugin)
-        .add_system(bevy::input::system::exit_on_esc_system)
+        .add_system(bevy::window::close_on_esc)
         .run();
 }

@@ -45,7 +45,7 @@ fn spawn_camera(mut commands: Commands) {
     let radius = translation.length();
 
     commands
-        .spawn_bundle(PerspectiveCameraBundle {
+        .spawn_bundle(Camera3dBundle {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
             ..Default::default()
         })
@@ -88,7 +88,7 @@ fn main_camera(
         }
     }
 
-    for (mut camera, mut transform) in query.iter_mut() {
+    for (mut camera, mut transform) in &mut query {
         if keyboard.any_pressed([KeyCode::W, KeyCode::S, KeyCode::A, KeyCode::D]) {
             let mut ds = time.delta_seconds() * 10.;
             if keyboard.pressed(KeyCode::LShift) {
@@ -179,7 +179,7 @@ fn update_screen_position(
     camera_query: Query<(&Transform, &MainCamera, &PerspectiveProjection)>,
     mut units_query: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
-    for (camera_transform, main_camera, projection) in camera_query.iter() {
+    for (camera_transform, main_camera, projection) in &camera_query {
         let proj_mat = projection.get_projection_matrix();
         let view_mat = Mat4::look_at_rh(
             camera_transform.translation,
@@ -188,15 +188,15 @@ fn update_screen_position(
         );
         let view_proj = proj_mat * view_mat;
         let screen_size = get_primary_window_size(&windows);
-        for (transform, mut screen_position) in units_query.iter_mut() {
-            let pos_hom: Vec4 = (transform.translation, 1.).into();
+        for (transform, mut screen_position) in &mut units_query {
+            let pos_hom: Vec4 = (transform.translation(), 1.).into();
             let pos_view = view_proj * pos_hom;
             screen_position.position = Vec2::new(
                 screen_size.x * (1. + pos_view.x / pos_view.w) / 2.,
                 screen_size.y * (1. + pos_view.y / pos_view.w) / 2.,
             );
             screen_position.camera_dist =
-                (transform.translation - camera_transform.translation).length();
+                (transform.translation() - camera_transform.translation).length();
         }
         break;
     }

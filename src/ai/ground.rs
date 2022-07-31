@@ -17,7 +17,7 @@ impl Plugin for GroundPlugin {
             .add_plugin(DefaultRaycastingPlugin::<GroundRaycastSet>::default())
             .add_startup_system(setup.label("ground_setup"))
             .add_system_set_to_stage(
-                CoreStage::PreUpdate,
+                CoreStage::First,
                 SystemSet::new()
                     .with_system(
                         update_ground_raycast.before(RaycastSystem::BuildRays::<GroundRaycastSet>),
@@ -43,7 +43,7 @@ fn setup(
         ground.material = materials.add(material);
     }
     let width = ground.width() as i32;
-    ground.add_dirty_rect(Rect {
+    ground.add_dirty_rect(UiRect {
         left: 0,
         right: width,
         top: width,
@@ -111,7 +111,7 @@ pub struct Ground {
     tiles: SparseGrid<GroundMaterialRef>,
     nav_grid: SparseGrid<NonZeroU8>,
     material: Handle<StandardMaterial>,
-    dirty_rects: Vec<Rect<i32>>,
+    dirty_rects: Vec<UiRect<i32>>,
 }
 
 impl Ground {
@@ -209,12 +209,12 @@ impl Ground {
         }
     }
 
-    pub fn add_dirty_rect(&mut self, rect: Rect<i32>) {
+    pub fn add_dirty_rect(&mut self, rect: UiRect<i32>) {
         self.dirty_rects.push(rect);
     }
 
     pub fn add_dirty_pos(&mut self, x: i32, y: i32) {
-        self.dirty_rects.push(Rect {
+        self.dirty_rects.push(UiRect {
             left: x,
             right: x + 1,
             top: y + 1,
@@ -229,7 +229,7 @@ fn update_ground_texture(
     mut images: ResMut<Assets<Image>>,
 ) {
     if !ground.dirty_rects.is_empty() {
-        if let Some(material) = materials.get_mut(ground.material.clone()) {
+        if let Some(material) = materials.get_mut(&ground.material) {
             if let Some(image_handle) = &material.base_color_texture {
                 if let Some(image) = images.get_mut(image_handle) {
                     let start = std::time::Instant::now();
@@ -277,7 +277,7 @@ fn update_ground_raycast(
         Some(cursor_moved) => cursor_moved.position,
         None => return,
     };
-    for mut pick_source in &mut query.iter_mut() {
+    for mut pick_source in &mut query {
         pick_source.cast_method = RayCastMethod::Screenspace(cursor_position);
     }
 }
@@ -293,7 +293,7 @@ fn ground_painter(
     if keyboard.pressed(KeyCode::LAlt) && input_mouse.just_pressed(MouseButton::Left) {
         if let Ok(ground_transform) = target_query.get_single() {
             let mat = ground_transform.compute_matrix().inverse();
-            for source in source_query.iter() {
+            for source in &source_query {
                 if let Some(intersections) = source.intersect_list() {
                     if intersections.len() > 1 {
                         info!("more then 1 intersection!");

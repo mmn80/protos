@@ -88,20 +88,23 @@ struct PathfindingTaskResult {
     path: Vec<Vec3>,
 }
 
+#[derive(Component)]
+struct PathfindingTask(Task<PathfindingTaskResult>);
+
 fn spawn_pathfinding_tasks(
-    thread_pool: Res<AsyncComputeTaskPool>,
     ground: Res<Ground>,
     query: Query<
         (Entity, &Name, &Transform, &Moving),
-        (Without<MovingPath>, Without<Task<PathfindingTaskResult>>),
+        (Without<MovingPath>, Without<PathfindingTask>),
     >,
     mut cmd: Commands,
 ) {
     if query.is_empty() {
         return;
     }
+    let thread_pool = AsyncComputeTaskPool::get();
     let shared_grid = Arc::new(ground.nav_grid().clone());
-    for (entity, name, transform, move_to) in query.iter() {
+    for (entity, name, transform, move_to) in &query {
         let name = name.to_string();
         let from = transform.translation;
         let to = move_to.target;
@@ -135,15 +138,16 @@ fn spawn_pathfinding_tasks(
             }
             PathfindingTaskResult { path }
         });
-        cmd.entity(entity).insert(task);
+        cmd.entity(entity).insert(PathfindingTask(task));
     }
 }
 
 fn handle_pathfinding_tasks(
-    mut tasks: Query<(Entity, &mut Task<PathfindingTaskResult>, Option<&Moving>)>,
+    mut tasks: Query<(Entity, &mut PathfindingTask, Option<&Moving>)>,
     mut cmd: Commands,
 ) {
-    for (entity, mut task, moving) in tasks.iter_mut() {
+    for (entity, mut task, moving) in &mut tasks {
+        let task = &mut task.0;
         if let Some(result) = future::block_on(future::poll_once(&mut *task)) {
             if moving.is_some() {
                 cmd.entity(entity)
@@ -151,9 +155,9 @@ fn handle_pathfinding_tasks(
                         path: result.path,
                         current: 0,
                     })
-                    .remove::<Task<PathfindingTaskResult>>();
+                    .remove::<PathfindingTask>();
             } else {
-                cmd.entity(entity).remove::<Task<PathfindingTaskResult>>();
+                cmd.entity(entity).remove::<PathfindingTask>();
             }
         }
     }
@@ -166,7 +170,7 @@ fn move_to_target(
     mut query: Query<(Entity, &Transform, &mut Velocity, &Moving, &mut MovingPath)>,
     mut cmd: Commands,
 ) {
-    for (entity, transform, mut velocity, move_to, mut path) in query.iter_mut() {
+    for (entity, transform, mut velocity, move_to, mut path) in &mut query {
         if path.path.is_empty() {
             let target = move_to.target;
             if (transform.translation - target).length() > 0.5 {

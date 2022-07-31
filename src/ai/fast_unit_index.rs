@@ -1,4 +1,4 @@
-use bevy::{prelude::*, tasks::ComputeTaskPool};
+use bevy::prelude::*;
 use big_brain::{thinker::HasThinker, BigBrainStage};
 use kiddo::{distance::squared_euclidean, KdTree};
 
@@ -35,7 +35,7 @@ pub fn update_grid(
 ) {
     //let start = std::time::Instant::now();
     res.grid = KdTree::new();
-    for (entity, transform) in query.iter() {
+    for (entity, transform) in &query {
         res.grid
             .add(&[transform.translation.x, transform.translation.z], entity)
             .ok();
@@ -66,12 +66,11 @@ impl Default for Neighbours {
 }
 
 pub fn find_neighbours(
-    pool: Res<ComputeTaskPool>,
     space: Res<FastUnitIndex>,
     mut query: Query<(Entity, &Transform, &mut Neighbours)>,
 ) {
     // let start = std::time::Instant::now();
-    query.par_for_each_mut(&pool, 32, |(src_entity, transform, mut neighbours)| {
+    query.par_for_each_mut(32, |(src_entity, transform, mut neighbours)| {
         let ns = space.grid.within_unsorted(
             &[transform.translation.x, transform.translation.z],
             neighbours.range * neighbours.range,

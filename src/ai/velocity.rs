@@ -33,7 +33,7 @@ fn apply_velocity(
     mut query: Query<(&mut Transform, &mut Velocity)>,
 ) {
     let dt = time.delta_seconds();
-    for (mut transform, mut velocity) in query.iter_mut() {
+    for (mut transform, mut velocity) in &mut query {
         let pos = transform.translation + velocity.velocity * dt;
         if velocity.ignore_collisions || ground.get_tile_vec3(pos).is_some() {
             transform.translation = pos;
@@ -98,7 +98,7 @@ fn avoid_collisions(
     neigh_query: Query<&Transform>,
 ) {
     let dt = time.delta_seconds();
-    for (transform, neighbours, mut velocity) in query.iter_mut() {
+    for (transform, neighbours, mut velocity) in &mut query {
         if velocity.ignore_collisions || ground.get_tile_vec3(transform.translation).is_none() {
             continue;
         }

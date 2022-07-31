@@ -180,7 +180,7 @@ fn spawn_building(
         let mat = ground_transform.compute_matrix().inverse();
         let mut rng = thread_rng();
 
-        for source in source_query.iter() {
+        for source in &source_query {
             if let Some(intersections) = source.intersect_list() {
                 if intersections.len() > 1 {
                     info!("more then 1 intersection!");
@@ -234,7 +234,7 @@ fn update_nav_grid(
     mut ground: ResMut<Ground>,
     mut query: Query<(&Transform, &Aabb, &mut NavGridCarve)>,
 ) {
-    for (transform, aabb, mut carve) in query.iter_mut() {
+    for (transform, aabb, mut carve) in &mut query {
         if (transform.translation - carve.last_pos).length() < 0.5
             && transform.rotation.angle_between(carve.last_rot) < PI / 18.
         {
@@ -250,7 +250,7 @@ fn update_nav_grid(
             let bot_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., ext_z));
             let top_l = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., -ext_z));
             let top_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., ext_z));
-            Rect {
+            UiRect {
                 left: bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor() as i32,
                 right: bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil() as i32,
                 top: bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil() as i32,

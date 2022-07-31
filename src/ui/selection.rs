@@ -24,7 +24,7 @@ impl Plugin for SelectionPlugin {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(UiCameraBundle::default());
+    //commands.spawn_bundle(UiCameraBundle::default());
     commands
         .spawn_bundle(NodeBundle {
             style: Style {
@@ -68,9 +68,9 @@ pub struct SelectionRect {
 }
 
 impl SelectionRect {
-    pub fn get_rect(&self) -> Option<Rect<f32>> {
+    pub fn get_rect(&self) -> Option<UiRect<f32>> {
         if let (Some(begin), Some(end)) = (self.begin, self.end) {
-            Some(Rect {
+            Some(UiRect {
                 left: f32::min(begin.x, end.x),
                 right: f32::max(begin.x, end.x),
                 top: f32::max(begin.y, end.y),
@@ -99,25 +99,29 @@ fn update_units_selected(
     }
     let do_select_rect = {
         selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
-        let mouse_pos = windows.get_primary().unwrap().cursor_position();
-        if input_mouse.just_pressed(MouseButton::Left) {
-            selection_rect.begin = mouse_pos.map(|pos| Vec2::new(pos.x, pos.y));
-            selection_rect.end = selection_rect.begin;
-            // info!("start selecting at {begin:?}", begin = selection_rect.begin);
-        } else if selection_rect.begin.is_some() {
-            if input_mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
-                selection_rect.end = Some(mouse_pos.unwrap());
-            } else if !input_mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
-                // info!("cancel selecting at {end:?}", end = selection_rect.end);
-                selection_rect.begin = None;
-                selection_rect.end = None;
+        if let Some(window) = windows.get_primary() {
+            let mouse_pos = window.cursor_position();
+            if input_mouse.just_pressed(MouseButton::Left) {
+                selection_rect.begin = mouse_pos.map(|pos| Vec2::new(pos.x, pos.y));
+                selection_rect.end = selection_rect.begin;
+                // info!("start selecting at {begin:?}", begin = selection_rect.begin);
+            } else if selection_rect.begin.is_some() {
+                if input_mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
+                    selection_rect.end = Some(mouse_pos.unwrap());
+                } else if !input_mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
+                    // info!("cancel selecting at {end:?}", end = selection_rect.end);
+                    selection_rect.begin = None;
+                    selection_rect.end = None;
+                }
             }
-        }
-        if input_mouse.just_released(MouseButton::Left) {
-            // info!("end selecting at {end:?}", end = selection_rect.end);
-            selection_rect.get_rect()
+            if input_mouse.just_released(MouseButton::Left) {
+                // info!("end selecting at {end:?}", end = selection_rect.end);
+                selection_rect.get_rect()
+            } else {
+                None
+            }
         } else {
-            None
+            return;
         }
     };
 
@@ -128,7 +132,7 @@ fn update_units_selected(
                 position,
                 camera_dist: _,
             },
-        ) in units_query.iter_mut()
+        ) in &mut units_query
         {
             if position.x > rect.left
                 && position.x < rect.right
@@ -150,7 +154,7 @@ fn update_select_ui_rect(
     selection_rect: Res<SelectionRect>,
     mut ui_query: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
-    for (mut style, mut visibility) in ui_query.iter_mut() {
+    for (mut style, mut visibility) in &mut ui_query {
         if let Some(rect) = selection_rect.get_rect() {
             style.size.width = Val::Px(rect.right - rect.left);
             style.size.height = Val::Px(rect.top - rect.bottom);
@@ -193,13 +197,13 @@ fn update_selected_unit_names(
             color: Color::SILVER,
         };
 
-        for (entity, name, screen_pos) in added_q.iter() {
+        for (entity, name, screen_pos) in &added_q {
             let cam_fact = 1. / screen_pos.camera_dist;
             let text_ent = cmd
                 .spawn_bundle(TextBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
-                        position: Rect {
+                        position: UiRect {
                             left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
                             right: Val::Auto,
                             top: Val::Auto,
@@ -207,11 +211,8 @@ fn update_selected_unit_names(
                         },
                         ..Default::default()
                     },
-                    text: Text::with_section(
-                        name.to_string(),
-                        text_style.clone(),
-                        text_alignment.clone(),
-                    ),
+                    text: Text::from_section(name.to_string(), text_style.clone())
+                        .with_alignment(text_alignment.clone()),
                     transform: Transform::from_scale(Vec3::ONE * (50. * cam_fact)),
                     ..Default::default()
                 })
@@ -221,7 +222,7 @@ fn update_selected_unit_names(
         }
     }
 
-    for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in moved_q.iter() {
+    for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in &moved_q {
         if panel.selected_show_names {
             if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
                 let cam_fact = 1. / screen_pos.camera_dist;
@@ -269,7 +270,7 @@ fn update_nav_path_trails(
     mut cmd: Commands,
 ) {
     if ui.selected_show_path {
-        for (entity, material, nav_path) in selected_query.iter() {
+        for (entity, material, nav_path) in &selected_query {
             let mesh = meshes.add(Mesh::from(shape::Icosphere {
                 radius: 0.2,
                 subdivisions: 2,
@@ -293,7 +294,7 @@ fn update_nav_path_trails(
             cmd.entity(entity).insert(NavPathTrail { path });
         }
     }
-    for (entity, trail, selected, path) in all_query.iter() {
+    for (entity, trail, selected, path) in &all_query {
         if !ui.selected_show_path || selected.is_none() || path.is_none() {
             cmd.entity(entity).remove::<NavPathTrail>();
             for marker in &trail.path {

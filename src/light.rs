@@ -67,7 +67,7 @@ fn animate_light_direction(
     state: Res<MainLightsState>,
     mut query: Query<(&mut Transform, &mut DirectionalLight)>,
 ) {
-    for (mut transform, mut light) in query.iter_mut() {
+    for (mut transform, mut light) in &mut query {
         light.shadow_projection = OrthographicProjection {
             left: -state.dir_light_size,
             right: state.dir_light_size,

@@ -154,7 +154,7 @@ fn random_move_action(
     mut cmd: Commands,
 ) {
     let mut rng = thread_rng();
-    for (Actor(actor), mut state) in action_q.iter_mut() {
+    for (Actor(actor), mut state) in &mut action_q {
         if let Ok((transform, move_target, mut velocity)) = state_q.get_mut(*actor) {
             match *state {
                 ActionState::Requested => {
@@ -212,7 +212,7 @@ pub fn drunk_scorer(
     selected_q: Query<With<Selected>>,
     mut drunk_q: Query<(&Actor, &mut Score), With<Drunk>>,
 ) {
-    for (Actor(actor), mut score) in drunk_q.iter_mut() {
+    for (Actor(actor), mut score) in &mut drunk_q {
         let mut new_score = 0.;
         if ui.ai_active_all {
             new_score = 0.9;
@@ -271,7 +271,7 @@ fn sleep_action(
     mut cmd: Commands,
 ) {
     let mut rng = thread_rng();
-    for (Actor(actor), mut state) in action_q.iter_mut() {
+    for (Actor(actor), mut state) in &mut action_q {
         match *state {
             ActionState::Requested => {
                 cmd.entity(*actor).remove::<Awake>().insert(Sleeping {
@@ -309,7 +309,7 @@ pub fn sleepy_scorer(
     awake_q: Query<&Awake>,
     sleeping_q: Query<With<Sleeping>>,
 ) {
-    for (Actor(actor), mut score) in sleepy_q.iter_mut() {
+    for (Actor(actor), mut score) in &mut sleepy_q {
         let mut new_score = 0.;
         if let Ok(awake) = awake_q.get(*actor) {
             let dt = Instant::now() - awake.since;
@@ -329,7 +329,7 @@ pub fn sleepy_scorer(
 pub struct Idle;
 
 fn idle_action(mut action_query: Query<&mut ActionState, (With<Actor>, With<Idle>)>) {
-    for mut state in action_query.iter_mut() {
+    for mut state in &mut action_query {
         match *state {
             ActionState::Requested => {
                 *state = ActionState::Executing;
@@ -364,9 +364,9 @@ fn show_unit_debug_info(
     )>,
 ) {
     let mut info = String::new();
-    for (unit_ent, neighbours) in unit_query.iter() {
+    for (unit_ent, neighbours) in &unit_query {
         info.push_str(format!("unit: {:?}, ", unit_ent).as_str());
-        for (thinker_ent, actor, thinker) in thinker_query.iter() {
+        for (thinker_ent, actor, thinker) in &thinker_query {
             if actor.0 == unit_ent {
                 info.push_str(format!("thinker: {:?}\n", thinker_ent).as_str());
                 info.push_str(format!("{:?}\n", thinker).as_str());
@@ -380,7 +380,7 @@ fn show_unit_debug_info(
             )
             .as_str(),
         );
-        for (action_ent, actor, action_state, random_move, idle) in action_query.iter() {
+        for (action_ent, actor, action_state, random_move, idle) in &action_query {
             if actor.0 == unit_ent {
                 info.push_str(format!("action: {:?} ({:?})", action_ent, action_state).as_str());
                 if let Some(random_move) = random_move {
