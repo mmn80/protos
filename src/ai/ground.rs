@@ -1,6 +1,9 @@
 use std::num::NonZeroU8;
 
-use bevy::{prelude::*, render::render_resource::Extent3d};
+use bevy::{
+    prelude::*,
+    render::{render_resource::Extent3d, texture::ImageSampler},
+};
 use bevy_mod_raycast::{
     DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
 };
@@ -39,7 +42,10 @@ fn setup(
 ) {
     {
         let mut material = StandardMaterial::from(Color::rgb(1.0, 1.0, 1.0));
-        material.base_color_texture = Some(images.add(Image::default()));
+        material.base_color_texture = Some(images.add(Image {
+            sampler_descriptor: ImageSampler::nearest(),
+            ..Default::default()
+        }));
         ground.material = materials.add(material);
     }
     let width = ground.width() as i32;
