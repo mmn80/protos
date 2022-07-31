@@ -69,8 +69,8 @@ fn setup(
         let area_dist = LogNormal::new(PI * 0.8 * 0.8, 0.4).unwrap();
         let mut rng = thread_rng();
         let mut agent_id = 0;
-        for x in (10..ground.width() - 10).step_by(10) {
-            for z in (10..ground.width() - 10).step_by(10) {
+        for x in (10..ground.width() - 10).step_by(50) {
+            for z in (10..ground.width() - 10).step_by(50) {
                 agent_id += 1;
                 let scale = f32::sqrt(area_dist.sample(&mut rng) / PI);
                 units.push(
@@ -260,10 +260,10 @@ impl Awake {
 #[derive(Clone, Component, Debug)]
 pub struct Sleep;
 
-const SLEEP_TIME: f64 = 240.;
-const SLEEP_TIME_D: f64 = 239.;
-const AWAKE_TIME: f64 = 60.;
-const AWAKE_TIME_D: f64 = 5.;
+const SLEEP_TIME: f64 = 1.;
+const SLEEP_TIME_D: f64 = 0.1;
+const AWAKE_TIME: f64 = 600.;
+const AWAKE_TIME_D: f64 = 50.;
 
 fn sleep_action(
     mut action_q: Query<(&Actor, &mut ActionState), With<Sleep>>,

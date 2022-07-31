@@ -34,7 +34,7 @@ fn setup(
 ) {
     let mut rng = thread_rng();
     for _ in 1..100 {
-        let is_static = rng.gen_bool(0.8);
+        let is_static = true; //rng.gen_bool(0.8);
         let size = if is_static {
             Vec3::new(
                 rng.gen_range(5.0..50.0),
