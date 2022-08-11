@@ -9,7 +9,7 @@ impl Default for MainLightsPlugin {
     fn default() -> Self {
         MainLightsPlugin {
             dir_light_size: 100.0,
-            dir_light_color: Color::ORANGE_RED,
+            dir_light_color: Color::WHITE,
         }
     }
 }
@@ -35,7 +35,7 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
     // ambient light
     commands.insert_resource(AmbientLight {
         color: state.dir_light_color,
-        brightness: 0.02,
+        brightness: 0.1,
     });
     // directional 'sun' light
     commands.spawn_bundle(DirectionalLightBundle {
