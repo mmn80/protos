@@ -14,13 +14,15 @@ use protos::{
 
 fn main() {
     App::new()
-        .insert_resource(WindowDescriptor {
-            title: "Prototypes".to_string(),
-            ..default()
-        })
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(ClearColor(INFINITE_TEMP_COLOR))
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "Prototypes".to_string(),
+                ..default()
+            },
+            ..default()
+        }))
         .add_plugin(EguiPlugin)
         .add_plugin(BigBrainPlugin)
         .add_plugin(SidePanelPlugin)

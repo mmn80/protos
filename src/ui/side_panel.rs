@@ -30,6 +30,7 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
     egui_settings.scale_factor = 1.0;
 }
 
+#[derive(Resource)]
 pub struct SidePanelState {
     pub ai_active_selected: bool,
     pub ai_active_all: bool,
@@ -73,7 +74,7 @@ fn update_side_panel(
                 .map(|d| d.value as u32)
                 .unwrap_or(0);
             ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(), |ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!("Frame: {}", frame));
                     ui.separator();
                     ui.label(format!("FPS: {}", fps));

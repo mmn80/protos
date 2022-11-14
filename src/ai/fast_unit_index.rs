@@ -17,6 +17,7 @@ impl Plugin for FastUnitIndexPlugin {
     }
 }
 
+#[derive(Resource)]
 pub struct FastUnitIndex {
     pub grid: KdTree<f32, Entity, 2>,
 }

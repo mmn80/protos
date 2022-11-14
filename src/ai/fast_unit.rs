@@ -75,26 +75,26 @@ fn setup(
                 let scale = f32::sqrt(area_dist.sample(&mut rng) / PI);
                 units.push(
                     commands
-                        .spawn_bundle(PbrBundle {
-                            mesh: mesh.clone(),
-                            material: mats[rng.gen_range(0..mats.len())].clone(),
-                            transform: Transform::from_xyz(x as f32 + 0.5, 1.5, z as f32 + 0.5)
-                                .with_scale(Vec3::new(scale, 1., scale)),
-                            ..default()
-                        })
-                        .insert(Name::new(format!("Agent_{}", agent_id)))
-                        .insert(ScreenPosition::default())
-                        .insert(Selectable)
-                        .insert(Velocity::default())
-                        .insert(Neighbours::default())
-                        .insert(Sleeping::default())
-                        .insert(
+                        .spawn((
+                            PbrBundle {
+                                mesh: mesh.clone(),
+                                material: mats[rng.gen_range(0..mats.len())].clone(),
+                                transform: Transform::from_xyz(x as f32 + 0.5, 1.5, z as f32 + 0.5)
+                                    .with_scale(Vec3::new(scale, 1., scale)),
+                                ..default()
+                            },
+                            Name::new(format!("Agent_{}", agent_id)),
+                            ScreenPosition::default(),
+                            Selectable,
+                            Velocity::default(),
+                            Neighbours::default(),
+                            Sleeping::default(),
                             Thinker::build()
                                 .picker(HighestScoreAbove { threshold: 0.8 })
                                 .when(Drunk, RandomMove)
                                 .when(Sleepy, Sleep)
                                 .otherwise(Idle),
-                        )
+                        ))
                         .id(),
                 );
             }

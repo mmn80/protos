@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::EguiContext;
-use bevy_mod_raycast::RayCastSource;
+use bevy_mod_raycast::RaycastSource;
 
 use crate::{ai::ground::GroundRaycastSet, light::MainLightsState};
 
@@ -43,16 +43,17 @@ fn spawn_camera(mut commands: Commands) {
     let translation = Vec3::new(-START_DIST, START_DIST, START_DIST);
     let radius = translation.length();
 
-    commands
-        .spawn_bundle(Camera3dBundle {
+    commands.spawn((
+        Camera3dBundle {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
-        })
-        .insert(MainCamera {
+        },
+        MainCamera {
             radius,
             ..default()
-        })
-        .insert(RayCastSource::<GroundRaycastSet>::new());
+        },
+        RaycastSource::<GroundRaycastSet>::new(),
+    ));
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.

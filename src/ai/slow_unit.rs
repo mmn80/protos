@@ -1,13 +1,13 @@
 use std::f32::consts::PI;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*, render::primitives::Aabb};
-use bevy_mod_raycast::{RayCastMesh, RayCastSource};
+use bevy_mod_raycast::{RaycastMesh, RaycastSource};
 use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use super::{
     fast_unit::{Drunk, HighestScoreAbove, Idle, RandomMove, Sleep, Sleeping, Sleepy},
-    ground::{Ground, GroundMaterialRef, GroundRaycastSet},
+    ground::{Ground, GroundMaterialRef, GroundRaycastSet, GroundRect},
     sparse_grid::{GridPos, SparseGrid},
     velocity::Velocity,
 };
@@ -82,7 +82,7 @@ fn spawn(
     );
     let tower_size = size.x.min(size.z) / 10.;
     let tower_id = commands
-        .spawn_bundle(PbrBundle {
+        .spawn(PbrBundle {
             mesh: meshes.add(if is_static {
                 Mesh::from(shape::Box {
                     min_x: -tower_size,
@@ -108,24 +108,26 @@ fn spawn(
         })
         .id();
     let bld_id = commands
-        .spawn_bundle(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Box {
-                min_x: -size.x / 2.,
-                max_x: size.x / 2.,
-                min_y: 0.,
-                max_y: size.y,
-                min_z: -size.z / 2.,
-                max_z: size.z / 2.,
-            })),
-            material,
-            transform: Transform::from_rotation(Quat::from_rotation_y(rotation))
-                .with_translation(Vec3::new(position.x, 0., position.y)),
-            ..default()
-        })
-        .insert(Name::new("Building"))
-        .insert(NavGridCarve::default())
-        .insert(ScreenPosition::default())
-        .insert(Selectable)
+        .spawn((
+            PbrBundle {
+                mesh: meshes.add(Mesh::from(shape::Box {
+                    min_x: -size.x / 2.,
+                    max_x: size.x / 2.,
+                    min_y: 0.,
+                    max_y: size.y,
+                    min_z: -size.z / 2.,
+                    max_z: size.z / 2.,
+                })),
+                material,
+                transform: Transform::from_rotation(Quat::from_rotation_y(rotation))
+                    .with_translation(Vec3::new(position.x, 0., position.y)),
+                ..default()
+            },
+            Name::new("Building"),
+            NavGridCarve::default(),
+            ScreenPosition::default(),
+            Selectable,
+        ))
         .add_child(tower_id)
         .id();
     if !is_static {
@@ -173,15 +175,16 @@ fn spawn_building(
     mut meshes: ResMut<Assets<Mesh>>,
     ground: Res<Ground>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    source_query: Query<&RayCastSource<GroundRaycastSet>>,
-    target_query: Query<&Transform, With<RayCastMesh<GroundRaycastSet>>>,
+    source_query: Query<&RaycastSource<GroundRaycastSet>>,
+    target_query: Query<&Transform, With<RaycastMesh<GroundRaycastSet>>>,
 ) {
     if let Ok(ground_transform) = target_query.get_single() {
         let mat = ground_transform.compute_matrix().inverse();
         let mut rng = thread_rng();
 
         for source in &source_query {
-            if let Some(intersections) = source.intersect_list() {
+            let intersections = source.intersections();
+            if !intersections.is_empty() {
                 if intersections.len() > 1 {
                     info!("more then 1 intersection!");
                 }
@@ -246,11 +249,15 @@ fn update_nav_grid(
         let (ext_x, ext_z) = (aabb.half_extents.x, aabb.half_extents.z);
 
         let bounds = {
-            let bot_l = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., -ext_z));
-            let bot_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., ext_z));
-            let top_l = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., -ext_z));
-            let top_r = transform.mul_vec3(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., ext_z));
-            UiRect {
+            let bot_l =
+                transform.transform_point(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., -ext_z));
+            let bot_r =
+                transform.transform_point(Vec3::from(aabb.center) + Vec3::new(-ext_x, 0., ext_z));
+            let top_l =
+                transform.transform_point(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., -ext_z));
+            let top_r =
+                transform.transform_point(Vec3::from(aabb.center) + Vec3::new(ext_x, 0., ext_z));
+            GroundRect {
                 left: bot_l.x.min(bot_r.x).min(top_l.x).min(top_r.x).floor() as i32,
                 right: bot_l.x.max(bot_r.x).max(top_l.x).max(top_r.x).ceil() as i32,
                 top: bot_l.z.max(bot_r.z).max(top_l.z).max(top_r.z).ceil() as i32,
@@ -258,7 +265,7 @@ fn update_nav_grid(
             }
         };
 
-        let mut dirty_rect = bounds;
+        let mut dirty_rect = bounds.clone();
 
         if let Some(pos) = carve.ground_pos {
             for y in 0..carve.ground.height() {

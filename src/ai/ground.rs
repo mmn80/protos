@@ -5,7 +5,7 @@ use bevy::{
     render::{render_resource::Extent3d, texture::ImageSampler},
 };
 use bevy_mod_raycast::{
-    DefaultRaycastingPlugin, RayCastMesh, RayCastMethod, RayCastSource, RaycastSystem,
+    DefaultRaycastingPlugin, RaycastMesh, RaycastMethod, RaycastSource, RaycastSystem,
 };
 
 use crate::{ai::sparse_grid::SparseGrid, ui::side_panel::SidePanelState};
@@ -49,7 +49,7 @@ fn setup(
         ground.material = materials.add(material);
     }
     let width = ground.width() as i32;
-    ground.add_dirty_rect(UiRect {
+    ground.add_dirty_rect(GroundRect {
         left: 0,
         right: width,
         top: width,
@@ -58,22 +58,24 @@ fn setup(
     let width = ground.width() as f32;
     ground.entity = Some(
         commands
-            .spawn_bundle(PbrBundle {
-                mesh: meshes.add(Mesh::from(shape::Box {
-                    min_x: 0.,
-                    max_x: width,
-                    min_y: -5.,
-                    max_y: 0.,
-                    min_z: 0.,
-                    max_z: width,
-                })),
-                material: ground.material.clone(),
-                transform: Transform::from_translation(Vec3::new(-width / 2., 0., -width / 2.)),
-                ..default()
-            })
-            .insert(Name::new("Ground"))
-            .insert(RayCastMesh::<GroundRaycastSet>::default())
-            //.insert(NavGrid::new())
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Box {
+                        min_x: 0.,
+                        max_x: width,
+                        min_y: -5.,
+                        max_y: 0.,
+                        min_z: 0.,
+                        max_z: width,
+                    })),
+                    material: ground.material.clone(),
+                    transform: Transform::from_translation(Vec3::new(-width / 2., 0., -width / 2.)),
+                    ..default()
+                },
+                Name::new("Ground"),
+                RaycastMesh::<GroundRaycastSet>::default(),
+                //NavGrid::new(),
+            ))
             .id(),
     );
 }
@@ -111,13 +113,21 @@ impl GroundMaterials {
 }
 
 #[derive(Debug, Clone)]
+pub struct GroundRect {
+    pub left: i32,
+    pub right: i32,
+    pub top: i32,
+    pub bottom: i32,
+}
+
+#[derive(Debug, Clone, Resource)]
 pub struct Ground {
     pub entity: Option<Entity>,
     palette: Vec<GroundMaterial>,
     tiles: SparseGrid<GroundMaterialRef>,
     nav_grid: SparseGrid<NonZeroU8>,
     material: Handle<StandardMaterial>,
-    dirty_rects: Vec<UiRect<i32>>,
+    dirty_rects: Vec<GroundRect>,
 }
 
 impl Ground {
@@ -215,12 +225,12 @@ impl Ground {
         }
     }
 
-    pub fn add_dirty_rect(&mut self, rect: UiRect<i32>) {
+    pub fn add_dirty_rect(&mut self, rect: GroundRect) {
         self.dirty_rects.push(rect);
     }
 
     pub fn add_dirty_pos(&mut self, x: i32, y: i32) {
-        self.dirty_rects.push(UiRect {
+        self.dirty_rects.push(GroundRect {
             left: x,
             right: x + 1,
             top: y + 1,
@@ -277,14 +287,14 @@ pub struct GroundRaycastSet;
 
 fn update_ground_raycast(
     mut cursor: EventReader<CursorMoved>,
-    mut query: Query<&mut RayCastSource<GroundRaycastSet>>,
+    mut query: Query<&mut RaycastSource<GroundRaycastSet>>,
 ) {
     let cursor_position = match cursor.iter().last() {
         Some(cursor_moved) => cursor_moved.position,
         None => return,
     };
     for mut pick_source in &mut query {
-        pick_source.cast_method = RayCastMethod::Screenspace(cursor_position);
+        pick_source.cast_method = RaycastMethod::Screenspace(cursor_position);
     }
 }
 
@@ -293,14 +303,15 @@ fn ground_painter(
     mut ground: ResMut<Ground>,
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
-    source_query: Query<&RayCastSource<GroundRaycastSet>>,
-    target_query: Query<&Transform, With<RayCastMesh<GroundRaycastSet>>>,
+    source_query: Query<&RaycastSource<GroundRaycastSet>>,
+    target_query: Query<&Transform, With<RaycastMesh<GroundRaycastSet>>>,
 ) {
     if keyboard.pressed(KeyCode::LAlt) && input_mouse.just_pressed(MouseButton::Left) {
         if let Ok(ground_transform) = target_query.get_single() {
             let mat = ground_transform.compute_matrix().inverse();
             for source in &source_query {
-                if let Some(intersections) = source.intersect_list() {
+                let intersections = source.intersections();
+                if !intersections.is_empty() {
                     if intersections.len() > 1 {
                         info!("more then 1 intersection!");
                     }

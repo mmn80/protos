@@ -26,27 +26,28 @@ impl Plugin for SelectionPlugin {
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     //commands.spawn_bundle(UiCameraBundle::default());
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::SpaceBetween,
                 ..default()
             },
-            color: Color::NONE.into(),
+            background_color: Color::NONE.into(),
             ..default()
         })
         .with_children(|parent| {
-            parent
-                .spawn_bundle(NodeBundle {
+            parent.spawn((
+                NodeBundle {
                     style: Style {
                         position_type: PositionType::Absolute,
                         ..default()
                     },
-                    color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
+                    background_color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
                     visibility: Visibility { is_visible: false },
                     ..default()
-                })
-                .insert(SelectionRectUiNode);
+                },
+                SelectionRectUiNode,
+            ));
         });
     commands.insert_resource(LoadedFont(asset_server.load("fonts/FiraMono-Medium.ttf")));
 }
@@ -60,7 +61,7 @@ pub struct Selected;
 #[derive(Clone, Component, Debug, Default)]
 pub struct SelectionRectUiNode;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Resource)]
 pub struct SelectionRect {
     pub clear_previous: bool,
     pub begin: Option<Vec2>,
@@ -68,14 +69,9 @@ pub struct SelectionRect {
 }
 
 impl SelectionRect {
-    pub fn get_rect(&self) -> Option<UiRect<f32>> {
+    pub fn get_rect(&self) -> Option<Rect> {
         if let (Some(begin), Some(end)) = (self.begin, self.end) {
-            Some(UiRect {
-                left: f32::min(begin.x, end.x),
-                right: f32::max(begin.x, end.x),
-                top: f32::max(begin.y, end.y),
-                bottom: f32::min(begin.y, end.y),
-            })
+            Some(Rect::from_corners(begin, end))
         } else {
             None
         }
@@ -102,7 +98,7 @@ fn update_units_selected(
         if let Some(window) = windows.get_primary() {
             let mouse_pos = window.cursor_position();
             if input_mouse.just_pressed(MouseButton::Left) {
-                selection_rect.begin = mouse_pos.map(|pos| Vec2::new(pos.x, pos.y));
+                selection_rect.begin = mouse_pos.clone(); //.map(|pos| Vec2::new(pos.x, pos.y));
                 selection_rect.end = selection_rect.begin;
                 // info!("start selecting at {begin:?}", begin = selection_rect.begin);
             } else if selection_rect.begin.is_some() {
@@ -134,10 +130,10 @@ fn update_units_selected(
             },
         ) in &mut units_query
         {
-            if position.x > rect.left
-                && position.x < rect.right
-                && position.y < rect.top
-                && position.y > rect.bottom
+            if position.x > rect.min.x
+                && position.x < rect.max.x
+                && position.y < rect.max.y
+                && position.y > rect.min.y
             {
                 cmd.entity(entity).insert(Selected);
             } else if selection_rect.clear_previous {
@@ -152,23 +148,28 @@ fn update_units_selected(
 
 fn update_select_ui_rect(
     selection_rect: Res<SelectionRect>,
+    windows: Res<Windows>,
     mut ui_query: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
-    for (mut style, mut visibility) in &mut ui_query {
-        if let Some(rect) = selection_rect.get_rect() {
-            style.size.width = Val::Px(rect.right - rect.left);
-            style.size.height = Val::Px(rect.top - rect.bottom);
-            style.position.left = Val::Px(rect.left);
-            style.position.right = Val::Px(rect.right);
-            style.position.bottom = Val::Px(rect.bottom);
-            style.position.top = Val::Px(rect.top);
-            visibility.is_visible = true;
-        } else {
-            visibility.is_visible = false;
+    if let Some(window) = windows.get_primary() {
+        let window_height = window.height();
+        for (mut style, mut visibility) in &mut ui_query {
+            if let Some(rect) = selection_rect.get_rect() {
+                style.size.width = Val::Px(rect.width());
+                style.size.height = Val::Px(rect.height());
+                style.position.left = Val::Px(rect.min.x);
+                style.position.right = Val::Px(rect.max.x);
+                style.position.bottom = Val::Px(window_height - rect.min.y);
+                style.position.top = Val::Px(window_height - rect.max.y);
+                visibility.is_visible = true;
+            } else {
+                visibility.is_visible = false;
+            }
         }
     }
 }
 
+#[derive(Resource)]
 struct LoadedFont(Handle<Font>);
 
 #[derive(Clone, Component, Debug, Default)]
@@ -200,23 +201,25 @@ fn update_selected_unit_names(
         for (entity, name, screen_pos) in &added_q {
             let cam_fact = 1. / screen_pos.camera_dist;
             let text_ent = cmd
-                .spawn_bundle(TextBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        position: UiRect {
-                            left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
-                            right: Val::Auto,
-                            top: Val::Auto,
-                            bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
+                .spawn((
+                    TextBundle {
+                        style: Style {
+                            position_type: PositionType::Absolute,
+                            position: UiRect {
+                                left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
+                                right: Val::Auto,
+                                top: Val::Auto,
+                                bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
+                            },
+                            ..default()
                         },
+                        text: Text::from_section(name.to_string(), text_style.clone())
+                            .with_alignment(text_alignment.clone()),
+                        transform: Transform::from_scale(Vec3::ONE * (50. * cam_fact)),
                         ..default()
                     },
-                    text: Text::from_section(name.to_string(), text_style.clone())
-                        .with_alignment(text_alignment.clone()),
-                    transform: Transform::from_scale(Vec3::ONE * (50. * cam_fact)),
-                    ..default()
-                })
-                .insert(UnitNameUiNode)
+                    UnitNameUiNode,
+                ))
                 .id();
             cmd.entity(entity).insert(UnitNameUiNodeRef(text_ent));
         }
@@ -279,14 +282,16 @@ fn update_nav_path_trails(
                 .path
                 .iter()
                 .map(|p| {
-                    cmd.spawn_bundle(PbrBundle {
-                        mesh: mesh.clone(),
-                        material: material.clone(),
-                        transform: Transform::from_translation(Vec3::new(p.x, 0.2, p.z)),
-                        ..default()
-                    })
-                    .insert(NavPathTrailElement)
-                    .insert(NotShadowCaster)
+                    cmd.spawn((
+                        PbrBundle {
+                            mesh: mesh.clone(),
+                            material: material.clone(),
+                            transform: Transform::from_translation(Vec3::new(p.x, 0.2, p.z)),
+                            ..default()
+                        },
+                        NavPathTrailElement,
+                        NotShadowCaster,
+                    ))
                     .id()
                 })
                 .collect();

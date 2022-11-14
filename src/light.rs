@@ -14,6 +14,7 @@ impl Default for MainLightsPlugin {
     }
 }
 
+#[derive(Resource)]
 pub struct MainLightsState {
     pub dir_light_size: f32,
     pub dir_light_color: Color,
@@ -38,7 +39,7 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
         brightness: 0.1,
     });
     // directional 'sun' light
-    commands.spawn_bundle(DirectionalLightBundle {
+    commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 20000.0,
             shadow_projection: OrthographicProjection {
