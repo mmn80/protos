@@ -98,7 +98,7 @@ fn update_units_selected(
         if let Some(window) = windows.get_primary() {
             let mouse_pos = window.cursor_position();
             if input_mouse.just_pressed(MouseButton::Left) {
-                selection_rect.begin = mouse_pos.clone(); //.map(|pos| Vec2::new(pos.x, pos.y));
+                selection_rect.begin = mouse_pos.clone();
                 selection_rect.end = selection_rect.begin;
                 // info!("start selecting at {begin:?}", begin = selection_rect.begin);
             } else if selection_rect.begin.is_some() {

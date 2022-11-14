@@ -1,4 +1,5 @@
 use bevy::{
+    core_pipeline::bloom::BloomSettings,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
@@ -46,8 +47,14 @@ fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
+            camera: Camera {
+                hdr: true,
+                ..default()
+            },
             ..default()
         },
+        BloomSettings::default(),
+        //Fxaa::default(),
         MainCamera {
             radius,
             ..default()
