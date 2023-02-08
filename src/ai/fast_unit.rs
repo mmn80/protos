@@ -1,10 +1,16 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, time::Instant};
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*};
+use bevy_mod_raycast::{RaycastMesh, RaycastSource};
 use rand::{thread_rng, Rng};
 use rand_distr::{Distribution, LogNormal};
 
-use super::{fast_unit_index::Neighbours, ground::Ground, velocity::Velocity};
+use super::{
+    fast_unit_index::Neighbours,
+    ground::{Ground, GroundRaycastSet},
+    pathfind::Moving,
+    velocity::Velocity,
+};
 use crate::{
     camera::ScreenPosition,
     ui::selection::{Selectable, Selected},
@@ -15,6 +21,7 @@ pub struct FastUnitPlugin;
 impl Plugin for FastUnitPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(setup.after("ground_setup"))
+            .add_system(move_to_command)
             .add_system(show_unit_debug_info.with_run_criteria(f1_just_pressed));
     }
 }
@@ -85,6 +92,51 @@ fn setup(
         commands.entity(ground_ent).push_children(&units);
     } else {
         warn!("NO GROUND!!");
+    }
+}
+
+fn move_to_command(
+    keyboard: Res<Input<KeyCode>>,
+    input_mouse: Res<Input<MouseButton>>,
+    ground: Res<Ground>,
+    source_query: Query<&RaycastSource<GroundRaycastSet>>,
+    target_query: Query<&Transform, With<RaycastMesh<GroundRaycastSet>>>,
+    mut selected_q: Query<(Entity, &mut Velocity), (With<Selected>, Without<Moving>)>,
+    mut cmd: Commands,
+) {
+    if keyboard.pressed(KeyCode::LControl)
+        && input_mouse.just_pressed(MouseButton::Right)
+        && !selected_q.is_empty()
+    {
+        if let Ok(ground_transform) = target_query.get_single() {
+            let mat = ground_transform.compute_matrix().inverse();
+            for source in &source_query {
+                let intersections = source.intersections();
+                if !intersections.is_empty() {
+                    if intersections.len() > 1 {
+                        info!("more then 1 intersection!");
+                    }
+                    for (gnd_entity, intersection) in intersections {
+                        if *gnd_entity == ground.entity.unwrap() {
+                            let target = mat.project_point3(intersection.position());
+                            let target = ground.clamp(target, 10.);
+                            if ground.get_tile_vec3(target).is_some() {
+                                info!("move to: {target:?}");
+                                for (entity, mut velocity) in &mut selected_q {
+                                    cmd.entity(entity).insert(Moving {
+                                        target,
+                                        speed: 10.,
+                                        start_time: Instant::now(),
+                                    });
+                                    velocity.breaking = false;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
