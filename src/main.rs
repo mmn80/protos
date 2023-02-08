@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
-use big_brain::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 use protos::{
     ai::{
@@ -23,8 +23,9 @@ fn main() {
             },
             ..default()
         }))
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugin(RapierDebugRenderPlugin::default())
         .add_plugin(EguiPlugin)
-        .add_plugin(BigBrainPlugin)
         .add_plugin(SidePanelPlugin)
         .add_plugin(SelectionPlugin)
         .add_plugin(MainLightsPlugin::default())

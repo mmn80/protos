@@ -5,10 +5,7 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
 use super::selection::Selected;
-use crate::ai::{
-    fast_unit::{Awake, Sleeping},
-    ground::GroundMaterials,
-};
+use crate::ai::ground::GroundMaterials;
 
 pub struct SidePanelPlugin;
 
@@ -59,8 +56,7 @@ fn update_side_panel(
     mut egui_ctx: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    selected_q: Query<(&Name, Option<&Awake>, Option<&Sleeping>), With<Selected>>,
-    awake_q: Query<With<Awake>>,
+    selected_q: Query<&Name, With<Selected>>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -89,11 +85,6 @@ fn update_side_panel(
                     ui.checkbox(&mut state.selected_show_names, "Show names (selected)");
                     ui.checkbox(&mut state.selected_show_path, "Show paths (selected)");
 
-                    ui.colored_label(
-                        egui::Color32::DARK_GREEN,
-                        format!("{} objects awake", awake_q.iter().count()),
-                    );
-
                     let selected: Vec<_> = selected_q.iter().collect();
                     if !selected.is_empty() {
                         ui.add_space(10.);
@@ -101,25 +92,8 @@ fn update_side_panel(
                             egui::Color32::DARK_GREEN,
                             format!("{} objects selected:", selected.len()),
                         );
-                        for (name, awake, sleeping) in selected.iter().take(20) {
-                            let status = {
-                                if let Some(awake) = awake {
-                                    format!(
-                                        "A: {}/{}s",
-                                        (std::time::Instant::now() - awake.since).as_secs(),
-                                        awake.duration as u64
-                                    )
-                                } else if let Some(sleeping) = sleeping {
-                                    format!(
-                                        "S: {}/{}s",
-                                        (std::time::Instant::now() - sleeping.since).as_secs(),
-                                        sleeping.duration as u64
-                                    )
-                                } else {
-                                    format!("?")
-                                }
-                            };
-                            ui.label(format!("- {}: {}", name.as_str(), status));
+                        for name in selected.iter().take(20) {
+                            ui.label(format!("- {}", name.as_str()));
                         }
                         if selected.len() > 20 {
                             ui.label("...");

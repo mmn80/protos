@@ -2,11 +2,9 @@ use std::f32::consts::PI;
 
 use bevy::{ecs::schedule::ShouldRun, prelude::*, render::primitives::Aabb};
 use bevy_mod_raycast::{RaycastMesh, RaycastSource};
-use big_brain::prelude::*;
 use rand::{thread_rng, Rng};
 
 use super::{
-    fast_unit::{Drunk, HighestScoreAbove, Idle, RandomMove, Sleep, Sleeping, Sleepy},
     ground::{Ground, GroundMaterialRef, GroundRaycastSet, GroundRect},
     sparse_grid::{GridPos, SparseGrid},
     velocity::Velocity,
@@ -131,21 +129,11 @@ fn spawn(
         .add_child(tower_id)
         .id();
     if !is_static {
-        commands
-            .entity(bld_id)
-            .insert(Velocity {
-                velocity: Vec3::ZERO,
-                breaking: false,
-                ignore_collisions: true,
-            })
-            .insert(Sleeping::default())
-            .insert(
-                Thinker::build()
-                    .picker(HighestScoreAbove { threshold: 0.8 })
-                    .when(Drunk, RandomMove)
-                    .when(Sleepy, Sleep)
-                    .otherwise(Idle),
-            );
+        commands.entity(bld_id).insert(Velocity {
+            velocity: Vec3::ZERO,
+            breaking: false,
+            ignore_collisions: true,
+        });
     }
     if let Some(ground_ent) = ground.entity {
         commands.entity(ground_ent).add_child(bld_id);

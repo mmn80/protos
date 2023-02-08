@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use big_brain::{thinker::HasThinker, BigBrainStage};
 use kiddo::{distance::squared_euclidean, KdTree};
 
 pub struct FastUnitIndexPlugin;
@@ -7,11 +6,7 @@ pub struct FastUnitIndexPlugin;
 impl Plugin for FastUnitIndexPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(FastUnitIndex::new())
-            .add_stage_before(
-                BigBrainStage::Scorers,
-                "update_grid",
-                SystemStage::parallel(),
-            )
+            .add_stage_after(CoreStage::First, "update_grid", SystemStage::parallel())
             .add_system_to_stage("update_grid", update_grid.label("update_grid_system"))
             .add_system_to_stage("update_grid", find_neighbours.after("update_grid_system"));
     }
@@ -30,10 +25,7 @@ impl FastUnitIndex {
     }
 }
 
-pub fn update_grid(
-    mut res: ResMut<FastUnitIndex>,
-    query: Query<(Entity, &Transform), With<HasThinker>>,
-) {
+pub fn update_grid(mut res: ResMut<FastUnitIndex>, query: Query<(Entity, &Transform)>) {
     //let start = std::time::Instant::now();
     res.grid = KdTree::new();
     for (entity, transform) in &query {
