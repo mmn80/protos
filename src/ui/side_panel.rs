@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
+use bevy_rapier3d::render::DebugRenderContext;
 
 use super::selection::Selected;
 
@@ -28,6 +29,7 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
 
 #[derive(Resource)]
 pub struct SidePanelState {
+    pub rapier_debug_enabled: bool,
     pub selected_show_names: bool,
     pub selected_show_path: bool,
     pub spawn_building: bool,
@@ -36,6 +38,7 @@ pub struct SidePanelState {
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
+            rapier_debug_enabled: false,
             selected_show_names: true,
             selected_show_path: true,
             spawn_building: false,
@@ -48,6 +51,7 @@ fn update_side_panel(
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
     selected_q: Query<&Name, With<Selected>>,
+    mut debug_render_ctx: ResMut<DebugRenderContext>,
 ) {
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
@@ -88,6 +92,13 @@ fn update_side_panel(
                             ui.label("...");
                         }
                     }
+                });
+
+            egui::CollapsingHeader::new("Physics")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.checkbox(&mut state.rapier_debug_enabled, "Debug render");
+                    debug_render_ctx.enabled = state.rapier_debug_enabled;
                 });
 
             egui::CollapsingHeader::new("Buildings")
