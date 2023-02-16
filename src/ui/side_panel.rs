@@ -32,7 +32,7 @@ pub struct SidePanelState {
     pub rapier_debug_enabled: bool,
     pub selected_show_names: bool,
     pub selected_show_path: bool,
-    pub spawn_building: bool,
+    pub add_platform: bool,
 }
 
 impl Default for SidePanelState {
@@ -41,7 +41,7 @@ impl Default for SidePanelState {
             rapier_debug_enabled: false,
             selected_show_names: true,
             selected_show_path: true,
-            spawn_building: false,
+            add_platform: false,
         }
     }
 }
@@ -104,7 +104,7 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Buildings")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.spawn_building, "Spawn building");
+                    ui.checkbox(&mut state.add_platform, "Add platform");
                 });
         });
 }

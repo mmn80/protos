@@ -25,6 +25,7 @@ pub struct MainCamera {
     pub focus: Vec3,
     pub radius: f32,
     pub upside_down: bool,
+    pub mouse_ray: Option<Ray>,
 }
 
 const START_DIST: f32 = 40.0;
@@ -35,6 +36,7 @@ impl Default for MainCamera {
             focus: Vec3::ZERO,
             radius: 5.0,
             upside_down: false,
+            mouse_ray: None,
         }
     }
 }
@@ -70,7 +72,8 @@ fn main_camera(
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<Input<MouseButton>>,
-    mut query: Query<(&mut MainCamera, &mut Transform)>,
+    mut cursor: EventReader<CursorMoved>,
+    mut query: Query<(&mut MainCamera, &mut Transform, &GlobalTransform, &Camera)>,
     mut egui_ctx: ResMut<EguiContext>,
 ) {
     let orbit_button = MouseButton::Right;
@@ -93,7 +96,13 @@ fn main_camera(
         }
     }
 
-    for (mut camera, mut transform) in &mut query {
+    let cursor_pos = cursor.iter().last().map(|p| p.position);
+
+    for (mut main_camera, mut transform, global_transform, camera) in &mut query {
+        if let Some(pos) = cursor_pos {
+            main_camera.mouse_ray = get_camera_mouse_ray(pos, camera, global_transform);
+        }
+
         if keyboard.any_pressed([KeyCode::W, KeyCode::S, KeyCode::A, KeyCode::D]) {
             let mut ds = time.delta_seconds() * 10.;
             if keyboard.pressed(KeyCode::LShift) {
@@ -108,17 +117,17 @@ fn main_camera(
             let right = transform.right().normalize();
 
             if keyboard.pressed(KeyCode::W) {
-                camera.focus += ds * forward;
+                main_camera.focus += ds * forward;
                 transform.translation += ds * forward;
             } else if keyboard.pressed(KeyCode::S) {
-                camera.focus -= ds * forward;
+                main_camera.focus -= ds * forward;
                 transform.translation -= ds * forward;
             }
             if keyboard.pressed(KeyCode::A) {
-                camera.focus -= ds * right;
+                main_camera.focus -= ds * right;
                 transform.translation -= ds * right;
             } else if keyboard.pressed(KeyCode::D) {
-                camera.focus += ds * right;
+                main_camera.focus += ds * right;
                 transform.translation += ds * right;
             }
         }
@@ -127,7 +136,7 @@ fn main_camera(
             // only check for upside down when orbiting started or ended this frame
             // if the camera is "upside" down, panning horizontally would be inverted, so invert the input to make it correct
             let up = transform.rotation * Vec3::Y;
-            camera.upside_down = up.y <= 0.0;
+            main_camera.upside_down = up.y <= 0.0;
         }
 
         let mut any = false;
@@ -136,7 +145,7 @@ fn main_camera(
             let window = get_primary_window_size(&windows);
             let delta_x = {
                 let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
-                if camera.upside_down {
+                if main_camera.upside_down {
                     -delta
                 } else {
                     delta
@@ -149,9 +158,9 @@ fn main_camera(
             transform.rotation = transform.rotation * pitch; // rotate around local x axis
         } else if scroll.abs() > 0.0 {
             any = true;
-            camera.radius -= scroll * camera.radius * 0.2;
+            main_camera.radius -= scroll * main_camera.radius * 0.2;
             // dont allow zoom to reach zero or you get stuck
-            camera.radius = f32::max(camera.radius, 0.05);
+            main_camera.radius = f32::max(main_camera.radius, 0.05);
         }
 
         if any {
@@ -160,7 +169,7 @@ fn main_camera(
             // child = z-offset
             let rot_matrix = Mat3::from_quat(transform.rotation);
             transform.translation =
-                camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, camera.radius));
+                main_camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, main_camera.radius));
         }
 
         light.dir_light_size = transform.translation.y * 100. / START_DIST;
@@ -193,4 +202,31 @@ fn update_screen_position(
         }
         break;
     }
+}
+
+fn get_camera_mouse_ray(
+    cursor_pos_screen: Vec2,
+    camera: &Camera,
+    camera_transform: &GlobalTransform,
+) -> Option<Ray> {
+    let view = camera_transform.compute_matrix();
+
+    let (viewport_min, viewport_max) = camera.logical_viewport_rect()?;
+    let screen_size = camera.logical_target_size()?;
+    let viewport_size = viewport_max - viewport_min;
+    let adj_cursor_pos =
+        cursor_pos_screen - Vec2::new(viewport_min.x, screen_size.y - viewport_max.y);
+
+    let projection = camera.projection_matrix();
+    let far_ndc = projection.project_point3(Vec3::NEG_Z).z;
+    let near_ndc = projection.project_point3(Vec3::Z).z;
+    let cursor_ndc = (adj_cursor_pos / viewport_size) * 2.0 - Vec2::ONE;
+    let ndc_to_world: Mat4 = view * projection.inverse();
+    let near = ndc_to_world.project_point3(cursor_ndc.extend(near_ndc));
+    let far = ndc_to_world.project_point3(cursor_ndc.extend(far_ndc));
+    let ray_direction = far - near;
+    Some(Ray {
+        origin: near,
+        direction: ray_direction,
+    })
 }

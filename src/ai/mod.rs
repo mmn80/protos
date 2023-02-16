@@ -1,2 +1,2 @@
-pub mod sparse_grid;
+pub mod platform;
 pub mod terrain;
