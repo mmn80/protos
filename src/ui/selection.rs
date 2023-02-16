@@ -1,10 +1,7 @@
-use bevy::{pbr::NotShadowCaster, prelude::*};
+use bevy::prelude::*;
 
 use super::side_panel::SidePanelState;
-use crate::{
-    ai::{ground::Ground, pathfind::MovingPath},
-    camera::ScreenPosition,
-};
+use crate::camera::ScreenPosition;
 
 pub struct SelectionPlugin;
 
@@ -18,8 +15,7 @@ impl Plugin for SelectionPlugin {
                 update_units_selected.after("update_screen_position"),
             )
             .add_system(update_selected_unit_names)
-            .add_system(update_select_ui_rect)
-            .add_system(update_nav_path_trails);
+            .add_system(update_select_ui_rect);
     }
 }
 
@@ -243,73 +239,6 @@ fn update_selected_unit_names(
         if let Ok((_, _, UnitNameUiNodeRef(ui_node))) = moved_q.get(*unit_ent) {
             cmd.entity(*ui_node).despawn_recursive();
             cmd.entity(*unit_ent).remove::<UnitNameUiNodeRef>();
-        }
-    }
-}
-
-#[derive(Clone, Component, Debug, Default)]
-pub struct NavPathTrail {
-    path: Vec<Entity>,
-}
-
-#[derive(Clone, Component, Debug, Default)]
-pub struct NavPathTrailElement;
-
-fn update_nav_path_trails(
-    mut meshes: ResMut<Assets<Mesh>>,
-    ui: Res<SidePanelState>,
-    ground: Res<Ground>,
-    selected_query: Query<
-        (Entity, &Handle<StandardMaterial>, &MovingPath),
-        (With<Selected>, Without<NavPathTrail>),
-    >,
-    all_query: Query<(
-        Entity,
-        &NavPathTrail,
-        Option<&Selected>,
-        Option<&MovingPath>,
-    )>,
-    mut visibility_query: Query<&mut Visibility, With<NavPathTrailElement>>,
-    mut cmd: Commands,
-) {
-    if ui.selected_show_path {
-        for (entity, material, nav_path) in &selected_query {
-            let mesh = meshes.add(Mesh::from(shape::Icosphere {
-                radius: 0.2,
-                subdivisions: 2,
-            }));
-            let path: Vec<_> = nav_path
-                .path
-                .iter()
-                .map(|p| {
-                    cmd.spawn((
-                        PbrBundle {
-                            mesh: mesh.clone(),
-                            material: material.clone(),
-                            transform: Transform::from_translation(Vec3::new(p.x, 0.2, p.z)),
-                            ..default()
-                        },
-                        NavPathTrailElement,
-                        NotShadowCaster,
-                    ))
-                    .id()
-                })
-                .collect();
-            cmd.entity(ground.entity.unwrap()).push_children(&path);
-            cmd.entity(entity).insert(NavPathTrail { path });
-        }
-    }
-    for (entity, trail, selected, path) in &all_query {
-        if !ui.selected_show_path || selected.is_none() || path.is_none() {
-            cmd.entity(entity).remove::<NavPathTrail>();
-            for marker in &trail.path {
-                cmd.entity(*marker).despawn_recursive();
-            }
-        } else if let Some(path) = path {
-            for i in 0..path.current {
-                let marker_ent = trail.path[i];
-                visibility_query.get_mut(marker_ent).unwrap().is_visible = false;
-            }
         }
     }
 }

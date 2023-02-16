@@ -3,10 +3,6 @@ use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
-    ai::{
-        fast_unit::FastUnitPlugin, fast_unit_index::FastUnitIndexPlugin, ground::GroundPlugin,
-        pathfind::PathfindingPlugin, slow_unit::SlowUnitPlugin, velocity::VelocityPlugin,
-    },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::{selection::SelectionPlugin, side_panel::SidePanelPlugin},
@@ -30,12 +26,6 @@ fn main() {
         .add_plugin(SelectionPlugin)
         .add_plugin(MainLightsPlugin::default())
         .add_plugin(MainCameraPlugin)
-        .add_plugin(GroundPlugin)
-        .add_plugin(SlowUnitPlugin)
-        .add_plugin(FastUnitIndexPlugin)
-        .add_plugin(VelocityPlugin)
-        .add_plugin(PathfindingPlugin)
-        .add_plugin(FastUnitPlugin)
         .add_system(bevy::window::close_on_esc)
         .run();
 }

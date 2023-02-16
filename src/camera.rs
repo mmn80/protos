@@ -4,9 +4,8 @@ use bevy::{
     prelude::*,
 };
 use bevy_egui::EguiContext;
-use bevy_mod_raycast::RaycastSource;
 
-use crate::{ai::ground::GroundRaycastSet, light::MainLightsState};
+use crate::light::MainLightsState;
 
 pub struct MainCameraPlugin;
 
@@ -59,7 +58,6 @@ fn spawn_camera(mut commands: Commands) {
             radius,
             ..default()
         },
-        RaycastSource::<GroundRaycastSet>::new(),
     ));
 }
 

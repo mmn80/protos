@@ -5,7 +5,6 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
 use super::selection::Selected;
-use crate::ai::ground::GroundMaterials;
 
 pub struct SidePanelPlugin;
 
@@ -29,24 +28,16 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
 
 #[derive(Resource)]
 pub struct SidePanelState {
-    pub ai_active_selected: bool,
-    pub ai_active_all: bool,
     pub selected_show_names: bool,
     pub selected_show_path: bool,
-    pub ground_brush_size: u8,
-    pub ground_material: GroundMaterials,
     pub spawn_building: bool,
 }
 
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
-            ai_active_selected: false,
-            ai_active_all: false,
             selected_show_names: true,
             selected_show_path: true,
-            ground_brush_size: 1,
-            ground_material: Default::default(),
             spawn_building: false,
         }
     }
@@ -80,8 +71,6 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.ai_active_selected, "Ai active (selected)");
-                    ui.checkbox(&mut state.ai_active_all, "Ai active (all)");
                     ui.checkbox(&mut state.selected_show_names, "Show names (selected)");
                     ui.checkbox(&mut state.selected_show_path, "Show paths (selected)");
 
@@ -99,15 +88,6 @@ fn update_side_panel(
                             ui.label("...");
                         }
                     }
-                });
-
-            egui::CollapsingHeader::new("Ground painter")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.add(egui::Slider::new(&mut state.ground_brush_size, 1..=32));
-                    ui.radio_value(&mut state.ground_material, GroundMaterials::None, "None");
-                    ui.radio_value(&mut state.ground_material, GroundMaterials::Grass, "Grass");
-                    ui.radio_value(&mut state.ground_material, GroundMaterials::Road, "Road");
                 });
 
             egui::CollapsingHeader::new("Buildings")
