@@ -27,7 +27,7 @@ pub struct MainCamera {
     pub upside_down: bool,
 }
 
-const START_DIST: f32 = 30.0;
+const START_DIST: f32 = 40.0;
 
 impl Default for MainCamera {
     fn default() -> Self {
