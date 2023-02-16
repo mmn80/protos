@@ -45,9 +45,15 @@ fn add_platform(
     input_mouse: Res<Input<MouseButton>>,
     rapier_ctx: Res<RapierContext>,
     camera_q: Query<&MainCamera>,
-    //collider_q: Query<(Entity, &Collider)>,
 ) {
     if ui_global.add_platform {
+        if input_mouse.just_pressed(MouseButton::Right) {
+            ui.state = AddPlatformState::SelectingRectStart;
+            ui.attach_p0 = None;
+            ui.attach_p0_normal = None;
+            ui.attach_p1 = None;
+            return;
+        }
         let ray = {
             if let Ok(camera) = camera_q.get_single() {
                 if let Some(ray) = camera.mouse_ray.clone() {
@@ -78,11 +84,13 @@ fn add_platform(
                 }
             }
         } else if ui.state == AddPlatformState::SelectingRectEnd {
-            let center = ui.attach_p0.unwrap().into();
-            let normal = ui.attach_p0_normal.unwrap().into();
+            let center = ui.attach_p0.unwrap();
+            let normal = ui.attach_p0_normal.unwrap();
             let ray_parry = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-            if let Some(toi) = ray_toi_with_halfspace(&center, &normal, &ray_parry) {
-                ui.attach_p1 = Some(ray.origin + toi * ray.direction);
+            if let Some(toi) = ray_toi_with_halfspace(&center.into(), &normal.into(), &ray_parry) {
+                let p1 = ray.origin + toi * ray.direction;
+                ui.attach_p1 = Some(p1);
+
                 if input_mouse.just_pressed(MouseButton::Left) {
                     println!("Rect completed at point {}", ui.attach_p1.unwrap());
                     ui.state = AddPlatformState::SelectingDepth;
