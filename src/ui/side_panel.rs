@@ -31,6 +31,7 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
 pub struct SidePanelState {
     pub rapier_debug_enabled: bool,
     pub selected_show_names: bool,
+    pub selected_show_move_gizmo: bool,
     pub selected_show_path: bool,
     pub add_platform: bool,
 }
@@ -40,6 +41,7 @@ impl Default for SidePanelState {
         Self {
             rapier_debug_enabled: false,
             selected_show_names: true,
+            selected_show_move_gizmo: true,
             selected_show_path: true,
             add_platform: false,
         }
@@ -75,8 +77,9 @@ fn update_side_panel(
             egui::CollapsingHeader::new("Selection")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.selected_show_names, "Show names (selected)");
-                    ui.checkbox(&mut state.selected_show_path, "Show paths (selected)");
+                    ui.checkbox(&mut state.selected_show_names, "Show names");
+                    ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmos");
+                    ui.checkbox(&mut state.selected_show_path, "Show paths");
 
                     let selected: Vec<_> = selected_q.iter().collect();
                     if !selected.is_empty() {

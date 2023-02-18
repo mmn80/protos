@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{pbr::NotShadowCaster, prelude::*};
 use bevy_rapier3d::prelude::*;
 
 use crate::ui::lines::{LineList, LineMaterial};
@@ -66,12 +66,14 @@ fn setup_terrain(
         lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
     }
 
-    commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(LineList { lines })),
-        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
-        material: line_materials.add(LineMaterial {
-            color: Color::WHITE,
-        }),
-        ..default()
-    });
+    commands
+        .spawn(MaterialMeshBundle {
+            mesh: meshes.add(Mesh::from(LineList { lines })),
+            transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
+            material: line_materials.add(LineMaterial {
+                color: Color::WHITE,
+            }),
+            ..default()
+        })
+        .insert(NotShadowCaster);
 }

@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use crate::{camera::MainCamera, ui::side_panel::SidePanelState};
+use crate::{
+    camera::{MainCamera, ScreenPosition},
+    ui::{selection::Selectable, side_panel::SidePanelState},
+};
 
 pub struct PlatformPlugin;
 
@@ -118,7 +121,7 @@ fn add_platform_ui(
                     ) {
                         let p0_n = intersection.normal.normalize();
                         let p0 = intersection.point;
-                        println!("Base started at {} with normal {}", p0, p0_n);
+                        println!("Base started at {p0} with normal {p0_n}");
                         if let Ok(transform) = transform_q.get(entity) {
                             ui.attach_p0 = Some(p0);
                             ui.attach_p0_normal = Some(p0_n);
@@ -175,17 +178,30 @@ fn add_platform_ui(
                     if input_mouse.just_pressed(MouseButton::Left) {
                         let material = ui.platform_mat.clone();
                         let scale = srt.0;
+                        let pos = tr.translation();
                         commands
                             .spawn(PbrBundle {
-                                transform: Transform::from_translation(tr.translation())
-                                    .with_rotation(rot),
+                                transform: Transform::from_translation(pos).with_rotation(rot),
                                 mesh: meshes
                                     .add(Mesh::from(shape::Box::new(scale.x, scale.y, scale.z))),
                                 material: material.unwrap(),
                                 ..default()
                             })
+                            .insert((Selectable, ScreenPosition::default()))
+                            .insert(Name::new(format!(
+                                "[{:.2},{:.2},{:.2}]",
+                                pos.x, pos.y, pos.z
+                            )))
                             .insert(RigidBody::Fixed)
-                            .insert(Collider::cuboid(scale.x / 2., scale.y / 2., scale.z / 2.));
+                            .with_children(|parent| {
+                                parent
+                                    .spawn(Collider::cuboid(
+                                        scale.x / 2.,
+                                        scale.y / 2.,
+                                        scale.z / 2.,
+                                    ))
+                                    .insert(TransformBundle::from(Transform::IDENTITY));
+                            });
                         clear_ui_state(&mut ui, &mut commands);
                     } else {
                         let p1 = ui.attach_p1.unwrap();
