@@ -131,6 +131,7 @@ fn add_platform_ui(
                                 } else {
                                     p0_n.cross(transform.right())
                                 }
+                                .normalize()
                             };
                             ui.platform = Some(
                                 commands
