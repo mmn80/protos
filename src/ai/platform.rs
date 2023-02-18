@@ -187,7 +187,6 @@ fn add_platform_ui(
                             .insert(RigidBody::Fixed)
                             .insert(Collider::cuboid(scale.x / 2., scale.y / 2., scale.z / 2.));
                         clear_ui_state(&mut ui, &mut commands);
-                        ui_global.add_platform = false;
                     } else {
                         let p1 = ui.attach_p1.unwrap();
                         if let (Some(toi0), Some(toi1)) = (

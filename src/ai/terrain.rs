@@ -44,30 +44,33 @@ fn setup_terrain(
             ground_size.z / 2.,
         ));
 
-    commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(LineList {
-            lines: vec![(
-                Vec3::new(-ground_size.x / 2., 0., 0.),
-                Vec3::new(ground_size.x / 2., 0., 0.),
-            )],
-        })),
-        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.1, 0.),
-        material: line_materials.add(LineMaterial {
-            color: Color::GREEN,
-        }),
-        ..default()
-    });
+    let mut lines = vec![
+        (
+            Vec3::new(-ground_size.x / 2., 0., 0.),
+            Vec3::new(ground_size.x / 2., 0., 0.),
+        ),
+        (
+            Vec3::new(0., 0., -ground_size.z / 2.),
+            Vec3::new(0., 0., ground_size.z / 2.),
+        ),
+        (Vec3::new(0., 0., 1.), Vec3::new(1., 0., 0.)),
+    ];
+
+    let half_x = ground_size.x as i32 / 2 - 10;
+    for x in (-half_x..half_x + 1).step_by(10) {
+        lines.push((Vec3::new(x as f32, 0., -0.5), Vec3::new(x as f32, 0., 0.5)));
+    }
+
+    let half_z = ground_size.z as i32 / 2 - 10;
+    for z in (-half_z..half_z + 1).step_by(10) {
+        lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
+    }
 
     commands.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(LineList {
-            lines: vec![(
-                Vec3::new(0., 0., -ground_size.z / 2.),
-                Vec3::new(0., 0., ground_size.z / 2.),
-            )],
-        })),
+        mesh: meshes.add(Mesh::from(LineList { lines })),
         transform: Transform::from_xyz(0., ground_size.y / 2. + 0.1, 0.),
         material: line_materials.add(LineMaterial {
-            color: Color::WHITE,
+            color: Color::LIME_GREEN,
         }),
         ..default()
     });

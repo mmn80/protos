@@ -55,7 +55,7 @@ fn spawn_camera(mut commands: Commands) {
             ..default()
         },
         BloomSettings::default(),
-        //Fxaa::default(),
+        //bevy::core_pipeline::fxaa::Fxaa::default(),
         MainCamera {
             radius,
             ..default()
