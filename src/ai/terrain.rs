@@ -68,9 +68,9 @@ fn setup_terrain(
 
     commands.spawn(MaterialMeshBundle {
         mesh: meshes.add(Mesh::from(LineList { lines })),
-        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.1, 0.),
+        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
         material: line_materials.add(LineMaterial {
-            color: Color::LIME_GREEN,
+            color: Color::WHITE,
         }),
         ..default()
     });
