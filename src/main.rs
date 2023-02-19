@@ -6,10 +6,8 @@ use protos::{
     ai::{platform::PlatformPlugin, terrain::TerrainPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
-    ui::{
-        lines::LinesPlugin, move_gizmo::MoveGizmoPlugin, selection::SelectionPlugin,
-        side_panel::SidePanelPlugin,
-    },
+    mesh::lines::LinesPlugin,
+    ui::{move_gizmo::MoveGizmoPlugin, selection::SelectionPlugin, side_panel::SidePanelPlugin},
 };
 
 fn main() {

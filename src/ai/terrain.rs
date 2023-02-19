@@ -1,7 +1,7 @@
 use bevy::{pbr::NotShadowCaster, prelude::*};
 use bevy_rapier3d::prelude::*;
 
-use crate::ui::lines::{LineList, LineMaterial};
+use crate::mesh::lines::{LineList, LineMaterial};
 
 pub struct TerrainPlugin;
 
