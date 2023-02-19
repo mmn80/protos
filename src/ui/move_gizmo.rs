@@ -72,17 +72,14 @@ fn setup_move_gizmos(
 }
 
 #[derive(Component)]
-pub struct MoveGizmo {
-    pub attach_point: Vec3,
-    pub move_direction: Vec3,
-}
+pub struct MoveGizmo;
 
 fn update_move_gizmos(
     ui: Res<SidePanelState>,
     res: Res<MoveGizmoRes>,
     ctx: Res<RapierContext>,
     q_selected: Query<(Entity, &GlobalTransform, &Children), With<Selected>>,
-    q_gizmo: Query<(Entity, &MoveGizmo)>,
+    q_gizmo: Query<Entity, With<MoveGizmo>>,
     q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
@@ -90,16 +87,16 @@ fn update_move_gizmos(
         for (sel, trans, children) in q_selected.iter() {
             if !children.iter().any(|c| q_gizmo.contains(*c)) {
                 let pos = trans.translation();
-                for (z_axis, y_axis, m) in [
+                for (y_axis, x_axis, m) in [
+                    (trans.right(), trans.down(), res.x_mat.clone().unwrap()),
                     (trans.up(), trans.right(), res.y_mat.clone().unwrap()),
-                    (trans.right(), trans.back(), res.x_mat.clone().unwrap()),
                     (trans.back(), trans.up(), res.z_mat.clone().unwrap()),
                 ] {
-                    add_gizmo(&res, &ctx, sel, trans, pos, z_axis, y_axis, m, &mut cmd);
+                    add_gizmo(&res, &ctx, sel, trans, pos, y_axis, x_axis, m, &mut cmd);
                 }
             }
         }
-        for (ent, _) in q_gizmo.iter() {
+        for ent in q_gizmo.iter() {
             for parent in q_parent.iter_ancestors(ent) {
                 if !q_selected.contains(parent) {
                     cmd.entity(ent).despawn_recursive();
@@ -108,7 +105,7 @@ fn update_move_gizmos(
             }
         }
     } else {
-        for (ent, _) in q_gizmo.iter() {
+        for ent in q_gizmo.iter() {
             cmd.entity(ent).despawn_recursive();
         }
     }
@@ -128,24 +125,21 @@ fn add_gizmo(
     if let Some((_ent, attach_point_toi)) =
         rapier_ctx.cast_ray(pos, dir_y, 50., false, QueryFilter::new())
     {
-        let attach_point = sel_trans
-            .affine()
-            .inverse()
-            .transform_point3(pos + attach_point_toi * dir_y);
+        let inverse = sel_trans.affine().inverse();
+        let attach_point = inverse.transform_point3(pos + attach_point_toi * dir_y);
+        let dir_x = inverse.transform_vector3(dir_x);
+        let dir_y = inverse.transform_vector3(dir_y);
         commands.entity(sel).with_children(|parent| {
             let rotation = Quat::from_mat3(&Mat3::from_cols(
                 dir_x,
                 dir_y,
-                -dir_y.cross(dir_x).normalize(),
+                dir_x.cross(dir_y).normalize(),
             ));
             parent
                 .spawn(SpatialBundle::from(
                     Transform::from_translation(attach_point).with_rotation(rotation),
                 ))
-                .insert(MoveGizmo {
-                    attach_point,
-                    move_direction: dir_y,
-                })
+                .insert(MoveGizmo)
                 .with_children(|parent| {
                     parent.spawn(PbrBundle {
                         transform: Transform::from_xyz(0., BAR_H / 2., 0.),
