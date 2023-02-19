@@ -77,6 +77,7 @@ impl SelectionRect {
 struct DeselectedEvent(Entity);
 
 fn update_units_selected(
+    ui: Res<SidePanelState>,
     mut selection_rect: ResMut<SelectionRect>,
     keyboard: Res<Input<KeyCode>>,
     input_mouse: Res<Input<MouseButton>>,
@@ -86,7 +87,7 @@ fn update_units_selected(
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if egui_ctx.ctx_mut().wants_pointer_input() {
+    if egui_ctx.ctx_mut().wants_pointer_input() || ui.add_platform {
         return;
     }
     let do_select_rect = {

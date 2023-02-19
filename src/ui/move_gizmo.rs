@@ -97,11 +97,10 @@ fn update_move_gizmos(
             }
         }
         for ent in q_gizmo.iter() {
-            for parent in q_parent.iter_ancestors(ent) {
+            if let Some(parent) = q_parent.iter_ancestors(ent).next() {
                 if !q_selected.contains(parent) {
                     cmd.entity(ent).despawn_recursive();
                 }
-                break;
             }
         }
     } else {
@@ -127,8 +126,8 @@ fn add_gizmo(
     {
         let inverse = sel_trans.affine().inverse();
         let attach_point = inverse.transform_point3(pos + attach_point_toi * dir_y);
-        let dir_x = inverse.transform_vector3(dir_x);
-        let dir_y = inverse.transform_vector3(dir_y);
+        let dir_x = inverse.transform_vector3(dir_x).normalize();
+        let dir_y = inverse.transform_vector3(dir_y).normalize();
         commands.entity(sel).with_children(|parent| {
             let rotation = Quat::from_mat3(&Mat3::from_cols(
                 dir_x,

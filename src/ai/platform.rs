@@ -4,7 +4,10 @@ use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{
     camera::{MainCamera, ScreenPosition},
-    ui::{selection::Selectable, side_panel::SidePanelState},
+    ui::{
+        selection::{Selectable, Selected},
+        side_panel::SidePanelState,
+    },
 };
 
 pub struct PlatformPlugin;
@@ -19,9 +22,9 @@ impl Plugin for PlatformPlugin {
 
 #[derive(PartialEq)]
 enum AddPlatformUiState {
-    SelectingRectStart,
-    SelectingRectEnd,
-    SelectingDepth,
+    PickAttachP0,
+    PickAttachP1,
+    PickLength,
 }
 
 #[derive(Resource)]
@@ -34,6 +37,7 @@ struct AddPlatformUiRes {
     pub attach_p1: Option<Vec3>,
     pub length: Option<f32>,
     pub platform: Option<Entity>,
+    pub ground: Option<Entity>,
 }
 
 impl Default for AddPlatformUiRes {
@@ -41,12 +45,13 @@ impl Default for AddPlatformUiRes {
         Self {
             platform_ui_mat: None,
             platform_mat: None,
-            state: AddPlatformUiState::SelectingRectStart,
+            state: AddPlatformUiState::PickAttachP0,
             attach_p0: None,
             attach_p0_normal: None,
             attach_p1: None,
             length: None,
             platform: None,
+            ground: None,
         }
     }
 }
@@ -79,8 +84,9 @@ fn add_platform_ui(
     input_mouse: Res<Input<MouseButton>>,
     rapier_ctx: Res<RapierContext>,
     camera_q: Query<&MainCamera>,
-    mut platform_q: Query<&mut Transform>,
-    transform_q: Query<&GlobalTransform>,
+    mut tr_q: Query<&mut Transform>,
+    gl_tr_q: Query<&GlobalTransform>,
+    q_parent: Query<&Parent>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
@@ -91,25 +97,30 @@ fn add_platform_ui(
             return;
         }
 
-        if let Some(ent) = ui.platform {
-            if let (Ok(mut tr), Some(p0), Some(p1)) =
-                (platform_q.get_mut(ent), ui.attach_p0, ui.attach_p1)
-            {
+        if let (Some(ground_ent), Some(platform_ent)) = (ui.ground, ui.platform) {
+            if let (Ok(mut platform_mut), Ok(ground), Some(p0), Some(p1)) = (
+                tr_q.get_mut(platform_ent),
+                gl_tr_q.get(ground_ent),
+                ui.attach_p0,
+                ui.attach_p1,
+            ) {
                 let scale_y = ui.length.unwrap_or(PLATFORM_INIT_LEN);
-                let p0_local = tr.rotation * p0;
-                let p1_local = tr.rotation * p1;
-                let dp = p1_local - p0_local;
-                tr.scale = Vec3::new(dp.x.abs(), scale_y, dp.z.abs());
-                tr.translation = (p0 + p1 + scale_y * tr.up()) / 2.;
+                let inverse = ground.affine().inverse();
+                let p0_ground = inverse.transform_point3(p0);
+                let p1_ground = inverse.transform_point3(p1);
+                let scale = platform_mut.rotation * (p1_ground - p0_ground);
+                platform_mut.scale = Vec3::new(scale.x.abs(), scale_y, scale.z.abs());
+                platform_mut.translation =
+                    (p0_ground + p1_ground + scale_y * platform_mut.up()) / 2.;
             }
         }
 
         if let Ok(Some(ray)) = camera_q.get_single().map(|c| c.mouse_ray.clone()) {
-            let ray_parry = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-            if ui.state == AddPlatformUiState::SelectingRectStart {
+            let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
+            if ui.state == AddPlatformUiState::PickAttachP0 {
                 if input_mouse.just_pressed(MouseButton::Left) {
                     let material = ui.platform_ui_mat.clone();
-                    if let (Some(material), Some((entity, intersection))) = (
+                    if let (Some(material), Some((attach_ent, intersection))) = (
                         material,
                         rapier_ctx.cast_ray_and_get_normal(
                             ray.origin,
@@ -121,97 +132,112 @@ fn add_platform_ui(
                     ) {
                         let p0_n = intersection.normal.normalize();
                         let p0 = intersection.point;
-                        println!("Base started at {p0} with normal {p0_n}");
-                        if let Ok(transform) = transform_q.get(entity) {
-                            ui.attach_p0 = Some(p0);
-                            ui.attach_p0_normal = Some(p0_n);
-                            ui.state = AddPlatformUiState::SelectingRectEnd;
-                            let right = {
-                                if transform.forward().dot(p0_n) < 0.9 {
-                                    p0_n.cross(-transform.forward())
-                                } else if transform.up().dot(p0_n) < 0.9 {
-                                    p0_n.cross(transform.up())
-                                } else {
-                                    p0_n.cross(transform.right())
-                                }
-                                .normalize()
-                            };
-                            ui.platform = Some(
-                                commands
-                                    .spawn(PbrBundle {
-                                        transform: Transform::from_translation(
-                                            p0 + (PLATFORM_INIT_LEN / 2.) * p0_n,
-                                        )
-                                        .with_rotation(Quat::from_mat3(&Mat3::from_cols(
-                                            right,
-                                            p0_n,
-                                            right.cross(p0_n).normalize(),
-                                        )))
-                                        .with_scale(Vec3::new(0., PLATFORM_INIT_LEN, 0.)),
-                                        mesh: meshes.add(Mesh::from(shape::Box::new(1., 1., 1.))),
-                                        material: material.clone(),
-                                        ..default()
-                                    })
-                                    .id(),
-                            );
-                        }
+                        let ground = {
+                            if let Some(ground) = q_parent.iter_ancestors(attach_ent).last() {
+                                ground
+                            } else {
+                                attach_ent
+                            }
+                        };
+                        ui.ground = Some(ground);
+                        ui.attach_p0 = Some(p0);
+                        ui.attach_p0_normal = Some(p0_n);
+                        ui.state = AddPlatformUiState::PickAttachP1;
+
+                        let ground_tr = gl_tr_q.get(ground).unwrap();
+                        let ground_inv = ground_tr.affine().inverse();
+                        let ground_p0 = ground_inv.transform_point3(p0);
+                        let dir_y = ground_inv.transform_vector3(p0_n).normalize();
+                        let dir_x = {
+                            let dir_x = dir_y.cross(ground_tr.back());
+                            if dir_x.length() < 0.01 {
+                                dir_y.cross(ground_tr.up())
+                            } else {
+                                dir_x
+                            }
+                            .normalize()
+                        };
+                        println!(
+                            "p0={p0}, ground_p0={ground_p0}, p0_n={p0_n}, dir_y={dir_y}, dir_x={dir_x}"
+                        );
+                        ui.platform = Some(commands.entity(ground).add_children(|parent| {
+                            parent
+                                .spawn(PbrBundle {
+                                    transform: Transform::from_translation(
+                                        ground_p0 + (PLATFORM_INIT_LEN / 2.) * dir_y,
+                                    )
+                                    .with_rotation(Quat::from_mat3(&Mat3::from_cols(
+                                        dir_x,
+                                        dir_y,
+                                        dir_x.cross(dir_y).normalize(),
+                                    )))
+                                    .with_scale(Vec3::new(0., PLATFORM_INIT_LEN, 0.)),
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(1., 1., 1.))),
+                                    material: material.clone(),
+                                    ..default()
+                                })
+                                .id()
+                        }));
                     }
                 }
-            } else if ui.state == AddPlatformUiState::SelectingRectEnd {
+            } else if ui.state == AddPlatformUiState::PickAttachP1 {
                 let center = ui.attach_p0.unwrap();
                 let normal = ui.attach_p0_normal.unwrap();
-
-                if let Some(toi) =
-                    ray_toi_with_halfspace(&center.into(), &normal.into(), &ray_parry)
-                {
+                if let Some(toi) = ray_toi_with_halfspace(&center.into(), &normal.into(), &ray_p) {
                     ui.attach_p1 = Some(ray.origin + toi * ray.direction);
-
                     if input_mouse.just_pressed(MouseButton::Left) {
-                        println!("Base completed at {}", ui.attach_p1.unwrap());
-                        ui.state = AddPlatformUiState::SelectingDepth;
+                        ui.state = AddPlatformUiState::PickLength;
                     }
                 }
-            } else if ui.state == AddPlatformUiState::SelectingDepth {
-                if let Ok(tr) = transform_q.get(ui.platform.unwrap()) {
-                    let srt = tr.to_scale_rotation_translation();
-                    let rot = srt.1;
+            } else if ui.state == AddPlatformUiState::PickLength {
+                if let (Some(ground), Ok(platform)) = (ui.ground, gl_tr_q.get(ui.platform.unwrap()))
+                {
                     if input_mouse.just_pressed(MouseButton::Left) {
                         let material = ui.platform_mat.clone();
-                        let scale = srt.0;
-                        let pos = tr.translation();
-                        commands
-                            .spawn(PbrBundle {
-                                transform: Transform::from_translation(pos).with_rotation(rot),
-                                mesh: meshes
-                                    .add(Mesh::from(shape::Box::new(scale.x, scale.y, scale.z))),
-                                material: material.unwrap(),
-                                ..default()
-                            })
-                            .insert((Selectable, ScreenPosition::default()))
-                            .insert(Name::new(format!(
-                                "[{:.2},{:.2},{:.2}]",
-                                pos.x, pos.y, pos.z
-                            )))
-                            .insert(RigidBody::Fixed)
-                            .with_children(|parent| {
-                                parent
-                                    .spawn(Collider::cuboid(
-                                        scale.x / 2.,
-                                        scale.y / 2.,
-                                        scale.z / 2.,
-                                    ))
-                                    .insert(TransformBundle::from(Transform::IDENTITY));
-                            });
+                        let (scale, rotation) = {
+                            let srt = platform.to_scale_rotation_translation();
+                            (srt.0, srt.1)
+                        };
+                        commands.entity(ground).with_children(|parent| {
+                            parent
+                                .spawn(PbrBundle {
+                                    transform: Transform::from_translation(platform.translation())
+                                        .with_rotation(rotation),
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(
+                                        scale.x, scale.y, scale.z,
+                                    ))),
+                                    material: material.unwrap(),
+                                    ..default()
+                                })
+                                .insert((
+                                    Selectable,
+                                    ScreenPosition::default(),
+                                    Selected,
+                                    RigidBody::Fixed,
+                                ))
+                                .with_children(|parent| {
+                                    parent
+                                        .spawn(Collider::cuboid(
+                                            scale.x / 2.,
+                                            scale.y / 2.,
+                                            scale.z / 2.,
+                                        ))
+                                        .insert(TransformBundle::from(Transform::IDENTITY));
+                                });
+                        });
                         clear_ui_state(&mut ui, &mut commands);
                     } else {
                         let p1 = ui.attach_p1.unwrap();
                         if let (Some(toi0), Some(toi1)) = (
-                            ray_toi_with_halfspace(&p1.into(), &tr.right().into(), &ray_parry),
-                            ray_toi_with_halfspace(&p1.into(), &tr.forward().into(), &ray_parry),
+                            ray_toi_with_halfspace(&p1.into(), &platform.right().into(), &ray_p),
+                            ray_toi_with_halfspace(&p1.into(), &platform.back().into(), &ray_p),
                         ) {
-                            let i0 = rot * (ray.origin + toi0 * ray.direction);
-                            let i1 = rot * (ray.origin + toi1 * ray.direction);
-                            ui.length = Some(((i0.y + i1.y) / 2.).max(PLATFORM_INIT_LEN));
+                            let i0 = ray.origin + toi0 * ray.direction;
+                            let i1 = ray.origin + toi1 * ray.direction;
+                            let p1_y = platform.up().dot(p1);
+                            let y0 = platform.up().dot(i0);
+                            let y1 = platform.up().dot(i1);
+                            ui.length = Some(((y0 + y1) / 2. - p1_y).max(PLATFORM_INIT_LEN));
                         }
                     }
                 }
@@ -221,7 +247,7 @@ fn add_platform_ui(
 }
 
 fn clear_ui_state(ui: &mut ResMut<AddPlatformUiRes>, commands: &mut Commands) {
-    ui.state = AddPlatformUiState::SelectingRectStart;
+    ui.state = AddPlatformUiState::PickAttachP0;
     ui.attach_p0 = None;
     ui.attach_p0_normal = None;
     ui.attach_p1 = None;
@@ -230,4 +256,5 @@ fn clear_ui_state(ui: &mut ResMut<AddPlatformUiRes>, commands: &mut Commands) {
         commands.entity(ent).despawn_recursive();
     }
     ui.platform = None;
+    ui.ground = None;
 }
