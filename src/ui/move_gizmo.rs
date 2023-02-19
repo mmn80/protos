@@ -30,6 +30,10 @@ impl Default for MoveGizmoRes {
     }
 }
 
+const GIZMO_DIST: f32 = 2.0;
+const GIZMO_SIZE: f32 = 0.5;
+const GIZMO_BAR: f32 = 0.1;
+
 fn setup_move_gizmos(
     mut res: ResMut<MoveGizmoRes>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -42,7 +46,9 @@ fn setup_move_gizmos(
         reflectance: 0.8,
         ..default()
     }));
-    res.gizmo_bar = Some(meshes.add(Mesh::from(shape::Box::new(0.1, 0.1, GIZMO_DIST))));
+    res.gizmo_bar = Some(meshes.add(Mesh::from(shape::Box::new(
+        GIZMO_BAR, GIZMO_BAR, GIZMO_DIST,
+    ))));
     res.gizmo_handle = Some(meshes.add(Mesh::from(shape::Box::new(
         GIZMO_SIZE, GIZMO_SIZE, GIZMO_SIZE,
     ))));
@@ -59,50 +65,37 @@ fn update_move_gizmos(
     res: Res<MoveGizmoRes>,
     ctx: Res<RapierContext>,
     q_selected: Query<(Entity, &GlobalTransform, &Children), With<Selected>>,
-    q_gizmo: Query<&MoveGizmo>,
+    q_gizmo: Query<(Entity, &MoveGizmo)>,
+    q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
     if ui.selected_show_move_gizmo {
         for (sel, trans, children) in q_selected.iter() {
             if !children.iter().any(|c| q_gizmo.contains(*c)) {
                 let pos = trans.translation();
-                add_gizmo(
-                    &res,
-                    &ctx,
-                    sel,
-                    trans,
-                    pos,
-                    trans.up(),
-                    trans.right(),
-                    &mut cmd,
-                );
-                add_gizmo(
-                    &res,
-                    &ctx,
-                    sel,
-                    trans,
-                    pos,
-                    trans.right(),
-                    trans.back(),
-                    &mut cmd,
-                );
-                add_gizmo(
-                    &res,
-                    &ctx,
-                    sel,
-                    trans,
-                    pos,
-                    trans.back(),
-                    trans.up(),
-                    &mut cmd,
-                );
+                for (z_axis, y_axis) in [
+                    (trans.up(), trans.right()),
+                    (trans.right(), trans.back()),
+                    (trans.back(), trans.up()),
+                ] {
+                    add_gizmo(&res, &ctx, sel, trans, pos, z_axis, y_axis, &mut cmd);
+                }
             }
+        }
+        for (ent, _) in q_gizmo.iter() {
+            for parent in q_parent.iter_ancestors(ent) {
+                if !q_selected.contains(parent) {
+                    cmd.entity(ent).despawn_recursive();
+                }
+                break;
+            }
+        }
+    } else {
+        for (ent, _) in q_gizmo.iter() {
+            cmd.entity(ent).despawn_recursive();
         }
     }
 }
-
-const GIZMO_DIST: f32 = 2.0;
-const GIZMO_SIZE: f32 = 0.5;
 
 fn add_gizmo(
     res: &MoveGizmoRes,
