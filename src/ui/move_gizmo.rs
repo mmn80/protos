@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
+use crate::mesh::cone::Cone;
+
 use super::{selection::Selected, side_panel::SidePanelState};
 
 pub struct MoveGizmoPlugin;
@@ -15,43 +17,58 @@ impl Plugin for MoveGizmoPlugin {
 
 #[derive(Resource)]
 struct MoveGizmoRes {
-    pub gizmo_mat: Option<Handle<StandardMaterial>>,
-    pub gizmo_bar: Option<Handle<Mesh>>,
-    pub gizmo_handle: Option<Handle<Mesh>>,
+    pub x_mat: Option<Handle<StandardMaterial>>,
+    pub y_mat: Option<Handle<StandardMaterial>>,
+    pub z_mat: Option<Handle<StandardMaterial>>,
+    pub bar: Option<Handle<Mesh>>,
+    pub cone: Option<Handle<Mesh>>,
 }
 
 impl Default for MoveGizmoRes {
     fn default() -> Self {
         Self {
-            gizmo_mat: None,
-            gizmo_bar: None,
-            gizmo_handle: None,
+            x_mat: None,
+            y_mat: None,
+            z_mat: None,
+            bar: None,
+            cone: None,
         }
     }
 }
 
-const GIZMO_DIST: f32 = 2.0;
-const GIZMO_SIZE: f32 = 0.5;
-const GIZMO_BAR: f32 = 0.1;
+const BAR_H: f32 = 2.0;
+const BAR_W: f32 = 0.1;
+const CONE_W: f32 = 0.5;
+const CONE_H: f32 = 1.0;
 
 fn setup_move_gizmos(
     mut res: ResMut<MoveGizmoRes>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    res.gizmo_mat = Some(materials.add(StandardMaterial {
+    res.x_mat = Some(materials.add(StandardMaterial {
+        base_color: Color::rgba(0.9, 0.5, 0.5, 0.2),
+        metallic: 0.9,
+        perceptual_roughness: 0.8,
+        reflectance: 0.8,
+        ..default()
+    }));
+    res.y_mat = Some(materials.add(StandardMaterial {
         base_color: Color::rgba(0.5, 0.9, 0.5, 0.2),
         metallic: 0.9,
         perceptual_roughness: 0.8,
         reflectance: 0.8,
         ..default()
     }));
-    res.gizmo_bar = Some(meshes.add(Mesh::from(shape::Box::new(
-        GIZMO_BAR, GIZMO_BAR, GIZMO_DIST,
-    ))));
-    res.gizmo_handle = Some(meshes.add(Mesh::from(shape::Box::new(
-        GIZMO_SIZE, GIZMO_SIZE, GIZMO_SIZE,
-    ))));
+    res.z_mat = Some(materials.add(StandardMaterial {
+        base_color: Color::rgba(0.5, 0.5, 0.9, 0.2),
+        metallic: 0.9,
+        perceptual_roughness: 0.8,
+        reflectance: 0.8,
+        ..default()
+    }));
+    res.bar = Some(meshes.add(Mesh::from(shape::Box::new(BAR_W, BAR_H, BAR_W))));
+    res.cone = Some(meshes.add(Mesh::from(Cone::new(CONE_W / 2., CONE_H, 10))));
 }
 
 #[derive(Component)]
@@ -73,12 +90,12 @@ fn update_move_gizmos(
         for (sel, trans, children) in q_selected.iter() {
             if !children.iter().any(|c| q_gizmo.contains(*c)) {
                 let pos = trans.translation();
-                for (z_axis, y_axis) in [
-                    (trans.up(), trans.right()),
-                    (trans.right(), trans.back()),
-                    (trans.back(), trans.up()),
+                for (z_axis, y_axis, m) in [
+                    (trans.up(), trans.right(), res.y_mat.clone().unwrap()),
+                    (trans.right(), trans.back(), res.x_mat.clone().unwrap()),
+                    (trans.back(), trans.up(), res.z_mat.clone().unwrap()),
                 ] {
-                    add_gizmo(&res, &ctx, sel, trans, pos, z_axis, y_axis, &mut cmd);
+                    add_gizmo(&res, &ctx, sel, trans, pos, z_axis, y_axis, m, &mut cmd);
                 }
             }
         }
@@ -103,46 +120,47 @@ fn add_gizmo(
     sel: Entity,
     sel_trans: &GlobalTransform,
     pos: Vec3,
-    dir: Vec3,
     dir_y: Vec3,
+    dir_x: Vec3,
+    material: Handle<StandardMaterial>,
     commands: &mut Commands,
 ) {
     if let Some((_ent, attach_point_toi)) =
-        rapier_ctx.cast_ray(pos, dir, 50., false, QueryFilter::new())
+        rapier_ctx.cast_ray(pos, dir_y, 50., false, QueryFilter::new())
     {
-        let material = res.gizmo_mat.clone().unwrap();
         let attach_point = sel_trans
             .affine()
             .inverse()
-            .transform_point3(pos + attach_point_toi * dir);
-        println!("Gizmo attach point {attach_point}");
+            .transform_point3(pos + attach_point_toi * dir_y);
         commands.entity(sel).with_children(|parent| {
+            let rotation = Quat::from_mat3(&Mat3::from_cols(
+                dir_x,
+                dir_y,
+                -dir_y.cross(dir_x).normalize(),
+            ));
             parent
                 .spawn(SpatialBundle::from(
-                    Transform::from_translation(attach_point).looking_at(attach_point + dir, dir_y),
+                    Transform::from_translation(attach_point).with_rotation(rotation),
                 ))
                 .insert(MoveGizmo {
                     attach_point,
-                    move_direction: dir,
+                    move_direction: dir_y,
                 })
                 .with_children(|parent| {
                     parent.spawn(PbrBundle {
-                        transform: Transform::from_xyz(0., 0., -GIZMO_DIST / 2.),
-                        mesh: res.gizmo_bar.clone().unwrap(),
+                        transform: Transform::from_xyz(0., BAR_H / 2., 0.),
+                        mesh: res.bar.clone().unwrap(),
                         material: material.clone(),
                         ..default()
                     });
                     parent
                         .spawn(PbrBundle {
-                            transform: Transform::from_xyz(0., 0., -GIZMO_DIST - GIZMO_SIZE / 2.),
-                            mesh: res.gizmo_handle.clone().unwrap(),
+                            transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
+                            mesh: res.cone.clone().unwrap(),
                             material,
                             ..default()
                         })
-                        .insert((
-                            Collider::cuboid(GIZMO_SIZE / 2., GIZMO_SIZE / 2., GIZMO_SIZE / 2.),
-                            Sensor,
-                        ));
+                        .insert((Collider::cone(CONE_H / 2., CONE_W / 2.), Sensor));
                 });
         });
     }
