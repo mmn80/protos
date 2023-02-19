@@ -33,7 +33,7 @@ fn main() {
         .add_plugin(SelectionPlugin)
         .add_plugin(LinesPlugin)
         .add_plugin(MoveGizmoPlugin)
-        .add_plugin(MainLightsPlugin::default())
+        .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(PlatformPlugin)

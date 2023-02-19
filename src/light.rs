@@ -1,41 +1,20 @@
 use bevy::prelude::*;
 
-pub struct MainLightsPlugin {
-    dir_light_size: f32,
-    dir_light_color: Color,
-}
-
-impl Default for MainLightsPlugin {
-    fn default() -> Self {
-        MainLightsPlugin {
-            dir_light_size: 100.0,
-            dir_light_color: Color::WHITE,
-        }
-    }
-}
-
-#[derive(Resource)]
-pub struct MainLightsState {
-    pub dir_light_size: f32,
-    pub dir_light_color: Color,
-}
+pub struct MainLightsPlugin;
 
 impl Plugin for MainLightsPlugin {
     fn build(&self, app: &mut App) {
-        let state = MainLightsState {
-            dir_light_size: self.dir_light_size,
-            dir_light_color: self.dir_light_color,
-        };
-        app.insert_resource(state)
-            .add_startup_system(spawn_main_lights)
+        app.add_startup_system(spawn_main_lights)
             .add_system(animate_light_direction);
     }
 }
 
-fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
+const LIGHT_SZ: f32 = 100.;
+
+fn spawn_main_lights(mut commands: Commands) {
     // ambient light
     commands.insert_resource(AmbientLight {
-        color: state.dir_light_color,
+        color: Color::WHITE,
         brightness: 0.1,
     });
     // directional 'sun' light
@@ -43,12 +22,12 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
         directional_light: DirectionalLight {
             illuminance: 20000.0,
             shadow_projection: OrthographicProjection {
-                left: -state.dir_light_size,
-                right: state.dir_light_size,
-                bottom: -state.dir_light_size,
-                top: state.dir_light_size,
-                near: -10.0 * state.dir_light_size,
-                far: 10.0 * state.dir_light_size,
+                left: -LIGHT_SZ,
+                right: LIGHT_SZ,
+                bottom: -LIGHT_SZ,
+                top: LIGHT_SZ,
+                near: -10.0 * LIGHT_SZ,
+                far: 10.0 * LIGHT_SZ,
                 ..default()
             },
             shadows_enabled: true,
@@ -65,19 +44,9 @@ fn spawn_main_lights(mut commands: Commands, state: Res<MainLightsState>) {
 
 fn animate_light_direction(
     time: Res<Time>,
-    state: Res<MainLightsState>,
-    mut query: Query<(&mut Transform, &mut DirectionalLight)>,
+    mut query: Query<&mut Transform, With<DirectionalLight>>,
 ) {
-    for (mut transform, mut light) in &mut query {
-        light.shadow_projection = OrthographicProjection {
-            left: -state.dir_light_size,
-            right: state.dir_light_size,
-            bottom: -state.dir_light_size,
-            top: state.dir_light_size,
-            near: -10.0 * state.dir_light_size,
-            far: 10.0 * state.dir_light_size,
-            ..default()
-        };
+    for mut transform in &mut query {
         transform.rotate(Quat::from_rotation_y(time.delta_seconds() * 0.1));
     }
 }

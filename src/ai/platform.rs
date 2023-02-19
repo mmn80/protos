@@ -157,9 +157,6 @@ fn add_platform_ui(
                             }
                             .normalize()
                         };
-                        println!(
-                            "p0={p0}, ground_p0={ground_p0}, p0_n={p0_n}, dir_y={dir_y}, dir_x={dir_x}"
-                        );
                         ui.platform = Some(commands.entity(ground).add_children(|parent| {
                             parent
                                 .spawn(PbrBundle {
