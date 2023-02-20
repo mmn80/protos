@@ -3,6 +3,7 @@ use bevy::{
     prelude::*,
 };
 use bevy_rapier3d::prelude::*;
+use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{camera::MainCamera, mesh::cone::Cone};
 
@@ -26,6 +27,9 @@ struct MoveGizmoRes {
     pub selected_mat: Option<Handle<StandardMaterial>>,
     pub bar: Option<Handle<Mesh>>,
     pub cone: Option<Handle<Mesh>>,
+    pub active_gizmo: Option<Entity>,
+    pub drag_start_y: Option<f32>,
+    pub drag_start_pos: Option<Vec3>,
 }
 
 impl Default for MoveGizmoRes {
@@ -37,6 +41,9 @@ impl Default for MoveGizmoRes {
             selected_mat: None,
             bar: None,
             cone: None,
+            active_gizmo: None,
+            drag_start_y: None,
+            drag_start_pos: None,
         }
     }
 }
@@ -101,13 +108,15 @@ pub enum MoveGizmoHandle {
 }
 
 fn update_move_gizmos(
-    ui: Res<SidePanelState>,
-    res: Res<MoveGizmoRes>,
+    mut ui: ResMut<SidePanelState>,
+    mut res: ResMut<MoveGizmoRes>,
     rapier: Res<RapierContext>,
+    mouse: Res<Input<MouseButton>>,
     q_selected: Query<(Entity, &GlobalTransform, &Children), With<Selected>>,
     q_gizmo: Query<(Entity, &GlobalTransform), With<MoveGizmo>>,
     q_parent: Query<&Parent>,
     q_camera: Query<&MainCamera>,
+    mut q_tran_sel: Query<&mut Transform, With<Selected>>,
     mut q_material: Query<(Entity, &mut Handle<StandardMaterial>, &MoveGizmoHandle)>,
     mut cmd: Commands,
 ) {
@@ -150,20 +159,67 @@ fn update_move_gizmos(
             }
         }
 
-        let mut hover_ent = None;
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-            if let Some((hit_ent, _)) = rapier.cast_ray_and_get_normal(
-                ray.origin,
-                ray.direction,
-                1000.,
-                false,
-                QueryFilter::new().exclude_solids(),
-            ) {
-                if let Some(parent) = q_parent.iter_ancestors(hit_ent).next() {
-                    if let Ok((_, _gizmo_tr)) = q_gizmo.get(parent) {
-                        hover_ent = Some(hit_ent);
+            if res.active_gizmo.is_none() {
+                if let Some((hit_ent, _)) = rapier.cast_ray_and_get_normal(
+                    ray.origin,
+                    ray.direction,
+                    1000.,
+                    false,
+                    QueryFilter::new().exclude_solids(),
+                ) {
+                    if let Some(gizmo) = q_parent.iter_ancestors(hit_ent).next() {
+                        if q_gizmo.contains(gizmo) {
+                            res.active_gizmo = Some(gizmo);
+                        }
                     }
                 }
+            }
+
+            if mouse.pressed(MouseButton::Left) {
+                if let Some(active_gizmo) = res.active_gizmo {
+                    if let (Some(selected), Ok((_, gizmo_tr))) = (
+                        q_parent.iter_ancestors(active_gizmo).next(),
+                        q_gizmo.get(active_gizmo),
+                    ) {
+                        if let Ok(mut sel_tr) = q_tran_sel.get_mut(selected) {
+                            let ray_p =
+                                parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
+                            let center = gizmo_tr.transform_point(Vec3::ZERO);
+                            if let (Some(toi0), Some(toi1)) = (
+                                ray_toi_with_halfspace(
+                                    &center.into(),
+                                    &gizmo_tr.right().into(),
+                                    &ray_p,
+                                ),
+                                ray_toi_with_halfspace(
+                                    &center.into(),
+                                    &gizmo_tr.back().into(),
+                                    &ray_p,
+                                ),
+                            ) {
+                                let i0 = ray.origin + toi0 * ray.direction;
+                                let i1 = ray.origin + toi1 * ray.direction;
+                                let y0 = gizmo_tr.up().dot(i0);
+                                let y1 = gizmo_tr.up().dot(i1);
+                                let drag_y = (y0 + y1) / 2.;
+                                if mouse.just_pressed(MouseButton::Left) {
+                                    res.drag_start_y = Some(drag_y);
+                                    res.drag_start_pos = Some(sel_tr.translation);
+                                    ui.add_platform = false;
+                                } else if let (Some(start_y), Some(start_pos)) =
+                                    (res.drag_start_y, res.drag_start_pos)
+                                {
+                                    sel_tr.translation =
+                                        start_pos + (drag_y - start_y) * gizmo_tr.up();
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                res.drag_start_pos = None;
+                res.drag_start_y = None;
             }
         }
 
@@ -174,7 +230,13 @@ fn update_move_gizmos(
             res.selected_mat.clone(),
         ) {
             for (ent, mut mat_handle, gizmo) in q_material.iter_mut() {
-                if Some(ent) == hover_ent {
+                let mut is_selected = false;
+                if let Some(active_gizmo) = res.active_gizmo {
+                    if Some(active_gizmo) == q_parent.iter_ancestors(ent).next() {
+                        is_selected = true;
+                    }
+                }
+                if is_selected {
                     *mat_handle = sel_m.clone();
                 } else {
                     *mat_handle = match gizmo {
@@ -184,6 +246,10 @@ fn update_move_gizmos(
                     }
                 }
             }
+        }
+
+        if !mouse.pressed(MouseButton::Left) {
+            res.active_gizmo = None;
         }
     } else {
         for (ent, _) in q_gizmo.iter() {

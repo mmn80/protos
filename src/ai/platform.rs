@@ -60,10 +60,10 @@ impl Default for AddPlatformUiRes {
 }
 
 fn setup_platform_ui(
-    mut ui: ResMut<AddPlatformUiRes>,
+    mut res: ResMut<AddPlatformUiRes>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    ui.platform_ui_mat = Some(materials.add(StandardMaterial {
+    res.platform_ui_mat = Some(materials.add(StandardMaterial {
         base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
         emissive: Color::rgb(0.5, 0.9, 0.5),
         metallic: 0.9,
@@ -72,7 +72,7 @@ fn setup_platform_ui(
         alpha_mode: AlphaMode::Blend,
         ..default()
     }));
-    ui.platform_mat = Some(materials.add(StandardMaterial {
+    res.platform_mat = Some(materials.add(StandardMaterial {
         base_color: Color::SALMON,
         metallic: 0.2,
         perceptual_roughness: 0.8,
@@ -84,32 +84,32 @@ fn setup_platform_ui(
 const PLATFORM_INIT_LEN: f32 = 0.1;
 
 fn add_platform_ui(
-    mut ui_global: ResMut<SidePanelState>,
-    mut ui: ResMut<AddPlatformUiRes>,
-    input_mouse: Res<Input<MouseButton>>,
+    mut ui: ResMut<SidePanelState>,
+    mut res: ResMut<AddPlatformUiRes>,
+    mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    camera_q: Query<&MainCamera>,
-    mut tr_q: Query<&mut Transform>,
-    gl_tr_q: Query<&GlobalTransform>,
+    q_camera: Query<&MainCamera>,
+    mut q_tr: Query<&mut Transform>,
+    q_gl_tr: Query<&GlobalTransform>,
     q_parent: Query<&Parent>,
-    mut commands: Commands,
+    mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    if ui_global.add_platform {
-        if input_mouse.just_pressed(MouseButton::Right) {
-            clear_ui_state(&mut ui, &mut commands);
-            ui_global.add_platform = false;
+    if ui.add_platform {
+        if mouse.just_pressed(MouseButton::Right) {
+            clear_ui_state(&mut res, &mut cmd);
+            ui.add_platform = false;
             return;
         }
 
-        if let (Some(ground_ent), Some(platform_ent)) = (ui.ground, ui.platform) {
+        if let (Some(ground_ent), Some(platform_ent)) = (res.ground, res.platform) {
             if let (Ok(mut platform_mut), Ok(ground), Some(p0), Some(p1)) = (
-                tr_q.get_mut(platform_ent),
-                gl_tr_q.get(ground_ent),
-                ui.attach_p0,
-                ui.attach_p1,
+                q_tr.get_mut(platform_ent),
+                q_gl_tr.get(ground_ent),
+                res.attach_p0,
+                res.attach_p1,
             ) {
-                let scale_y = ui.length.unwrap_or(PLATFORM_INIT_LEN);
+                let scale_y = res.length.unwrap_or(PLATFORM_INIT_LEN);
                 let inverse = ground.affine().inverse();
                 let p0_ground = inverse.transform_point3(p0);
                 let p1_ground = inverse.transform_point3(p1);
@@ -120,11 +120,11 @@ fn add_platform_ui(
             }
         }
 
-        if let Ok(Some(ray)) = camera_q.get_single().map(|c| c.mouse_ray.clone()) {
+        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-            if ui.state == AddPlatformUiState::PickAttachP0 {
-                if input_mouse.just_pressed(MouseButton::Left) {
-                    let material = ui.platform_ui_mat.clone();
+            if res.state == AddPlatformUiState::PickAttachP0 {
+                if mouse.just_pressed(MouseButton::Left) {
+                    let material = res.platform_ui_mat.clone();
                     if let (Some(material), Some((attach_ent, hit))) = (
                         material,
                         rapier.cast_ray_and_get_normal(
@@ -144,12 +144,12 @@ fn add_platform_ui(
                                 attach_ent
                             }
                         };
-                        ui.ground = Some(ground);
-                        ui.attach_p0 = Some(p0);
-                        ui.attach_p0_normal = Some(p0_n);
-                        ui.state = AddPlatformUiState::PickAttachP1;
+                        res.ground = Some(ground);
+                        res.attach_p0 = Some(p0);
+                        res.attach_p0_normal = Some(p0_n);
+                        res.state = AddPlatformUiState::PickAttachP1;
 
-                        let ground_tr = gl_tr_q.get(ground).unwrap();
+                        let ground_tr = q_gl_tr.get(ground).unwrap();
                         let ground_inv = ground_tr.affine().inverse();
                         let ground_p0 = ground_inv.transform_point3(p0);
                         let dir_y = ground_inv.transform_vector3(p0_n).normalize();
@@ -162,7 +162,7 @@ fn add_platform_ui(
                             }
                             .normalize()
                         };
-                        ui.platform = Some(commands.entity(ground).add_children(|parent| {
+                        res.platform = Some(cmd.entity(ground).add_children(|parent| {
                             parent
                                 .spawn((
                                     PbrBundle {
@@ -186,25 +186,26 @@ fn add_platform_ui(
                         }));
                     }
                 }
-            } else if ui.state == AddPlatformUiState::PickAttachP1 {
-                let center = ui.attach_p0.unwrap();
-                let normal = ui.attach_p0_normal.unwrap();
+            } else if res.state == AddPlatformUiState::PickAttachP1 {
+                let center = res.attach_p0.unwrap();
+                let normal = res.attach_p0_normal.unwrap();
                 if let Some(toi) = ray_toi_with_halfspace(&center.into(), &normal.into(), &ray_p) {
-                    ui.attach_p1 = Some(ray.origin + toi * ray.direction);
-                    if input_mouse.just_pressed(MouseButton::Left) {
-                        ui.state = AddPlatformUiState::PickLength;
+                    res.attach_p1 = Some(ray.origin + toi * ray.direction);
+                    if mouse.just_pressed(MouseButton::Left) {
+                        res.state = AddPlatformUiState::PickLength;
                     }
                 }
-            } else if ui.state == AddPlatformUiState::PickLength {
-                if let (Some(ground), Ok(platform)) = (ui.ground, gl_tr_q.get(ui.platform.unwrap()))
+            } else if res.state == AddPlatformUiState::PickLength {
+                if let (Some(ground), Ok(platform)) =
+                    (res.ground, q_gl_tr.get(res.platform.unwrap()))
                 {
-                    if input_mouse.just_pressed(MouseButton::Left) {
-                        let material = ui.platform_mat.clone();
+                    if mouse.just_pressed(MouseButton::Left) {
+                        let material = res.platform_mat.clone();
                         let (scale, rotation) = {
                             let srt = platform.to_scale_rotation_translation();
                             (srt.0, srt.1)
                         };
-                        commands.entity(ground).with_children(|parent| {
+                        cmd.entity(ground).with_children(|parent| {
                             parent
                                 .spawn(PbrBundle {
                                     transform: Transform::from_translation(platform.translation())
@@ -231,9 +232,9 @@ fn add_platform_ui(
                                         .insert(TransformBundle::from(Transform::IDENTITY));
                                 });
                         });
-                        clear_ui_state(&mut ui, &mut commands);
+                        clear_ui_state(&mut res, &mut cmd);
                     } else {
-                        let p1 = ui.attach_p1.unwrap();
+                        let p1 = res.attach_p1.unwrap();
                         if let (Some(toi0), Some(toi1)) = (
                             ray_toi_with_halfspace(&p1.into(), &platform.right().into(), &ray_p),
                             ray_toi_with_halfspace(&p1.into(), &platform.back().into(), &ray_p),
@@ -243,24 +244,26 @@ fn add_platform_ui(
                             let p1_y = platform.up().dot(p1);
                             let y0 = platform.up().dot(i0);
                             let y1 = platform.up().dot(i1);
-                            ui.length = Some(((y0 + y1) / 2. - p1_y).max(PLATFORM_INIT_LEN));
+                            res.length = Some(((y0 + y1) / 2. - p1_y).max(PLATFORM_INIT_LEN));
                         }
                     }
                 }
             }
         }
+    } else {
+        clear_ui_state(&mut res, &mut cmd);
     }
 }
 
-fn clear_ui_state(ui: &mut ResMut<AddPlatformUiRes>, commands: &mut Commands) {
-    ui.state = AddPlatformUiState::PickAttachP0;
-    ui.attach_p0 = None;
-    ui.attach_p0_normal = None;
-    ui.attach_p1 = None;
-    ui.length = None;
-    if let Some(ent) = ui.platform {
-        commands.entity(ent).despawn_recursive();
+fn clear_ui_state(res: &mut ResMut<AddPlatformUiRes>, cmd: &mut Commands) {
+    res.state = AddPlatformUiState::PickAttachP0;
+    res.attach_p0 = None;
+    res.attach_p0_normal = None;
+    res.attach_p1 = None;
+    res.length = None;
+    if let Some(ent) = res.platform {
+        cmd.entity(ent).despawn_recursive();
     }
-    ui.platform = None;
-    ui.ground = None;
+    res.platform = None;
+    res.ground = None;
 }

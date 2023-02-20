@@ -80,34 +80,37 @@ fn update_units_selected(
     ui: Res<SidePanelState>,
     mut selection_rect: ResMut<SelectionRect>,
     keyboard: Res<Input<KeyCode>>,
-    input_mouse: Res<Input<MouseButton>>,
+    mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
     mut egui_ctx: ResMut<bevy_egui::EguiContext>,
     mut units_query: Query<(Entity, &ScreenPosition), With<Selectable>>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if egui_ctx.ctx_mut().wants_pointer_input() || ui.add_platform {
+    if egui_ctx.ctx_mut().wants_pointer_input()
+        || ui.add_platform
+        || !keyboard.pressed(KeyCode::LControl)
+    {
         return;
     }
     let do_select_rect = {
         selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
         if let Some(window) = windows.get_primary() {
             let mouse_pos = window.cursor_position();
-            if input_mouse.just_pressed(MouseButton::Left) {
+            if mouse.just_pressed(MouseButton::Left) {
                 selection_rect.begin = mouse_pos.clone();
                 selection_rect.end = selection_rect.begin;
                 // info!("start selecting at {begin:?}", begin = selection_rect.begin);
             } else if selection_rect.begin.is_some() {
-                if input_mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
+                if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
                     selection_rect.end = Some(mouse_pos.unwrap());
-                } else if !input_mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
+                } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
                     // info!("cancel selecting at {end:?}", end = selection_rect.end);
                     selection_rect.begin = None;
                     selection_rect.end = None;
                 }
             }
-            if input_mouse.just_released(MouseButton::Left) {
+            if mouse.just_released(MouseButton::Left) {
                 // info!("end selecting at {end:?}", end = selection_rect.end);
                 selection_rect.get_rect()
             } else {
@@ -146,11 +149,11 @@ fn update_units_selected(
 fn update_select_ui_rect(
     selection_rect: Res<SelectionRect>,
     windows: Res<Windows>,
-    mut ui_query: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
+    mut q_style: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
     if let Some(window) = windows.get_primary() {
         let window_height = window.height();
-        for (mut style, mut visibility) in &mut ui_query {
+        for (mut style, mut visibility) in &mut q_style {
             if let Some(rect) = selection_rect.get_rect() {
                 style.size.width = Val::Px(rect.width());
                 style.size.height = Val::Px(rect.height());
