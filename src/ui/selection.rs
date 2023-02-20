@@ -88,6 +88,7 @@ fn update_single_selected(
     q_selectable: Query<Entity, With<Selectable>>,
     q_selected: Query<With<Selected>>,
     q_parent: Query<&Parent>,
+    q_sensor: Query<&Sensor>,
     mut cmd: Commands,
 ) {
     if !egui_ctx.ctx_mut().wants_pointer_input()
@@ -96,40 +97,38 @@ fn update_single_selected(
         && mouse.just_pressed(MouseButton::Left)
     {
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-            if let Some((hit_ent, _)) = rapier.cast_ray(
-                ray.origin,
-                ray.direction,
-                1000.,
-                false,
-                QueryFilter::new().exclude_sensors(),
-            ) {
-                let mut sel_ent = None;
-                if q_selectable.contains(hit_ent) {
-                    sel_ent = Some(hit_ent)
-                } else {
-                    for parent in q_parent.iter_ancestors(hit_ent) {
-                        if q_selectable.contains(parent) {
-                            sel_ent = Some(parent);
-                            break;
-                        }
-                    }
-                }
-                let shift = keyboard.pressed(KeyCode::LShift);
-                if let Some(sel_ent) = sel_ent {
-                    if !shift || !q_selected.contains(sel_ent) {
-                        cmd.entity(sel_ent).insert(Selected);
+            if let Some((hit_ent, _)) =
+                rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
+            {
+                if !q_sensor.contains(hit_ent) {
+                    let mut sel_ent = None;
+                    if q_selectable.contains(hit_ent) {
+                        sel_ent = Some(hit_ent)
                     } else {
-                        cmd.entity(sel_ent).remove::<Selected>();
-                    }
-                }
-                if !shift {
-                    for selectable in q_selectable.iter() {
-                        let mut remove = true;
-                        if let Some(sel_ent) = sel_ent {
-                            remove = sel_ent != selectable;
+                        for parent in q_parent.iter_ancestors(hit_ent) {
+                            if q_selectable.contains(parent) {
+                                sel_ent = Some(parent);
+                                break;
+                            }
                         }
-                        if remove {
-                            cmd.entity(selectable).remove::<Selected>();
+                    }
+                    let shift = keyboard.pressed(KeyCode::LShift);
+                    if let Some(sel_ent) = sel_ent {
+                        if !shift || !q_selected.contains(sel_ent) {
+                            cmd.entity(sel_ent).insert(Selected);
+                        } else {
+                            cmd.entity(sel_ent).remove::<Selected>();
+                        }
+                    }
+                    if !shift {
+                        for selectable in q_selectable.iter() {
+                            let mut remove = true;
+                            if let Some(sel_ent) = sel_ent {
+                                remove = sel_ent != selectable;
+                            }
+                            if remove {
+                                cmd.entity(selectable).remove::<Selected>();
+                            }
                         }
                     }
                 }
