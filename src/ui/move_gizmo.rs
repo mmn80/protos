@@ -198,10 +198,8 @@ fn update_move_gizmos(
                                     &ray_p,
                                 ),
                             ) {
-                                let i0 = ray.origin + toi0 * ray.direction;
-                                let i1 = ray.origin + toi1 * ray.direction;
-                                let y0 = gizmo_tr.up().dot(i0);
-                                let y1 = gizmo_tr.up().dot(i1);
+                                let y0 = gizmo_tr.up().dot(ray.origin + toi0 * ray.direction);
+                                let y1 = gizmo_tr.up().dot(ray.origin + toi1 * ray.direction);
                                 let drag_y = (y0 + y1) / 2.;
                                 if mouse.just_pressed(MouseButton::Left) {
                                     res.drag_start_y = Some(drag_y);
