@@ -87,7 +87,7 @@ fn add_platform_ui(
     mut ui_global: ResMut<SidePanelState>,
     mut ui: ResMut<AddPlatformUiRes>,
     input_mouse: Res<Input<MouseButton>>,
-    rapier_ctx: Res<RapierContext>,
+    rapier: Res<RapierContext>,
     camera_q: Query<&MainCamera>,
     mut tr_q: Query<&mut Transform>,
     gl_tr_q: Query<&GlobalTransform>,
@@ -125,9 +125,9 @@ fn add_platform_ui(
             if ui.state == AddPlatformUiState::PickAttachP0 {
                 if input_mouse.just_pressed(MouseButton::Left) {
                     let material = ui.platform_ui_mat.clone();
-                    if let (Some(material), Some((attach_ent, intersection))) = (
+                    if let (Some(material), Some((attach_ent, hit))) = (
                         material,
-                        rapier_ctx.cast_ray_and_get_normal(
+                        rapier.cast_ray_and_get_normal(
                             ray.origin,
                             ray.direction,
                             1000.,
@@ -135,8 +135,8 @@ fn add_platform_ui(
                             QueryFilter::new(),
                         ),
                     ) {
-                        let p0_n = intersection.normal.normalize();
-                        let p0 = intersection.point;
+                        let p0_n = hit.normal.normalize();
+                        let p0 = hit.point;
                         let ground = {
                             if let Some(ground) = q_parent.iter_ancestors(attach_ent).last() {
                                 ground

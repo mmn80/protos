@@ -4,7 +4,7 @@ use bevy::{
 };
 use bevy_rapier3d::prelude::*;
 
-use crate::mesh::cone::Cone;
+use crate::{camera::MainCamera, mesh::cone::Cone};
 
 use super::{selection::Selected, side_panel::SidePanelState};
 
@@ -23,6 +23,7 @@ struct MoveGizmoRes {
     pub x_mat: Option<Handle<StandardMaterial>>,
     pub y_mat: Option<Handle<StandardMaterial>>,
     pub z_mat: Option<Handle<StandardMaterial>>,
+    pub selected_mat: Option<Handle<StandardMaterial>>,
     pub bar: Option<Handle<Mesh>>,
     pub cone: Option<Handle<Mesh>>,
 }
@@ -33,6 +34,7 @@ impl Default for MoveGizmoRes {
             x_mat: None,
             y_mat: None,
             z_mat: None,
+            selected_mat: None,
             bar: None,
             cone: None,
         }
@@ -76,6 +78,14 @@ fn setup_move_gizmos(
         alpha_mode: AlphaMode::Blend,
         ..default()
     }));
+    res.selected_mat = Some(materials.add(StandardMaterial {
+        base_color: Color::rgb(1.0, 1.0, 1.0),
+        emissive: Color::rgb(1.0, 1.0, 1.0),
+        metallic: 0.8,
+        perceptual_roughness: 0.5,
+        reflectance: 0.5,
+        ..default()
+    }));
     res.bar = Some(meshes.add(Mesh::from(shape::Box::new(BAR_W, BAR_H, BAR_W))));
     res.cone = Some(meshes.add(Mesh::from(Cone::new(CONE_W / 2., CONE_H, 10))));
 }
@@ -83,37 +93,100 @@ fn setup_move_gizmos(
 #[derive(Component)]
 pub struct MoveGizmo;
 
+#[derive(Component)]
+pub enum MoveGizmoHandle {
+    X,
+    Y,
+    Z,
+}
+
 fn update_move_gizmos(
     ui: Res<SidePanelState>,
     res: Res<MoveGizmoRes>,
-    ctx: Res<RapierContext>,
+    rapier: Res<RapierContext>,
     q_selected: Query<(Entity, &GlobalTransform, &Children), With<Selected>>,
-    q_gizmo: Query<Entity, With<MoveGizmo>>,
+    q_gizmo: Query<(Entity, &GlobalTransform), With<MoveGizmo>>,
     q_parent: Query<&Parent>,
+    q_camera: Query<&MainCamera>,
+    mut q_material: Query<(Entity, &mut Handle<StandardMaterial>, &MoveGizmoHandle)>,
     mut cmd: Commands,
 ) {
     if ui.selected_show_move_gizmo {
         for (sel, trans, children) in q_selected.iter() {
             if !children.iter().any(|c| q_gizmo.contains(*c)) {
                 let pos = trans.translation();
-                for (y_axis, x_axis, m) in [
-                    (trans.right(), trans.down(), res.x_mat.clone().unwrap()),
-                    (trans.up(), trans.right(), res.y_mat.clone().unwrap()),
-                    (trans.back(), trans.up(), res.z_mat.clone().unwrap()),
+                for (y_axis, x_axis, m, g) in [
+                    (
+                        trans.right(),
+                        trans.down(),
+                        res.x_mat.clone().unwrap(),
+                        MoveGizmoHandle::X,
+                    ),
+                    (
+                        trans.up(),
+                        trans.right(),
+                        res.y_mat.clone().unwrap(),
+                        MoveGizmoHandle::Y,
+                    ),
+                    (
+                        trans.back(),
+                        trans.up(),
+                        res.z_mat.clone().unwrap(),
+                        MoveGizmoHandle::Z,
+                    ),
                 ] {
-                    add_gizmo(&res, &ctx, sel, trans, pos, y_axis, x_axis, m, &mut cmd);
+                    add_gizmo(
+                        &res, &rapier, sel, trans, pos, y_axis, x_axis, m, g, &mut cmd,
+                    );
                 }
             }
         }
-        for ent in q_gizmo.iter() {
+
+        for (ent, _) in q_gizmo.iter() {
             if let Some(parent) = q_parent.iter_ancestors(ent).next() {
                 if !q_selected.contains(parent) {
                     cmd.entity(ent).despawn_recursive();
                 }
             }
         }
+
+        let mut hover_ent = None;
+        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
+            if let Some((hit_ent, _)) = rapier.cast_ray_and_get_normal(
+                ray.origin,
+                ray.direction,
+                1000.,
+                false,
+                QueryFilter::new().exclude_solids(),
+            ) {
+                if let Some(parent) = q_parent.iter_ancestors(hit_ent).next() {
+                    if let Ok((_, _gizmo_tr)) = q_gizmo.get(parent) {
+                        hover_ent = Some(hit_ent);
+                    }
+                }
+            }
+        }
+
+        if let (Some(x_m), Some(y_m), Some(z_m), Some(sel_m)) = (
+            res.x_mat.clone(),
+            res.y_mat.clone(),
+            res.z_mat.clone(),
+            res.selected_mat.clone(),
+        ) {
+            for (ent, mut mat_handle, gizmo) in q_material.iter_mut() {
+                if Some(ent) == hover_ent {
+                    *mat_handle = sel_m.clone();
+                } else {
+                    *mat_handle = match gizmo {
+                        MoveGizmoHandle::X => x_m.clone(),
+                        MoveGizmoHandle::Y => y_m.clone(),
+                        MoveGizmoHandle::Z => z_m.clone(),
+                    }
+                }
+            }
+        }
     } else {
-        for ent in q_gizmo.iter() {
+        for (ent, _) in q_gizmo.iter() {
             cmd.entity(ent).despawn_recursive();
         }
     }
@@ -128,6 +201,7 @@ fn add_gizmo(
     dir_y: Vec3,
     dir_x: Vec3,
     material: Handle<StandardMaterial>,
+    gizmo_handle: MoveGizmoHandle,
     commands: &mut Commands,
 ) {
     if let Some((_ent, attach_point_toi)) =
@@ -167,6 +241,7 @@ fn add_gizmo(
                                 material,
                                 ..default()
                             },
+                            gizmo_handle,
                             NotShadowCaster,
                             NotShadowReceiver,
                         ))
