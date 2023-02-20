@@ -86,9 +86,10 @@ fn update_single_selected(
     ui: Res<SidePanelState>,
     q_camera: Query<&MainCamera>,
     q_selectable: Query<Entity, With<Selectable>>,
-    q_selected: Query<With<Selected>>,
+    q_selected: Query<Entity, With<Selected>>,
     q_parent: Query<&Parent>,
     q_sensor: Query<&Sensor>,
+    mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
     if !egui_ctx.ctx_mut().wants_pointer_input()
@@ -118,16 +119,18 @@ fn update_single_selected(
                             cmd.entity(sel_ent).insert(Selected);
                         } else {
                             cmd.entity(sel_ent).remove::<Selected>();
+                            ev_deselected.send(DeselectedEvent(sel_ent));
                         }
                     }
                     if !shift {
-                        for selectable in q_selectable.iter() {
+                        for selected in q_selected.iter() {
                             let mut remove = true;
                             if let Some(sel_ent) = sel_ent {
-                                remove = sel_ent != selectable;
+                                remove = sel_ent != selected;
                             }
                             if remove {
-                                cmd.entity(selectable).remove::<Selected>();
+                                cmd.entity(selected).remove::<Selected>();
+                                ev_deselected.send(DeselectedEvent(selected));
                             }
                         }
                     }
