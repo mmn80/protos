@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    pbr::{NotShadowCaster, NotShadowReceiver},
+    prelude::*,
+};
 use bevy_rapier3d::prelude::*;
 
 use crate::mesh::cone::Cone;
@@ -47,24 +50,30 @@ fn setup_move_gizmos(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     res.x_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.9, 0.5, 0.5, 0.2),
+        base_color: Color::rgba(0.9, 0.5, 0.5, 0.9),
+        emissive: Color::rgb(0.9, 0.5, 0.5),
         metallic: 0.9,
         perceptual_roughness: 0.8,
         reflectance: 0.8,
+        alpha_mode: AlphaMode::Blend,
         ..default()
     }));
     res.y_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.9, 0.5, 0.2),
+        base_color: Color::rgba(0.5, 0.9, 0.5, 0.9),
+        emissive: Color::rgb(0.5, 0.9, 0.5),
         metallic: 0.9,
         perceptual_roughness: 0.8,
         reflectance: 0.8,
+        alpha_mode: AlphaMode::Blend,
         ..default()
     }));
     res.z_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.5, 0.9, 0.2),
+        base_color: Color::rgba(0.5, 0.5, 0.9, 0.9),
+        emissive: Color::rgb(0.5, 0.5, 0.9),
         metallic: 0.9,
         perceptual_roughness: 0.8,
         reflectance: 0.8,
+        alpha_mode: AlphaMode::Blend,
         ..default()
     }));
     res.bar = Some(meshes.add(Mesh::from(shape::Box::new(BAR_W, BAR_H, BAR_W))));
@@ -140,19 +149,27 @@ fn add_gizmo(
                 ))
                 .insert(MoveGizmo)
                 .with_children(|parent| {
-                    parent.spawn(PbrBundle {
-                        transform: Transform::from_xyz(0., BAR_H / 2., 0.),
-                        mesh: res.bar.clone().unwrap(),
-                        material: material.clone(),
-                        ..default()
-                    });
-                    parent
-                        .spawn(PbrBundle {
-                            transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
-                            mesh: res.cone.clone().unwrap(),
-                            material,
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::from_xyz(0., BAR_H / 2., 0.),
+                            mesh: res.bar.clone().unwrap(),
+                            material: material.clone(),
                             ..default()
-                        })
+                        },
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                    ));
+                    parent
+                        .spawn((
+                            PbrBundle {
+                                transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
+                                mesh: res.cone.clone().unwrap(),
+                                material,
+                                ..default()
+                            },
+                            NotShadowCaster,
+                            NotShadowReceiver,
+                        ))
                         .insert((Collider::cone(CONE_H / 2., CONE_W / 2.), Sensor));
                 });
         });

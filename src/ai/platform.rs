@@ -1,4 +1,7 @@
-use bevy::prelude::*;
+use bevy::{
+    pbr::{NotShadowCaster, NotShadowReceiver},
+    prelude::*,
+};
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
@@ -61,10 +64,12 @@ fn setup_platform_ui(
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     ui.platform_ui_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.9, 0.5, 0.2),
+        base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
+        emissive: Color::rgb(0.5, 0.9, 0.5),
         metallic: 0.9,
         perceptual_roughness: 0.8,
         reflectance: 0.8,
+        alpha_mode: AlphaMode::Blend,
         ..default()
     }));
     ui.platform_mat = Some(materials.add(StandardMaterial {
@@ -159,20 +164,24 @@ fn add_platform_ui(
                         };
                         ui.platform = Some(commands.entity(ground).add_children(|parent| {
                             parent
-                                .spawn(PbrBundle {
-                                    transform: Transform::from_translation(
-                                        ground_p0 + (PLATFORM_INIT_LEN / 2.) * dir_y,
-                                    )
-                                    .with_rotation(Quat::from_mat3(&Mat3::from_cols(
-                                        dir_x,
-                                        dir_y,
-                                        dir_x.cross(dir_y).normalize(),
-                                    )))
-                                    .with_scale(Vec3::new(0., PLATFORM_INIT_LEN, 0.)),
-                                    mesh: meshes.add(Mesh::from(shape::Box::new(1., 1., 1.))),
-                                    material: material.clone(),
-                                    ..default()
-                                })
+                                .spawn((
+                                    PbrBundle {
+                                        transform: Transform::from_translation(
+                                            ground_p0 + (PLATFORM_INIT_LEN / 2.) * dir_y,
+                                        )
+                                        .with_rotation(Quat::from_mat3(&Mat3::from_cols(
+                                            dir_x,
+                                            dir_y,
+                                            dir_x.cross(dir_y).normalize(),
+                                        )))
+                                        .with_scale(Vec3::new(0., PLATFORM_INIT_LEN, 0.)),
+                                        mesh: meshes.add(Mesh::from(shape::Box::new(1., 1., 1.))),
+                                        material: material.clone(),
+                                        ..default()
+                                    },
+                                    NotShadowCaster,
+                                    NotShadowReceiver,
+                                ))
                                 .id()
                         }));
                     }
