@@ -121,7 +121,7 @@ fn update_move_gizmos(
     mut cmd: Commands,
 ) {
     if ui.selected_show_move_gizmo {
-        for (sel, trans, children) in q_selected.iter() {
+        for (sel, trans, children) in &q_selected {
             if !children.iter().any(|c| q_gizmo.contains(*c)) {
                 let pos = trans.translation();
                 for (y_axis, x_axis, m, g) in [
@@ -151,7 +151,7 @@ fn update_move_gizmos(
             }
         }
 
-        for (ent, _) in q_gizmo.iter() {
+        for (ent, _) in &q_gizmo {
             if let Some(parent) = q_parent.iter_ancestors(ent).next() {
                 if !q_selected.contains(parent) {
                     cmd.entity(ent).despawn_recursive();
@@ -250,7 +250,7 @@ fn update_move_gizmos(
             res.active_gizmo = None;
         }
     } else {
-        for (ent, _) in q_gizmo.iter() {
+        for (ent, _) in &q_gizmo {
             cmd.entity(ent).despawn_recursive();
         }
     }
@@ -282,10 +282,12 @@ fn add_gizmo(
                 dir_x.cross(dir_y).normalize(),
             ));
             parent
-                .spawn(SpatialBundle::from(
-                    Transform::from_translation(attach_point).with_rotation(rotation),
+                .spawn((
+                    SpatialBundle::from(
+                        Transform::from_translation(attach_point).with_rotation(rotation),
+                    ),
+                    MoveGizmo,
                 ))
-                .insert(MoveGizmo)
                 .with_children(|parent| {
                     parent.spawn((
                         PbrBundle {
@@ -297,19 +299,19 @@ fn add_gizmo(
                         NotShadowCaster,
                         NotShadowReceiver,
                     ));
-                    parent
-                        .spawn((
-                            PbrBundle {
-                                transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
-                                mesh: res.cone.clone().unwrap(),
-                                material,
-                                ..default()
-                            },
-                            gizmo_handle,
-                            NotShadowCaster,
-                            NotShadowReceiver,
-                        ))
-                        .insert((Collider::cone(CONE_H / 2., CONE_W / 2.), Sensor));
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
+                            mesh: res.cone.clone().unwrap(),
+                            material,
+                            ..default()
+                        },
+                        gizmo_handle,
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                        Collider::cone(CONE_H / 2., CONE_W / 2.),
+                        Sensor,
+                    ));
                 });
         });
     }

@@ -67,7 +67,9 @@ struct Room;
 /// Adding a door splits a wall tile into 3: one above, one to the left & one to the right.
 #[derive(Component)]
 struct Door {
+    /// If this is None, then it's a door leading to outside the building.
     pub outside: Option<Entity>,
+    /// A room entity.
     pub inside: Entity,
     /// Used by pathfinder to know if the agent fits.
     pub width: f32,

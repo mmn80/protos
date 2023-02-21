@@ -15,14 +15,12 @@ impl Plugin for SelectionPlugin {
                 CoreStage::PreUpdate,
                 update_selected.after("update_screen_position"),
             )
-            //.add_system(update_selected)
             .add_system(update_selected_names)
             .add_system(update_select_ui_rect);
     }
 }
 
 fn setup(mut cmd: Commands, asset_server: Res<AssetServer>) {
-    //commands.spawn_bundle(UiCameraBundle::default());
     cmd.spawn(NodeBundle {
         style: Style {
             size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
@@ -123,7 +121,7 @@ fn update_selected(
                             }
                         }
                         if !shift {
-                            for selected in q_selected.iter() {
+                            for selected in &q_selected {
                                 let mut remove = true;
                                 if let Some(sel_ent) = sel_ent {
                                     remove = sel_ent != selected;

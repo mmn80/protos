@@ -8,7 +8,7 @@ use parry3d::query::details::ray_toi_with_halfspace;
 use crate::{
     camera::{MainCamera, ScreenPosition},
     ui::{
-        selection::{Selectable, Selected},
+        selection::Selectable,
         side_panel::{SidePanelState, UiMode},
     },
 };
@@ -217,29 +217,25 @@ fn add_cube_ui(
                         };
                         cmd.entity(ground).with_children(|parent| {
                             parent
-                                .spawn(PbrBundle {
-                                    transform: Transform::from_translation(cube.translation())
-                                        .with_rotation(rotation),
-                                    mesh: meshes.add(Mesh::from(shape::Box::new(
-                                        scale.x, scale.y, scale.z,
-                                    ))),
-                                    material: material.unwrap(),
-                                    ..default()
-                                })
-                                .insert((
+                                .spawn((
+                                    PbrBundle {
+                                        transform: Transform::from_translation(cube.translation())
+                                            .with_rotation(rotation),
+                                        mesh: meshes.add(Mesh::from(shape::Box::new(
+                                            scale.x, scale.y, scale.z,
+                                        ))),
+                                        material: material.unwrap(),
+                                        ..default()
+                                    },
                                     Selectable,
                                     ScreenPosition::default(),
-                                    Selected,
                                     RigidBody::KinematicPositionBased,
                                 ))
                                 .with_children(|parent| {
-                                    parent
-                                        .spawn(Collider::cuboid(
-                                            scale.x / 2.,
-                                            scale.y / 2.,
-                                            scale.z / 2.,
-                                        ))
-                                        .insert(TransformBundle::from(Transform::IDENTITY));
+                                    parent.spawn((
+                                        TransformBundle::from(Transform::IDENTITY),
+                                        Collider::cuboid(scale.x / 2., scale.y / 2., scale.z / 2.),
+                                    ));
                                 });
                         });
                         clear_ui_state(&mut res, &mut cmd);
@@ -278,38 +274,45 @@ fn clear_ui_state(res: &mut ResMut<AddCubeUiRes>, cmd: &mut Commands) {
     res.ground = None;
 }
 
+#[derive(Component)]
+pub struct ShootyBall;
+
 fn shoot_balls(
     ui: Res<SidePanelState>,
     mouse: Res<Input<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
     res: Res<AddCubeUiRes>,
     q_camera: Query<&MainCamera>,
+    q_balls: Query<(Entity, &GlobalTransform), With<ShootyBall>>,
     mut cmd: Commands,
 ) {
     if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
         if let Ok(camera) = q_camera.get_single() {
             if let (Some(ray), Some(mat)) = (camera.mouse_ray, res.ball_mat.clone()) {
                 if mouse.just_pressed(MouseButton::Left) {
-                    cmd.spawn(PbrBundle {
-                        transform: Transform::from_translation(ray.origin),
-                        mesh: meshes.add(Mesh::from(shape::Icosphere {
-                            radius: 1.,
-                            subdivisions: 20,
-                        })),
-                        material: mat,
-                        ..default()
-                    })
-                    .insert((
+                    cmd.spawn((
+                        PbrBundle {
+                            transform: Transform::from_translation(ray.origin),
+                            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                                radius: 1.,
+                                subdivisions: 20,
+                            })),
+                            material: mat,
+                            ..default()
+                        },
+                        ShootyBall,
+                        Selectable,
+                        ScreenPosition::default(),
                         RigidBody::Dynamic,
                         Damping {
                             linear_damping: 0.,
                             angular_damping: 0.,
                         },
-                        Collider::ball(0.5),
                         Velocity {
                             linvel: 30. * ray.direction,
                             angvel: Vec3::ZERO,
                         },
+                        Collider::ball(0.5),
                         ColliderMassProperties::Density(0.8),
                         Friction {
                             coefficient: 0.8,
@@ -321,6 +324,12 @@ fn shoot_balls(
                         },
                     ));
                 }
+            }
+        }
+
+        for (ball, ball_tr) in &q_balls {
+            if ball_tr.translation().y < -10. {
+                cmd.entity(ball).despawn_recursive();
             }
         }
     }

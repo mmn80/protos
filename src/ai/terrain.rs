@@ -18,7 +18,7 @@ fn setup_terrain(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
 ) {
-    let ground_size = Vec3::new(100.0, 1.0, 100.0);
+    let ground_size = Vec3::new(200.0, 1.0, 200.0);
     let ground_mat = StandardMaterial {
         base_color: Color::SILVER,
         metallic: 0.2,
@@ -27,21 +27,19 @@ fn setup_terrain(
         ..default()
     };
 
-    cmd.spawn(PbrBundle {
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
-        mesh: meshes.add(Mesh::from(shape::Box::new(
-            ground_size.x,
-            ground_size.y,
-            ground_size.z,
-        ))),
-        material: materials.add(ground_mat),
-        ..default()
-    })
-    .insert(RigidBody::Fixed)
-    .insert(Collider::cuboid(
-        ground_size.x / 2.,
-        ground_size.y / 2.,
-        ground_size.z / 2.,
+    cmd.spawn((
+        PbrBundle {
+            transform: Transform::from_xyz(0.0, 0.0, 0.0),
+            mesh: meshes.add(Mesh::from(shape::Box::new(
+                ground_size.x,
+                ground_size.y,
+                ground_size.z,
+            ))),
+            material: materials.add(ground_mat),
+            ..default()
+        },
+        RigidBody::Fixed,
+        Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
     ));
 
     let mut lines = vec![
@@ -66,15 +64,17 @@ fn setup_terrain(
         lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
     }
 
-    cmd.spawn(MaterialMeshBundle {
-        mesh: meshes.add(Mesh::from(LineList { lines })),
-        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
-        material: line_materials.add(LineMaterial {
-            color: Color::WHITE,
-        }),
-        ..default()
-    })
-    .insert(NotShadowCaster);
+    cmd.spawn((
+        MaterialMeshBundle {
+            mesh: meshes.add(Mesh::from(LineList { lines })),
+            transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
+            material: line_materials.add(LineMaterial {
+                color: Color::WHITE,
+            }),
+            ..default()
+        },
+        NotShadowCaster,
+    ));
 }
 
 fn display_events(

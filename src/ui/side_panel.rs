@@ -63,7 +63,7 @@ fn update_side_panel(
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    selected_q: Query<&Name, With<Selected>>,
+    q_selected: Query<Option<&Name>, With<Selected>>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -103,7 +103,7 @@ fn update_side_panel(
                     ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmos");
                     ui.checkbox(&mut state.selected_show_path, "Show paths");
 
-                    let selected: Vec<_> = selected_q.iter().collect();
+                    let selected: Vec<_> = q_selected.iter().collect();
                     if !selected.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(
@@ -111,7 +111,9 @@ fn update_side_panel(
                             format!("{} objects selected:", selected.len()),
                         );
                         for name in selected.iter().take(20) {
-                            ui.label(format!("- {}", name.as_str()));
+                            if let Some(name) = name {
+                                ui.label(format!("- {}", name.as_str()));
+                            }
                         }
                         if selected.len() > 20 {
                             ui.label("...");
