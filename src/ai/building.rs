@@ -28,44 +28,67 @@ impl Default for BuildingsRes {
     }
 }
 
-// contains floors
+/// The root of a building structure. Contains some floors.
+///
+/// Pathfinding in a building is hierarchical. First a generic path is found in the graph of rooms & doors,
+/// then, optionally, explicit paths in each room's nav mesh.
 #[derive(Component)]
 struct Building;
 
-// contains rooms & doors
+/// Top level element of buildings. Contains purely physical elements such as floor tiles & walls,
+/// and navigation elements, such as rooms & doors.
+///
+/// Can be resized, leading to cascaded resizing of anchored floor tiles & walls, & optionally floor(s) above.
+/// Can be extended by extruding from a selected section, leading to generating new external walls & optionally floor(s) above.
 #[derive(Component)]
 struct Floor;
 
-// special type of floor
+/// Navigable element of floors (anchored). Has collider(s).
 #[derive(Component)]
-struct Foundation;
+struct FloorTile;
 
-// special type of floor
+/// Blocking element of floors (anchored). Containes wall tiles.
+///
+/// May also be anchored to the floor above & become tilted.
 #[derive(Component)]
-struct Roof;
+struct Wall;
 
+/// Element of walls (anchored). Has collider(s).
+#[derive(Component)]
+struct WallTile;
+
+/// Navigation element. Has nav mesh(es). Origin at center of main entrance. Contains furniture.
+#[derive(Component)]
+struct Room;
+
+/// Navigation element connecting 2 rooms (nav meshes), or 1 room & outside. Origin at center of door.
+///
+/// Contains door furniture. Anchored to wall tiles.
+/// Adding a door splits a wall tile into 3: one above, one to the left & one to the right.
 #[derive(Component)]
 struct Door {
     pub outside: Option<Entity>,
     pub inside: Entity,
-    pub center: Vec3,
+    /// Used by pathfinder to know if the agent fits.
+    pub width: f32,
+    /// Used by pathfinder to know if the agent fits.
+    pub height: f32,
+    /// Detected based on raycasts (an object might also block the path, not just the door being closed).
+    pub opened: bool,
 }
 
-// contains floor tiles & walls; has nav mesh(es)
+/// Special type of floor laied onto the ground.
 #[derive(Component)]
-struct Room;
+struct Foundation;
 
-// a special type of room
+/// Special type of floor. May have no rooms or doors.
+#[derive(Component)]
+struct Roof;
+
+/// A special type of room. Entrance to a floor.
+/// Contains a door leading to another floor's room, or outside.
 #[derive(Component)]
 struct Stairs;
-
-// navigable element of rooms; has collider(s)
-#[derive(Component)]
-struct FloorTile;
-
-// blocking element of rooms; has collider(s)
-#[derive(Component)]
-struct Wall;
 
 fn setup_buildings(mut res: ResMut<BuildingsRes>, mut materials: ResMut<Assets<StandardMaterial>>) {
     res.materials = Some(BuildingsMaterials {
