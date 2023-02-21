@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use super::side_panel::SidePanelState;
+use super::side_panel::{SidePanelState, UiMode};
 use crate::camera::{MainCamera, ScreenPosition};
 
 pub struct SelectionPlugin;
@@ -93,7 +93,7 @@ fn update_single_selected(
     mut cmd: Commands,
 ) {
     if !egui_ctx.ctx_mut().wants_pointer_input()
-        && !ui.add_platform
+        && ui.mode == UiMode::Select
         && !keyboard.pressed(KeyCode::LControl)
         && mouse.just_pressed(MouseButton::Left)
     {
@@ -152,7 +152,7 @@ fn update_multi_selected(
     mut cmd: Commands,
 ) {
     if egui_ctx.ctx_mut().wants_pointer_input()
-        || ui.add_platform
+        || ui.mode != UiMode::Select
         || !keyboard.pressed(KeyCode::LControl)
     {
         return;

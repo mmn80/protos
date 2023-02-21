@@ -7,7 +7,10 @@ use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{camera::MainCamera, mesh::cone::Cone};
 
-use super::{selection::Selected, side_panel::SidePanelState};
+use super::{
+    selection::Selected,
+    side_panel::{SidePanelState, UiMode},
+};
 
 pub struct MoveGizmoPlugin;
 
@@ -50,7 +53,7 @@ impl Default for MoveGizmoRes {
 
 const BAR_H: f32 = 2.0;
 const BAR_W: f32 = 0.1;
-const CONE_W: f32 = 0.5;
+const CONE_W: f32 = 0.8;
 const CONE_H: f32 = 1.0;
 
 fn setup_move_gizmos(
@@ -59,30 +62,27 @@ fn setup_move_gizmos(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     res.x_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.9, 0.5, 0.5, 0.9),
+        base_color: Color::rgb(0.9, 0.5, 0.5),
         emissive: Color::rgb(0.9, 0.5, 0.5),
-        metallic: 0.9,
+        metallic: 0.5,
         perceptual_roughness: 0.8,
-        reflectance: 0.8,
-        alpha_mode: AlphaMode::Blend,
+        reflectance: 0.5,
         ..default()
     }));
     res.y_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.9, 0.5, 0.9),
+        base_color: Color::rgb(0.5, 0.9, 0.5),
         emissive: Color::rgb(0.5, 0.9, 0.5),
-        metallic: 0.9,
+        metallic: 0.5,
         perceptual_roughness: 0.8,
-        reflectance: 0.8,
-        alpha_mode: AlphaMode::Blend,
+        reflectance: 0.5,
         ..default()
     }));
     res.z_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.5, 0.9, 0.9),
+        base_color: Color::rgb(0.5, 0.5, 0.9),
         emissive: Color::rgb(0.5, 0.5, 0.9),
-        metallic: 0.9,
+        metallic: 0.5,
         perceptual_roughness: 0.8,
-        reflectance: 0.8,
-        alpha_mode: AlphaMode::Blend,
+        reflectance: 0.5,
         ..default()
     }));
     res.selected_mat = Some(materials.add(StandardMaterial {
@@ -204,7 +204,7 @@ fn update_move_gizmos(
                                 if mouse.just_pressed(MouseButton::Left) {
                                     res.drag_start_y = Some(drag_y);
                                     res.drag_start_pos = Some(sel_tr.translation);
-                                    ui.add_platform = false;
+                                    ui.mode = UiMode::Select;
                                 } else if let (Some(start_y), Some(start_pos)) =
                                     (res.drag_start_y, res.drag_start_pos)
                                 {

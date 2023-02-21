@@ -9,7 +9,7 @@ use crate::{
     camera::{MainCamera, ScreenPosition},
     ui::{
         selection::{Selectable, Selected},
-        side_panel::SidePanelState,
+        side_panel::{SidePanelState, UiMode},
     },
 };
 
@@ -19,7 +19,8 @@ impl Plugin for PlatformPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AddPlatformUiRes::default())
             .add_startup_system(setup_platform_ui)
-            .add_system(add_platform_ui);
+            .add_system(add_platform_ui)
+            .add_system(shoot_balls);
     }
 }
 
@@ -34,6 +35,7 @@ enum AddPlatformUiState {
 struct AddPlatformUiRes {
     pub platform_ui_mat: Option<Handle<StandardMaterial>>,
     pub platform_mat: Option<Handle<StandardMaterial>>,
+    pub ball_mat: Option<Handle<StandardMaterial>>,
     pub state: AddPlatformUiState,
     pub attach_p0: Option<Vec3>,
     pub attach_p0_normal: Option<Vec3>,
@@ -48,6 +50,7 @@ impl Default for AddPlatformUiRes {
         Self {
             platform_ui_mat: None,
             platform_mat: None,
+            ball_mat: None,
             state: AddPlatformUiState::PickAttachP0,
             attach_p0: None,
             attach_p0_normal: None,
@@ -79,14 +82,22 @@ fn setup_platform_ui(
         reflectance: 0.5,
         ..default()
     }));
+    res.ball_mat = Some(materials.add(StandardMaterial {
+        base_color: Color::GOLD,
+        metallic: 0.8,
+        perceptual_roughness: 0.4,
+        reflectance: 0.5,
+        ..default()
+    }));
 }
 
 const PLATFORM_INIT_LEN: f32 = 0.1;
 
 fn add_platform_ui(
-    mut ui: ResMut<SidePanelState>,
+    ui: Res<SidePanelState>,
     mut res: ResMut<AddPlatformUiRes>,
     mouse: Res<Input<MouseButton>>,
+    keyboard: Res<Input<KeyCode>>,
     rapier: Res<RapierContext>,
     q_camera: Query<&MainCamera>,
     mut q_tr: Query<&mut Transform>,
@@ -95,10 +106,9 @@ fn add_platform_ui(
     mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    if ui.add_platform {
-        if mouse.just_pressed(MouseButton::Right) {
+    if ui.mode == UiMode::AddPlatform {
+        if keyboard.just_pressed(KeyCode::Escape) {
             clear_ui_state(&mut res, &mut cmd);
-            ui.add_platform = false;
             return;
         }
 
@@ -220,7 +230,7 @@ fn add_platform_ui(
                                     Selectable,
                                     ScreenPosition::default(),
                                     Selected,
-                                    RigidBody::Fixed,
+                                    RigidBody::KinematicPositionBased,
                                 ))
                                 .with_children(|parent| {
                                     parent
@@ -266,4 +276,52 @@ fn clear_ui_state(res: &mut ResMut<AddPlatformUiRes>, cmd: &mut Commands) {
     }
     res.platform = None;
     res.ground = None;
+}
+
+fn shoot_balls(
+    ui: Res<SidePanelState>,
+    mouse: Res<Input<MouseButton>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    res: Res<AddPlatformUiRes>,
+    q_camera: Query<&MainCamera>,
+    mut cmd: Commands,
+) {
+    if ui.mode == UiMode::ShootBalls {
+        if let Ok(camera) = q_camera.get_single() {
+            if let (Some(ray), Some(mat)) = (camera.mouse_ray, res.ball_mat.clone()) {
+                if mouse.just_pressed(MouseButton::Left) {
+                    cmd.spawn(PbrBundle {
+                        transform: Transform::from_translation(ray.origin),
+                        mesh: meshes.add(Mesh::from(shape::Icosphere {
+                            radius: 1.,
+                            subdivisions: 20,
+                        })),
+                        material: mat,
+                        ..default()
+                    })
+                    .insert((
+                        RigidBody::Dynamic,
+                        Damping {
+                            linear_damping: 0.,
+                            angular_damping: 0.,
+                        },
+                        Collider::ball(0.5),
+                        Velocity {
+                            linvel: 30. * ray.direction,
+                            angvel: Vec3::ZERO,
+                        },
+                        ColliderMassProperties::Density(0.8),
+                        Friction {
+                            coefficient: 0.8,
+                            combine_rule: CoefficientCombineRule::Average,
+                        },
+                        Restitution {
+                            coefficient: 0.5,
+                            combine_rule: CoefficientCombineRule::Average,
+                        },
+                    ));
+                }
+            }
+        }
+    }
 }

@@ -35,6 +35,6 @@ fn main() {
         .add_plugin(MainCameraPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(PlatformPlugin)
-        .add_system(bevy::window::close_on_esc)
+        // .add_system(bevy::window::close_on_esc)
         .run();
 }

@@ -7,12 +7,13 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_terrain);
+        app.add_startup_system(setup_terrain)
+            .add_system(display_events);
     }
 }
 
 fn setup_terrain(
-    mut commands: Commands,
+    mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
@@ -26,23 +27,22 @@ fn setup_terrain(
         ..default()
     };
 
-    commands
-        .spawn(PbrBundle {
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            mesh: meshes.add(Mesh::from(shape::Box::new(
-                ground_size.x,
-                ground_size.y,
-                ground_size.z,
-            ))),
-            material: materials.add(ground_mat),
-            ..default()
-        })
-        .insert(RigidBody::Fixed)
-        .insert(Collider::cuboid(
-            ground_size.x / 2.,
-            ground_size.y / 2.,
-            ground_size.z / 2.,
-        ));
+    cmd.spawn(PbrBundle {
+        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        mesh: meshes.add(Mesh::from(shape::Box::new(
+            ground_size.x,
+            ground_size.y,
+            ground_size.z,
+        ))),
+        material: materials.add(ground_mat),
+        ..default()
+    })
+    .insert(RigidBody::Fixed)
+    .insert(Collider::cuboid(
+        ground_size.x / 2.,
+        ground_size.y / 2.,
+        ground_size.z / 2.,
+    ));
 
     let mut lines = vec![
         (
@@ -66,14 +66,26 @@ fn setup_terrain(
         lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
     }
 
-    commands
-        .spawn(MaterialMeshBundle {
-            mesh: meshes.add(Mesh::from(LineList { lines })),
-            transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
-            material: line_materials.add(LineMaterial {
-                color: Color::WHITE,
-            }),
-            ..default()
-        })
-        .insert(NotShadowCaster);
+    cmd.spawn(MaterialMeshBundle {
+        mesh: meshes.add(Mesh::from(LineList { lines })),
+        transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
+        material: line_materials.add(LineMaterial {
+            color: Color::WHITE,
+        }),
+        ..default()
+    })
+    .insert(NotShadowCaster);
+}
+
+fn display_events(
+    mut collision_events: EventReader<CollisionEvent>,
+    mut contact_force_events: EventReader<ContactForceEvent>,
+) {
+    for collision_event in collision_events.iter() {
+        println!("Received collision event: {:?}", collision_event);
+    }
+
+    for contact_force_event in contact_force_events.iter() {
+        println!("Received contact force event: {:?}", contact_force_event);
+    }
 }

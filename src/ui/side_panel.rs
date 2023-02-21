@@ -27,34 +27,46 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
     egui_settings.scale_factor = 1.0;
 }
 
+#[derive(PartialEq)]
+pub enum UiMode {
+    Select,
+    AddPlatform,
+    ShootBalls,
+}
+
 #[derive(Resource)]
 pub struct SidePanelState {
+    pub mode: UiMode,
     pub rapier_debug_enabled: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
     pub selected_show_path: bool,
-    pub add_platform: bool,
 }
 
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
+            mode: UiMode::Select,
             rapier_debug_enabled: false,
             selected_show_names: true,
             selected_show_move_gizmo: true,
             selected_show_path: true,
-            add_platform: false,
         }
     }
 }
 
 fn update_side_panel(
     mut egui_ctx: ResMut<EguiContext>,
+    keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
     selected_q: Query<&Name, With<Selected>>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
 ) {
+    if keyboard.just_pressed(KeyCode::Escape) {
+        state.mode = UiMode::Select;
+    }
+
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
         .show(egui_ctx.ctx_mut(), |ui| {
@@ -104,10 +116,12 @@ fn update_side_panel(
                     debug_render_ctx.enabled = state.rapier_debug_enabled;
                 });
 
-            egui::CollapsingHeader::new("Buildings")
+            egui::CollapsingHeader::new("Ui mode")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.add_platform, "Add platform");
+                    ui.selectable_value(&mut state.mode, UiMode::Select, "Select");
+                    ui.selectable_value(&mut state.mode, UiMode::AddPlatform, "Add platform");
+                    ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot ballz");
                 });
         });
 }
