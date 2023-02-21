@@ -13,41 +13,40 @@ impl Plugin for SelectionPlugin {
             .insert_resource(SelectionRect::default())
             .add_system_to_stage(
                 CoreStage::PreUpdate,
-                update_multi_selected.after("update_screen_position"),
+                update_selected.after("update_screen_position"),
             )
-            .add_system(update_single_selected)
+            //.add_system(update_selected)
             .add_system(update_selected_names)
             .add_system(update_select_ui_rect);
     }
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut cmd: Commands, asset_server: Res<AssetServer>) {
     //commands.spawn_bundle(UiCameraBundle::default());
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                justify_content: JustifyContent::SpaceBetween,
-                ..default()
-            },
-            background_color: Color::NONE.into(),
+    cmd.spawn(NodeBundle {
+        style: Style {
+            size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+            justify_content: JustifyContent::SpaceBetween,
             ..default()
-        })
-        .with_children(|parent| {
-            parent.spawn((
-                NodeBundle {
-                    style: Style {
-                        position_type: PositionType::Absolute,
-                        ..default()
-                    },
-                    background_color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
-                    visibility: Visibility { is_visible: false },
+        },
+        background_color: Color::NONE.into(),
+        ..default()
+    })
+    .with_children(|parent| {
+        parent.spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
                     ..default()
                 },
-                SelectionRectUiNode,
-            ));
-        });
-    commands.insert_resource(LoadedFont(asset_server.load("fonts/FiraMono-Medium.ttf")));
+                background_color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
+                visibility: Visibility { is_visible: false },
+                ..default()
+            },
+            SelectionRectUiNode,
+        ));
+    });
+    cmd.insert_resource(LoadedFont(asset_server.load("fonts/FiraMono-Medium.ttf")));
 }
 
 #[derive(Clone, Component, Debug, Default)]
@@ -78,127 +77,123 @@ impl SelectionRect {
 
 struct DeselectedEvent(Entity);
 
-fn update_single_selected(
+fn update_selected(
+    windows: Res<Windows>,
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     ui: Res<SidePanelState>,
+    mut selection_rect: ResMut<SelectionRect>,
     q_camera: Query<&MainCamera>,
-    q_selectable: Query<Entity, With<Selectable>>,
+    q_selectable: Query<(Entity, &ScreenPosition), With<Selectable>>,
     q_selected: Query<Entity, With<Selected>>,
     q_parent: Query<&Parent>,
     q_sensor: Query<&Sensor>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if !ui.mouse_over && ui.mode == UiMode::Select && mouse.just_pressed(MouseButton::Left) {
-        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-            if let Some((hit_ent, _)) =
-                rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
-            {
-                if !q_sensor.contains(hit_ent) {
-                    let mut sel_ent = None;
-                    if q_selectable.contains(hit_ent) {
-                        sel_ent = Some(hit_ent)
-                    } else {
-                        for parent in q_parent.iter_ancestors(hit_ent) {
-                            if q_selectable.contains(parent) {
-                                sel_ent = Some(parent);
-                                break;
-                            }
-                        }
-                    }
-                    let shift = keyboard.pressed(KeyCode::LShift);
-                    if let Some(sel_ent) = sel_ent {
-                        if !shift || !q_selected.contains(sel_ent) {
-                            cmd.entity(sel_ent).insert(Selected);
+    if !ui.mouse_over && ui.mode == UiMode::Select {
+        let mut processed_single = false;
+
+        if mouse.just_pressed(MouseButton::Left) {
+            if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
+                if let Some((hit_ent, _)) =
+                    rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
+                {
+                    if !q_sensor.contains(hit_ent) {
+                        let mut sel_ent = None;
+                        if q_selectable.contains(hit_ent) {
+                            sel_ent = Some(hit_ent)
                         } else {
-                            cmd.entity(sel_ent).remove::<Selected>();
-                            ev_deselected.send(DeselectedEvent(sel_ent));
-                        }
-                    }
-                    if !shift {
-                        for selected in q_selected.iter() {
-                            let mut remove = true;
-                            if let Some(sel_ent) = sel_ent {
-                                remove = sel_ent != selected;
-                            }
-                            if remove {
-                                cmd.entity(selected).remove::<Selected>();
-                                ev_deselected.send(DeselectedEvent(selected));
+                            for parent in q_parent.iter_ancestors(hit_ent) {
+                                if q_selectable.contains(parent) {
+                                    sel_ent = Some(parent);
+                                    break;
+                                }
                             }
                         }
+                        let shift = keyboard.pressed(KeyCode::LShift);
+                        if let Some(sel_ent) = sel_ent {
+                            processed_single = true;
+                            if !shift || !q_selected.contains(sel_ent) {
+                                cmd.entity(sel_ent).insert(Selected);
+                            } else {
+                                cmd.entity(sel_ent).remove::<Selected>();
+                                ev_deselected.send(DeselectedEvent(sel_ent));
+                            }
+                        }
+                        if !shift {
+                            for selected in q_selected.iter() {
+                                let mut remove = true;
+                                if let Some(sel_ent) = sel_ent {
+                                    remove = sel_ent != selected;
+                                }
+                                if remove {
+                                    cmd.entity(selected).remove::<Selected>();
+                                    ev_deselected.send(DeselectedEvent(selected));
+                                }
+                            }
+                        }
+                    } else {
+                        processed_single = true;
                     }
                 }
             }
         }
-    }
-}
 
-fn update_multi_selected(
-    keyboard: Res<Input<KeyCode>>,
-    mouse: Res<Input<MouseButton>>,
-    windows: Res<Windows>,
-    ui: Res<SidePanelState>,
-    mut selection_rect: ResMut<SelectionRect>,
-    mut q_selectable: Query<(Entity, &ScreenPosition), With<Selectable>>,
-    mut ev_deselected: EventWriter<DeselectedEvent>,
-    mut cmd: Commands,
-) {
-    if ui.mouse_over || ui.mode != UiMode::Select {
-        return;
-    }
-
-    let do_select_rect = {
-        selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
-        if let Some(window) = windows.get_primary() {
-            let mouse_pos = window.cursor_position();
-            if mouse.just_pressed(MouseButton::Left) {
-                selection_rect.begin = mouse_pos.clone();
-                selection_rect.end = selection_rect.begin;
-                // info!("start selecting at {begin:?}", begin = selection_rect.begin);
-            } else if selection_rect.begin.is_some() {
-                if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
-                    selection_rect.end = Some(mouse_pos.unwrap());
-                } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
-                    // info!("cancel selecting at {end:?}", end = selection_rect.end);
-                    selection_rect.begin = None;
-                    selection_rect.end = None;
+        if !processed_single {
+            let do_select_rect = {
+                selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
+                if let Some(window) = windows.get_primary() {
+                    let mouse_pos = window.cursor_position();
+                    if mouse.just_pressed(MouseButton::Left) {
+                        selection_rect.begin = mouse_pos.clone();
+                        selection_rect.end = selection_rect.begin;
+                        // info!("start selecting at {begin:?}", begin = selection_rect.begin);
+                    } else if selection_rect.begin.is_some() {
+                        if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
+                            selection_rect.end = Some(mouse_pos.unwrap());
+                        } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
+                            // info!("cancel selecting at {end:?}", end = selection_rect.end);
+                            selection_rect.begin = None;
+                            selection_rect.end = None;
+                        }
+                    }
+                    if mouse.just_released(MouseButton::Left) {
+                        // info!("end selecting at {end:?}", end = selection_rect.end);
+                        selection_rect.get_rect()
+                    } else {
+                        None
+                    }
+                } else {
+                    return;
                 }
-            }
-            if mouse.just_released(MouseButton::Left) {
-                // info!("end selecting at {end:?}", end = selection_rect.end);
-                selection_rect.get_rect()
-            } else {
-                None
-            }
-        } else {
-            return;
-        }
-    };
+            };
 
-    if let Some(rect) = do_select_rect {
-        for (
-            entity,
-            ScreenPosition {
-                position,
-                camera_dist: _,
-            },
-        ) in &mut q_selectable
-        {
-            if position.x > rect.min.x
-                && position.x < rect.max.x
-                && position.y < rect.max.y
-                && position.y > rect.min.y
-            {
-                cmd.entity(entity).insert(Selected);
-            } else if selection_rect.clear_previous {
-                cmd.entity(entity).remove::<Selected>();
-                ev_deselected.send(DeselectedEvent(entity));
+            if let Some(rect) = do_select_rect {
+                for (
+                    entity,
+                    ScreenPosition {
+                        position,
+                        camera_dist: _,
+                    },
+                ) in &q_selectable
+                {
+                    if position.x > rect.min.x
+                        && position.x < rect.max.x
+                        && position.y < rect.max.y
+                        && position.y > rect.min.y
+                    {
+                        cmd.entity(entity).insert(Selected);
+                    } else if selection_rect.clear_previous {
+                        cmd.entity(entity).remove::<Selected>();
+                        ev_deselected.send(DeselectedEvent(entity));
+                    }
+                }
+                selection_rect.begin = None;
+                selection_rect.end = None;
             }
         }
-        selection_rect.begin = None;
-        selection_rect.end = None;
     }
 }
 
