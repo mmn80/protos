@@ -26,6 +26,7 @@ impl Plugin for PlatformPlugin {
 
 #[derive(PartialEq)]
 enum AddPlatformUiState {
+    None,
     PickAttachP0,
     PickAttachP1,
     PickLength,
@@ -51,7 +52,7 @@ impl Default for AddPlatformUiRes {
             platform_ui_mat: None,
             platform_mat: None,
             ball_mat: None,
-            state: AddPlatformUiState::PickAttachP0,
+            state: AddPlatformUiState::None,
             attach_p0: None,
             attach_p0_normal: None,
             attach_p1: None,
@@ -97,7 +98,6 @@ fn add_platform_ui(
     ui: Res<SidePanelState>,
     mut res: ResMut<AddPlatformUiRes>,
     mouse: Res<Input<MouseButton>>,
-    keyboard: Res<Input<KeyCode>>,
     rapier: Res<RapierContext>,
     q_camera: Query<&MainCamera>,
     mut q_tr: Query<&mut Transform>,
@@ -107,9 +107,8 @@ fn add_platform_ui(
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     if ui.mode == UiMode::AddPlatform {
-        if keyboard.just_pressed(KeyCode::Escape) {
-            clear_ui_state(&mut res, &mut cmd);
-            return;
+        if res.state == AddPlatformUiState::None {
+            res.state = AddPlatformUiState::PickAttachP0;
         }
 
         if let (Some(ground_ent), Some(platform_ent)) = (res.ground, res.platform) {
@@ -260,13 +259,13 @@ fn add_platform_ui(
                 }
             }
         }
-    } else {
+    } else if res.state != AddPlatformUiState::None {
         clear_ui_state(&mut res, &mut cmd);
     }
 }
 
 fn clear_ui_state(res: &mut ResMut<AddPlatformUiRes>, cmd: &mut Commands) {
-    res.state = AddPlatformUiState::PickAttachP0;
+    res.state = AddPlatformUiState::None;
     res.attach_p0 = None;
     res.attach_p0_normal = None;
     res.attach_p1 = None;
