@@ -36,6 +36,7 @@ pub enum UiMode {
 
 #[derive(Resource)]
 pub struct SidePanelState {
+    pub mouse_over: bool,
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
     pub selected_show_names: bool,
@@ -46,6 +47,7 @@ pub struct SidePanelState {
 impl Default for SidePanelState {
     fn default() -> Self {
         Self {
+            mouse_over: false,
             mode: UiMode::Select,
             rapier_debug_enabled: false,
             selected_show_names: true,
@@ -57,6 +59,7 @@ impl Default for SidePanelState {
 
 fn update_side_panel(
     mut egui_ctx: ResMut<EguiContext>,
+    windows: Res<Windows>,
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
@@ -65,6 +68,13 @@ fn update_side_panel(
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         state.mode = UiMode::Select;
+    }
+
+    state.mouse_over = true;
+    if let Some(window) = windows.get_primary() {
+        if let Some(mouse_pos) = window.cursor_position() {
+            state.mouse_over = mouse_pos.x <= 200.;
+        }
     }
 
     egui::SidePanel::left("side_panel")

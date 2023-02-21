@@ -176,7 +176,7 @@ fn update_move_gizmos(
                 }
             }
 
-            if mouse.pressed(MouseButton::Left) {
+            if mouse.pressed(MouseButton::Left) && !ui.mouse_over {
                 if let Some(active_gizmo) = res.active_gizmo {
                     if let (Some(selected), Ok((_, gizmo_tr))) = (
                         q_parent.iter_ancestors(active_gizmo).next(),

@@ -129,6 +129,10 @@ fn add_platform_ui(
             }
         }
 
+        if ui.mouse_over {
+            return;
+        }
+
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
             if res.state == AddPlatformUiState::PickAttachP0 {
@@ -285,7 +289,7 @@ fn shoot_balls(
     q_camera: Query<&MainCamera>,
     mut cmd: Commands,
 ) {
-    if ui.mode == UiMode::ShootBalls {
+    if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
         if let Ok(camera) = q_camera.get_single() {
             if let (Some(ray), Some(mat)) = (camera.mouse_ray, res.ball_mat.clone()) {
                 if mouse.just_pressed(MouseButton::Left) {

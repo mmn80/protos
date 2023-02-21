@@ -3,7 +3,8 @@ use bevy::{
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
 };
-use bevy_egui::EguiContext;
+
+use crate::ui::side_panel::SidePanelState;
 
 pub struct MainCameraPlugin;
 
@@ -66,12 +67,12 @@ fn main_camera(
     windows: Res<Windows>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
+    ui: Res<SidePanelState>,
+    input_mouse: Res<Input<MouseButton>>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
-    input_mouse: Res<Input<MouseButton>>,
-    mut cursor: EventReader<CursorMoved>,
-    mut query: Query<(&mut MainCamera, &mut Transform, &GlobalTransform, &Camera)>,
-    mut egui_ctx: ResMut<EguiContext>,
+    mut ev_cursor: EventReader<CursorMoved>,
+    mut q_camera: Query<(&mut MainCamera, &mut Transform, &GlobalTransform, &Camera)>,
 ) {
     let orbit_button = MouseButton::Right;
 
@@ -79,7 +80,7 @@ fn main_camera(
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
 
-    if !egui_ctx.ctx_mut().wants_pointer_input() {
+    if !ui.mouse_over {
         if input_mouse.pressed(orbit_button) {
             for ev in ev_motion.iter() {
                 rotation_move += ev.delta;
@@ -93,9 +94,9 @@ fn main_camera(
         }
     }
 
-    let cursor_pos = cursor.iter().last().map(|p| p.position);
+    let cursor_pos = ev_cursor.iter().last().map(|p| p.position);
 
-    for (mut main_camera, mut transform, global_transform, camera) in &mut query {
+    for (mut main_camera, mut transform, global_transform, camera) in &mut q_camera {
         if let Some(pos) = cursor_pos {
             main_camera.mouse_ray = get_camera_mouse_ray(pos, camera, global_transform);
         }

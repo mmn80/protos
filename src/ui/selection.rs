@@ -81,7 +81,6 @@ struct DeselectedEvent(Entity);
 fn update_single_selected(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
-    mut egui_ctx: ResMut<bevy_egui::EguiContext>,
     rapier: Res<RapierContext>,
     ui: Res<SidePanelState>,
     q_camera: Query<&MainCamera>,
@@ -92,11 +91,7 @@ fn update_single_selected(
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if !egui_ctx.ctx_mut().wants_pointer_input()
-        && ui.mode == UiMode::Select
-        && !keyboard.pressed(KeyCode::LControl)
-        && mouse.just_pressed(MouseButton::Left)
-    {
+    if !ui.mouse_over && ui.mode == UiMode::Select && mouse.just_pressed(MouseButton::Left) {
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             if let Some((hit_ent, _)) =
                 rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
@@ -144,19 +139,16 @@ fn update_multi_selected(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     windows: Res<Windows>,
-    mut egui_ctx: ResMut<bevy_egui::EguiContext>,
     ui: Res<SidePanelState>,
     mut selection_rect: ResMut<SelectionRect>,
     mut q_selectable: Query<(Entity, &ScreenPosition), With<Selectable>>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if egui_ctx.ctx_mut().wants_pointer_input()
-        || ui.mode != UiMode::Select
-        || !keyboard.pressed(KeyCode::LControl)
-    {
+    if ui.mouse_over || ui.mode != UiMode::Select {
         return;
     }
+
     let do_select_rect = {
         selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
         if let Some(window) = windows.get_primary() {
