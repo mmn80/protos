@@ -13,19 +13,19 @@ use crate::{
     },
 };
 
-pub struct PlatformPlugin;
+pub struct AddCubePlugin;
 
-impl Plugin for PlatformPlugin {
+impl Plugin for AddCubePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(AddPlatformUiRes::default())
-            .add_startup_system(setup_platform_ui)
-            .add_system(add_platform_ui)
+        app.insert_resource(AddCubeUiRes::default())
+            .add_startup_system(setup_add_cube_ui)
+            .add_system(add_cube_ui)
             .add_system(shoot_balls);
     }
 }
 
 #[derive(PartialEq)]
-enum AddPlatformUiState {
+enum AddCubeUiState {
     None,
     PickAttachP0,
     PickAttachP1,
@@ -33,41 +33,41 @@ enum AddPlatformUiState {
 }
 
 #[derive(Resource)]
-struct AddPlatformUiRes {
-    pub platform_ui_mat: Option<Handle<StandardMaterial>>,
-    pub platform_mat: Option<Handle<StandardMaterial>>,
+struct AddCubeUiRes {
+    pub cube_ui_mat: Option<Handle<StandardMaterial>>,
+    pub cube_mat: Option<Handle<StandardMaterial>>,
     pub ball_mat: Option<Handle<StandardMaterial>>,
-    pub state: AddPlatformUiState,
+    pub state: AddCubeUiState,
     pub attach_p0: Option<Vec3>,
     pub attach_p0_normal: Option<Vec3>,
     pub attach_p1: Option<Vec3>,
     pub length: Option<f32>,
-    pub platform: Option<Entity>,
+    pub cube: Option<Entity>,
     pub ground: Option<Entity>,
 }
 
-impl Default for AddPlatformUiRes {
+impl Default for AddCubeUiRes {
     fn default() -> Self {
         Self {
-            platform_ui_mat: None,
-            platform_mat: None,
+            cube_ui_mat: None,
+            cube_mat: None,
             ball_mat: None,
-            state: AddPlatformUiState::None,
+            state: AddCubeUiState::None,
             attach_p0: None,
             attach_p0_normal: None,
             attach_p1: None,
             length: None,
-            platform: None,
+            cube: None,
             ground: None,
         }
     }
 }
 
-fn setup_platform_ui(
-    mut res: ResMut<AddPlatformUiRes>,
+fn setup_add_cube_ui(
+    mut res: ResMut<AddCubeUiRes>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    res.platform_ui_mat = Some(materials.add(StandardMaterial {
+    res.cube_ui_mat = Some(materials.add(StandardMaterial {
         base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
         emissive: Color::rgb(0.5, 0.9, 0.5),
         metallic: 0.9,
@@ -76,7 +76,7 @@ fn setup_platform_ui(
         alpha_mode: AlphaMode::Blend,
         ..default()
     }));
-    res.platform_mat = Some(materials.add(StandardMaterial {
+    res.cube_mat = Some(materials.add(StandardMaterial {
         base_color: Color::SALMON,
         metallic: 0.2,
         perceptual_roughness: 0.8,
@@ -92,11 +92,11 @@ fn setup_platform_ui(
     }));
 }
 
-const PLATFORM_INIT_LEN: f32 = 0.1;
+const CUBE_INIT_LEN: f32 = 0.1;
 
-fn add_platform_ui(
+fn add_cube_ui(
     ui: Res<SidePanelState>,
-    mut res: ResMut<AddPlatformUiRes>,
+    mut res: ResMut<AddCubeUiRes>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     q_camera: Query<&MainCamera>,
@@ -106,26 +106,25 @@ fn add_platform_ui(
     mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    if ui.mode == UiMode::AddPlatform {
-        if res.state == AddPlatformUiState::None {
-            res.state = AddPlatformUiState::PickAttachP0;
+    if ui.mode == UiMode::AddCube {
+        if res.state == AddCubeUiState::None {
+            res.state = AddCubeUiState::PickAttachP0;
         }
 
-        if let (Some(ground_ent), Some(platform_ent)) = (res.ground, res.platform) {
-            if let (Ok(mut platform_mut), Ok(ground), Some(p0), Some(p1)) = (
-                q_tr.get_mut(platform_ent),
+        if let (Some(ground_ent), Some(cube_ent)) = (res.ground, res.cube) {
+            if let (Ok(mut cube_mut), Ok(ground), Some(p0), Some(p1)) = (
+                q_tr.get_mut(cube_ent),
                 q_gl_tr.get(ground_ent),
                 res.attach_p0,
                 res.attach_p1,
             ) {
-                let scale_y = res.length.unwrap_or(PLATFORM_INIT_LEN);
+                let scale_y = res.length.unwrap_or(CUBE_INIT_LEN);
                 let inverse = ground.affine().inverse();
                 let p0_ground = inverse.transform_point3(p0);
                 let p1_ground = inverse.transform_point3(p1);
-                let scale = platform_mut.rotation * (p1_ground - p0_ground);
-                platform_mut.scale = Vec3::new(scale.x.abs(), scale_y, scale.z.abs());
-                platform_mut.translation =
-                    (p0_ground + p1_ground + scale_y * platform_mut.up()) / 2.;
+                let scale = cube_mut.rotation * (p1_ground - p0_ground);
+                cube_mut.scale = Vec3::new(scale.x.abs(), scale_y, scale.z.abs());
+                cube_mut.translation = (p0_ground + p1_ground + scale_y * cube_mut.up()) / 2.;
             }
         }
 
@@ -135,9 +134,9 @@ fn add_platform_ui(
 
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-            if res.state == AddPlatformUiState::PickAttachP0 {
+            if res.state == AddCubeUiState::PickAttachP0 {
                 if mouse.just_pressed(MouseButton::Left) {
-                    let material = res.platform_ui_mat.clone();
+                    let material = res.cube_ui_mat.clone();
                     if let (Some(material), Some((attach_ent, hit))) = (
                         material,
                         rapier.cast_ray_and_get_normal(
@@ -160,7 +159,7 @@ fn add_platform_ui(
                         res.ground = Some(ground);
                         res.attach_p0 = Some(p0);
                         res.attach_p0_normal = Some(p0_n);
-                        res.state = AddPlatformUiState::PickAttachP1;
+                        res.state = AddCubeUiState::PickAttachP1;
 
                         let ground_tr = q_gl_tr.get(ground).unwrap();
                         let ground_inv = ground_tr.affine().inverse();
@@ -175,19 +174,19 @@ fn add_platform_ui(
                             }
                             .normalize()
                         };
-                        res.platform = Some(cmd.entity(ground).add_children(|parent| {
+                        res.cube = Some(cmd.entity(ground).add_children(|parent| {
                             parent
                                 .spawn((
                                     PbrBundle {
                                         transform: Transform::from_translation(
-                                            ground_p0 + (PLATFORM_INIT_LEN / 2.) * dir_y,
+                                            ground_p0 + (CUBE_INIT_LEN / 2.) * dir_y,
                                         )
                                         .with_rotation(Quat::from_mat3(&Mat3::from_cols(
                                             dir_x,
                                             dir_y,
                                             dir_x.cross(dir_y).normalize(),
                                         )))
-                                        .with_scale(Vec3::new(0., PLATFORM_INIT_LEN, 0.)),
+                                        .with_scale(Vec3::new(0., CUBE_INIT_LEN, 0.)),
                                         mesh: meshes.add(Mesh::from(shape::Box::new(1., 1., 1.))),
                                         material: material.clone(),
                                         ..default()
@@ -199,29 +198,27 @@ fn add_platform_ui(
                         }));
                     }
                 }
-            } else if res.state == AddPlatformUiState::PickAttachP1 {
+            } else if res.state == AddCubeUiState::PickAttachP1 {
                 let center = res.attach_p0.unwrap();
                 let normal = res.attach_p0_normal.unwrap();
                 if let Some(toi) = ray_toi_with_halfspace(&center.into(), &normal.into(), &ray_p) {
                     res.attach_p1 = Some(ray.origin + toi * ray.direction);
                     if mouse.just_pressed(MouseButton::Left) {
-                        res.state = AddPlatformUiState::PickLength;
+                        res.state = AddCubeUiState::PickLength;
                     }
                 }
-            } else if res.state == AddPlatformUiState::PickLength {
-                if let (Some(ground), Ok(platform)) =
-                    (res.ground, q_gl_tr.get(res.platform.unwrap()))
-                {
+            } else if res.state == AddCubeUiState::PickLength {
+                if let (Some(ground), Ok(cube)) = (res.ground, q_gl_tr.get(res.cube.unwrap())) {
                     if mouse.just_pressed(MouseButton::Left) {
-                        let material = res.platform_mat.clone();
+                        let material = res.cube_mat.clone();
                         let (scale, rotation) = {
-                            let srt = platform.to_scale_rotation_translation();
+                            let srt = cube.to_scale_rotation_translation();
                             (srt.0, srt.1)
                         };
                         cmd.entity(ground).with_children(|parent| {
                             parent
                                 .spawn(PbrBundle {
-                                    transform: Transform::from_translation(platform.translation())
+                                    transform: Transform::from_translation(cube.translation())
                                         .with_rotation(rotation),
                                     mesh: meshes.add(Mesh::from(shape::Box::new(
                                         scale.x, scale.y, scale.z,
@@ -249,35 +246,35 @@ fn add_platform_ui(
                     } else {
                         let p1 = res.attach_p1.unwrap();
                         if let (Some(toi0), Some(toi1)) = (
-                            ray_toi_with_halfspace(&p1.into(), &platform.right().into(), &ray_p),
-                            ray_toi_with_halfspace(&p1.into(), &platform.back().into(), &ray_p),
+                            ray_toi_with_halfspace(&p1.into(), &cube.right().into(), &ray_p),
+                            ray_toi_with_halfspace(&p1.into(), &cube.back().into(), &ray_p),
                         ) {
                             let i0 = ray.origin + toi0 * ray.direction;
                             let i1 = ray.origin + toi1 * ray.direction;
-                            let p1_y = platform.up().dot(p1);
-                            let y0 = platform.up().dot(i0);
-                            let y1 = platform.up().dot(i1);
-                            res.length = Some(((y0 + y1) / 2. - p1_y).max(PLATFORM_INIT_LEN));
+                            let p1_y = cube.up().dot(p1);
+                            let y0 = cube.up().dot(i0);
+                            let y1 = cube.up().dot(i1);
+                            res.length = Some(((y0 + y1) / 2. - p1_y).max(CUBE_INIT_LEN));
                         }
                     }
                 }
             }
         }
-    } else if res.state != AddPlatformUiState::None {
+    } else if res.state != AddCubeUiState::None {
         clear_ui_state(&mut res, &mut cmd);
     }
 }
 
-fn clear_ui_state(res: &mut ResMut<AddPlatformUiRes>, cmd: &mut Commands) {
-    res.state = AddPlatformUiState::None;
+fn clear_ui_state(res: &mut ResMut<AddCubeUiRes>, cmd: &mut Commands) {
+    res.state = AddCubeUiState::None;
     res.attach_p0 = None;
     res.attach_p0_normal = None;
     res.attach_p1 = None;
     res.length = None;
-    if let Some(ent) = res.platform {
+    if let Some(ent) = res.cube {
         cmd.entity(ent).despawn_recursive();
     }
-    res.platform = None;
+    res.cube = None;
     res.ground = None;
 }
 
@@ -285,7 +282,7 @@ fn shoot_balls(
     ui: Res<SidePanelState>,
     mouse: Res<Input<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    res: Res<AddPlatformUiRes>,
+    res: Res<AddCubeUiRes>,
     q_camera: Query<&MainCamera>,
     mut cmd: Commands,
 ) {

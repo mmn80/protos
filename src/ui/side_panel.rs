@@ -30,7 +30,7 @@ fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<Egui
 #[derive(PartialEq)]
 pub enum UiMode {
     Select,
-    AddPlatform,
+    AddCube,
     ShootBalls,
 }
 
@@ -130,8 +130,8 @@ fn update_side_panel(
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.selectable_value(&mut state.mode, UiMode::Select, "Select");
-                    ui.selectable_value(&mut state.mode, UiMode::AddPlatform, "Add platform");
-                    ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot ballz");
+                    ui.selectable_value(&mut state.mode, UiMode::AddCube, "Add cube");
+                    ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot balls");
                 });
         });
 }

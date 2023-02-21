@@ -3,7 +3,7 @@ use bevy_egui::EguiPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
-    ai::{platform::PlatformPlugin, terrain::TerrainPlugin},
+    ai::{add_cube::AddCubePlugin, terrain::TerrainPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     mesh::lines::LinesPlugin,
@@ -34,7 +34,7 @@ fn main() {
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
         .add_plugin(TerrainPlugin)
-        .add_plugin(PlatformPlugin)
+        .add_plugin(AddCubePlugin)
         // .add_system(bevy::window::close_on_esc)
         .run();
 }
