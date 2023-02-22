@@ -1,13 +1,16 @@
 use bevy::{pbr::NotShadowCaster, prelude::*};
 use bevy_rapier3d::prelude::*;
 
-use crate::mesh::lines::{LineList, LineMaterial};
+use crate::{
+    mesh::lines::{LineList, LineMaterial},
+    ui::basic_materials::{BasicMaterialsRes, SetupBasicMaterialsSystem},
+};
 
 pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_terrain)
+        app.add_startup_system(setup_terrain.after(SetupBasicMaterialsSystem))
             .add_system(display_events);
     }
 }
@@ -15,17 +18,10 @@ impl Plugin for TerrainPlugin {
 fn setup_terrain(
     mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    materials: Res<BasicMaterialsRes>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
 ) {
     let ground_size = Vec3::new(200.0, 1.0, 200.0);
-    let ground_mat = StandardMaterial {
-        base_color: Color::SILVER,
-        metallic: 0.2,
-        perceptual_roughness: 0.8,
-        reflectance: 0.2,
-        ..default()
-    };
 
     cmd.spawn((
         PbrBundle {
@@ -35,7 +31,7 @@ fn setup_terrain(
                 ground_size.y,
                 ground_size.z,
             ))),
-            material: materials.add(ground_mat),
+            material: materials.terrain.clone().unwrap(),
             ..default()
         },
         RigidBody::Fixed,

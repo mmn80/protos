@@ -8,6 +8,7 @@ use parry3d::query::details::ray_toi_with_halfspace;
 use crate::{
     camera::{MainCamera, ScreenPosition},
     ui::{
+        basic_materials::BasicMaterialsRes,
         selection::Selectable,
         side_panel::{SidePanelState, UiMode},
     },
@@ -18,7 +19,6 @@ pub struct AddCubePlugin;
 impl Plugin for AddCubePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AddCubeUiRes::default())
-            .add_startup_system(setup_add_cube_ui)
             .add_system(add_cube_ui)
             .add_system(shoot_balls);
     }
@@ -34,9 +34,6 @@ enum AddCubeUiState {
 
 #[derive(Resource)]
 struct AddCubeUiRes {
-    pub cube_ui_mat: Option<Handle<StandardMaterial>>,
-    pub cube_mat: Option<Handle<StandardMaterial>>,
-    pub ball_mat: Option<Handle<StandardMaterial>>,
     pub state: AddCubeUiState,
     pub attach_p0: Option<Vec3>,
     pub attach_p0_normal: Option<Vec3>,
@@ -49,9 +46,6 @@ struct AddCubeUiRes {
 impl Default for AddCubeUiRes {
     fn default() -> Self {
         Self {
-            cube_ui_mat: None,
-            cube_mat: None,
-            ball_mat: None,
             state: AddCubeUiState::None,
             attach_p0: None,
             attach_p0_normal: None,
@@ -63,40 +57,12 @@ impl Default for AddCubeUiRes {
     }
 }
 
-fn setup_add_cube_ui(
-    mut res: ResMut<AddCubeUiRes>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-) {
-    res.cube_ui_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
-        emissive: Color::rgb(0.5, 0.9, 0.5),
-        metallic: 0.9,
-        perceptual_roughness: 0.8,
-        reflectance: 0.8,
-        alpha_mode: AlphaMode::Blend,
-        ..default()
-    }));
-    res.cube_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::SALMON,
-        metallic: 0.2,
-        perceptual_roughness: 0.8,
-        reflectance: 0.5,
-        ..default()
-    }));
-    res.ball_mat = Some(materials.add(StandardMaterial {
-        base_color: Color::GOLD,
-        metallic: 0.8,
-        perceptual_roughness: 0.4,
-        reflectance: 0.5,
-        ..default()
-    }));
-}
-
 const CUBE_INIT_LEN: f32 = 0.1;
 
 fn add_cube_ui(
     ui: Res<SidePanelState>,
     mut res: ResMut<AddCubeUiRes>,
+    materials: Res<BasicMaterialsRes>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     q_camera: Query<&MainCamera>,
@@ -136,7 +102,7 @@ fn add_cube_ui(
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
             if res.state == AddCubeUiState::PickAttachP0 {
                 if mouse.just_pressed(MouseButton::Left) {
-                    let material = res.cube_ui_mat.clone();
+                    let material = materials.ui_transparent.clone();
                     if let (Some(material), Some((attach_ent, hit))) = (
                         material,
                         rapier.cast_ray_and_get_normal(
@@ -210,7 +176,7 @@ fn add_cube_ui(
             } else if res.state == AddCubeUiState::PickLength {
                 if let (Some(ground), Ok(cube)) = (res.ground, q_gl_tr.get(res.cube.unwrap())) {
                     if mouse.just_pressed(MouseButton::Left) {
-                        let material = res.cube_mat.clone();
+                        let material = materials.salmon.clone();
                         let (scale, rotation) = {
                             let srt = cube.to_scale_rotation_translation();
                             (srt.0, srt.1)
@@ -279,16 +245,16 @@ pub struct ShootyBall;
 
 fn shoot_balls(
     ui: Res<SidePanelState>,
+    materials: Res<BasicMaterialsRes>,
     mouse: Res<Input<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    res: Res<AddCubeUiRes>,
     q_camera: Query<&MainCamera>,
     q_balls: Query<(Entity, &GlobalTransform), With<ShootyBall>>,
     mut cmd: Commands,
 ) {
     if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
         if let Ok(camera) = q_camera.get_single() {
-            if let (Some(ray), Some(mat)) = (camera.mouse_ray, res.ball_mat.clone()) {
+            if let (Some(ray), Some(mat)) = (camera.mouse_ray, materials.gold.clone()) {
                 if mouse.just_pressed(MouseButton::Left) {
                     cmd.spawn((
                         PbrBundle {

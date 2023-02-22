@@ -11,20 +11,11 @@ impl Plugin for BuildingPlugin {
 }
 
 #[derive(Resource)]
-pub struct BuildingsRes {
-    pub materials: Option<BuildingsMaterials>,
-}
-
-pub struct BuildingsMaterials {
-    pub ui_mat: Handle<StandardMaterial>,
-    pub floor_mat: Handle<StandardMaterial>,
-    pub wall_mat: Handle<StandardMaterial>,
-    pub stairs_mat: Handle<StandardMaterial>,
-}
+pub struct BuildingsRes {}
 
 impl Default for BuildingsRes {
     fn default() -> Self {
-        Self { materials: None }
+        Self {}
     }
 }
 
@@ -99,37 +90,4 @@ pub struct Stairs;
 #[derive(Component)]
 pub struct Ramp;
 
-fn setup_buildings(mut res: ResMut<BuildingsRes>, mut materials: ResMut<Assets<StandardMaterial>>) {
-    res.materials = Some(BuildingsMaterials {
-        ui_mat: materials.add(StandardMaterial {
-            base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
-            emissive: Color::rgb(0.5, 0.9, 0.5),
-            metallic: 0.9,
-            perceptual_roughness: 0.8,
-            reflectance: 0.8,
-            alpha_mode: AlphaMode::Blend,
-            ..default()
-        }),
-        floor_mat: materials.add(StandardMaterial {
-            base_color: Color::SILVER,
-            metallic: 0.2,
-            perceptual_roughness: 0.8,
-            reflectance: 0.4,
-            ..default()
-        }),
-        wall_mat: materials.add(StandardMaterial {
-            base_color: Color::OLIVE,
-            metallic: 0.2,
-            perceptual_roughness: 0.8,
-            reflectance: 0.2,
-            ..default()
-        }),
-        stairs_mat: materials.add(StandardMaterial {
-            base_color: Color::SILVER,
-            metallic: 0.2,
-            perceptual_roughness: 0.8,
-            reflectance: 0.4,
-            ..default()
-        }),
-    });
-}
+fn setup_buildings(mut res: ResMut<BuildingsRes>) {}
