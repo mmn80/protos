@@ -58,6 +58,7 @@ pub struct RemoveHandleGizmo {
 pub struct HandleGizmoDragged {
     pub entity: Entity,
     pub axis: HandleGizmoAxis,
+    pub direction: Vec3,
     pub drag_delta: f32,
 }
 
@@ -232,6 +233,7 @@ fn update_handles(
                             ev_drag.send(HandleGizmoDragged {
                                 entity: target,
                                 axis: gizmo.axis,
+                                direction: gizmo_tr.up(),
                                 drag_delta: drag_y - drag_last_y,
                             });
                             local.drag_last_y = Some(drag_y);
