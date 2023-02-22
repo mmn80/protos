@@ -25,12 +25,12 @@ fn update_move_gizmos(
     mut ev_remove: EventWriter<RemoveHandleGizmo>,
     mut ev_drag: EventReader<HandleGizmoDragged>,
     q_selected: Query<Entity, With<Selected>>,
-    mut q_gizmo: Query<(Entity, &mut Transform, &GlobalTransform), With<HasMoveGizmos>>,
+    mut q_gizmos: Query<(Entity, &mut Transform, &GlobalTransform), With<HasMoveGizmos>>,
     mut cmd: Commands,
 ) {
     if ui.selected_show_move_gizmo {
         for sel in &q_selected {
-            if !q_gizmo.contains(sel) {
+            if !q_gizmos.contains(sel) {
                 for (axis, material) in [
                     (HandleGizmoAxis::X, materials.ui_red.clone()),
                     (HandleGizmoAxis::Y, materials.ui_green.clone()),
@@ -41,12 +41,12 @@ fn update_move_gizmos(
                         axis,
                         material,
                     });
-                    cmd.entity(sel).insert(HasMoveGizmos);
                 }
+                cmd.entity(sel).insert(HasMoveGizmos);
             }
         }
 
-        for (entity, _, _) in &q_gizmo {
+        for (entity, _, _) in &q_gizmos {
             if !q_selected.contains(entity) {
                 for axis in [HandleGizmoAxis::X, HandleGizmoAxis::Y, HandleGizmoAxis::Z] {
                     ev_remove.send(RemoveHandleGizmo { entity, axis });
@@ -62,13 +62,17 @@ fn update_move_gizmos(
             drag_delta,
         } in ev_drag.iter()
         {
-            if let Ok((_, mut trans, global_trans)) = q_gizmo.get_mut(*entity) {
-                trans.translation += global_trans.transform_point(*drag_delta * *direction);
+            if let Ok((_, mut trans, global_trans)) = q_gizmos.get_mut(*entity) {
+                let direction = global_trans
+                    .affine()
+                    .inverse()
+                    .transform_vector3(*direction);
+                trans.translation += *drag_delta * direction;
                 ui.mode = UiMode::Select;
             }
         }
     } else {
-        for (entity, _, _) in &q_gizmo {
+        for (entity, _, _) in &q_gizmos {
             for axis in [HandleGizmoAxis::X, HandleGizmoAxis::Y, HandleGizmoAxis::Z] {
                 ev_remove.send(RemoveHandleGizmo { entity, axis });
             }

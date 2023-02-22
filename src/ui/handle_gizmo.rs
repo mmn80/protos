@@ -12,7 +12,8 @@ pub struct HandleGizmoPlugin;
 
 impl Plugin for HandleGizmoPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<AddHandleGizmo>()
+        app.register_type::<HandleGizmo>()
+            .add_event::<AddHandleGizmo>()
             .add_event::<RemoveHandleGizmo>()
             .add_event::<HandleGizmoDragged>()
             .add_system(add_handles)
@@ -21,7 +22,7 @@ impl Plugin for HandleGizmoPlugin {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Eq, Reflect)]
 pub enum HandleGizmoAxis {
     X,
     Y,
@@ -62,7 +63,7 @@ pub struct HandleGizmoDragged {
     pub drag_delta: f32,
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct HandleGizmo {
     pub axis: HandleGizmoAxis,
     pub material: Handle<StandardMaterial>,
@@ -128,8 +129,7 @@ fn add_handles(
                                 axis: *axis,
                                 material: material.clone(),
                             },
-                            RigidBody::KinematicPositionBased,
-                            RigidBodyDisabled,
+                            // RigidBody::KinematicPositionBased,
                         ))
                         .with_children(|parent| {
                             parent.spawn((
@@ -167,13 +167,16 @@ fn add_handles(
 
 fn remove_handles(
     mut ev_remove: EventReader<RemoveHandleGizmo>,
-    q_gizmo: Query<(Entity, &HandleGizmo)>,
+    q_gizmo: Query<&HandleGizmo>,
+    q_children: Query<&Children>,
     mut cmd: Commands,
 ) {
     for RemoveHandleGizmo { entity, axis } in ev_remove.iter() {
-        if let Ok((gizmo_ent, gizmo)) = q_gizmo.get(*entity) {
-            if gizmo.axis == *axis {
-                cmd.entity(gizmo_ent).despawn_recursive();
+        for child in q_children.iter_descendants(*entity) {
+            if let Ok(gizmo) = q_gizmo.get(child) {
+                if gizmo.axis == *axis {
+                    cmd.entity(child).despawn_recursive();
+                }
             }
         }
     }
@@ -243,20 +246,26 @@ fn update_handles(
                     }
                 }
             }
-        } else {
+        }
+
+        for (element, mut mat_handle) in q_material.iter_mut() {
+            let parent = q_parent.iter_ancestors(element).next();
+            if let Some(parent) = parent {
+                if Some(parent) == local.active_gizmo {
+                    if *mat_handle != materials.ui_selected {
+                        *mat_handle = materials.ui_selected.clone();
+                    }
+                } else if let Ok((gizmo, _)) = q_gizmo.get(parent) {
+                    if *mat_handle != gizmo.material {
+                        *mat_handle = gizmo.material.clone();
+                    }
+                }
+            }
+        }
+
+        if !mouse.pressed(MouseButton::Left) || ui.mouse_over {
             local.active_gizmo = None;
             local.drag_last_y = None;
-        }
-    }
-
-    for (element, mut mat_handle) in q_material.iter_mut() {
-        let parent = q_parent.iter_ancestors(element).next();
-        if let Some(parent) = parent {
-            if Some(parent) == local.active_gizmo {
-                *mat_handle = materials.ui_selected.clone();
-            } else if let Ok((gizmo, _)) = q_gizmo.get(parent) {
-                *mat_handle = gizmo.material.clone();
-            }
         }
     }
 }
