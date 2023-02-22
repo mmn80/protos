@@ -80,7 +80,7 @@ fn update_side_panel(
     if let Some(window) = windows.get_primary() {
         if let Some(mouse_pos) = window.cursor_position() {
             state.mouse_over = mouse_pos.x <= SIDE_PANEL_WIDTH;
-            if !state.mouse_over && !q_selected.is_empty() {
+            if !state.mouse_over && state.selected_show_inspector && !q_selected.is_empty() {
                 state.mouse_over = mouse_pos.x >= window.width() - INSPECTOR_WIDTH;
             }
         }

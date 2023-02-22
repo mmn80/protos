@@ -258,7 +258,7 @@ fn update_move_gizmos(
 
 fn add_gizmo(
     res: &MoveGizmoRes,
-    rapier_ctx: &Res<RapierContext>,
+    rapier: &Res<RapierContext>,
     sel: Entity,
     sel_trans: &GlobalTransform,
     pos: Vec3,
@@ -266,16 +266,16 @@ fn add_gizmo(
     dir_x: Vec3,
     material: Handle<StandardMaterial>,
     gizmo_handle: MoveGizmoHandle,
-    commands: &mut Commands,
+    cmd: &mut Commands,
 ) {
     if let Some((_ent, attach_point_toi)) =
-        rapier_ctx.cast_ray(pos, dir_y, 50., false, QueryFilter::new())
+        rapier.cast_ray(pos, dir_y, 50., false, QueryFilter::new())
     {
         let inverse = sel_trans.affine().inverse();
         let attach_point = inverse.transform_point3(pos + attach_point_toi * dir_y);
         let dir_x = inverse.transform_vector3(dir_x).normalize();
         let dir_y = inverse.transform_vector3(dir_y).normalize();
-        commands.entity(sel).with_children(|parent| {
+        cmd.entity(sel).with_children(|parent| {
             let rotation = Quat::from_mat3(&Mat3::from_cols(
                 dir_x,
                 dir_y,
