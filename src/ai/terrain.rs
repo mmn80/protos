@@ -3,14 +3,14 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     mesh::lines::{LineList, LineMaterial},
-    ui::basic_materials::{BasicMaterialsRes, SetupBasicMaterialsSystem},
+    ui::basic_materials::BasicMaterialsRes,
 };
 
 pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_terrain.after(SetupBasicMaterialsSystem))
+        app.add_startup_system(setup_terrain)
             .add_system(display_events);
     }
 }
@@ -31,7 +31,7 @@ fn setup_terrain(
                 ground_size.y,
                 ground_size.z,
             ))),
-            material: materials.terrain.clone().unwrap(),
+            material: materials.terrain.clone(),
             ..default()
         },
         RigidBody::Fixed,

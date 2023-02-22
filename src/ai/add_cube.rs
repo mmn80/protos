@@ -103,15 +103,12 @@ fn add_cube_ui(
             if res.state == AddCubeUiState::PickAttachP0 {
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.ui_transparent.clone();
-                    if let (Some(material), Some((attach_ent, hit))) = (
-                        material,
-                        rapier.cast_ray_and_get_normal(
-                            ray.origin,
-                            ray.direction,
-                            1000.,
-                            false,
-                            QueryFilter::new(),
-                        ),
+                    if let Some((attach_ent, hit)) = rapier.cast_ray_and_get_normal(
+                        ray.origin,
+                        ray.direction,
+                        1000.,
+                        false,
+                        QueryFilter::new(),
                     ) {
                         let p0_n = hit.normal.normalize();
                         let p0 = hit.point;
@@ -190,7 +187,7 @@ fn add_cube_ui(
                                         mesh: meshes.add(Mesh::from(shape::Box::new(
                                             scale.x, scale.y, scale.z,
                                         ))),
-                                        material: material.unwrap(),
+                                        material,
                                         ..default()
                                     },
                                     Selectable,
@@ -254,7 +251,7 @@ fn shoot_balls(
 ) {
     if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
         if let Ok(camera) = q_camera.get_single() {
-            if let (Some(ray), Some(mat)) = (camera.mouse_ray, materials.gold.clone()) {
+            if let Some(ray) = camera.mouse_ray {
                 if mouse.just_pressed(MouseButton::Left) {
                     cmd.spawn((
                         PbrBundle {
@@ -263,7 +260,7 @@ fn shoot_balls(
                                 radius: 1.,
                                 subdivisions: 20,
                             })),
-                            material: mat,
+                            material: materials.gold.clone(),
                             ..default()
                         },
                         ShootyBall,
