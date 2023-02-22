@@ -129,7 +129,7 @@ fn add_handles(
                                 axis: *axis,
                                 material: material.clone(),
                             },
-                            // RigidBody::KinematicPositionBased,
+                            RigidBody::KinematicPositionBased,
                         ))
                         .with_children(|parent| {
                             parent.spawn((
