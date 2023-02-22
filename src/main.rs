@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{app::AppExit, prelude::*};
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 use bevy_rapier3d::prelude::*;
@@ -42,5 +42,12 @@ fn main() {
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)
         .add_plugin(BuildingPlugin)
+        .add_system(exit_system)
         .run();
+}
+
+fn exit_system(keyboard: Res<Input<KeyCode>>, mut exit: EventWriter<AppExit>) {
+    if keyboard.just_released(KeyCode::Q) && keyboard.pressed(KeyCode::LControl) {
+        exit.send(AppExit);
+    }
 }
