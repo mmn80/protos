@@ -12,6 +12,7 @@ rand_distr = "0.4"
 futures-lite = "1.12"
 bevy = "0.9"
 bevy_egui = "0.19"
+bevy-inspector-egui = "0.17"
 bevy_rapier3d = { version = "0.20", features = [ "simd-stable", "debug-render" ] }
 parry3d = "0.13"
 

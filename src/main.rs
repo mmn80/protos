@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use bevy_egui::EguiPlugin;
+use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
@@ -27,6 +28,7 @@ fn main() {
             ..Default::default()
         })
         .add_plugin(EguiPlugin)
+        .add_plugin(DefaultInspectorConfigPlugin)
         .add_plugin(SidePanelPlugin)
         .add_plugin(SelectionPlugin)
         .add_plugin(LinesPlugin)

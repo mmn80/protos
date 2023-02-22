@@ -11,11 +11,11 @@ impl Plugin for BuildingPlugin {
 }
 
 #[derive(Resource)]
-struct BuildingsRes {
+pub struct BuildingsRes {
     pub materials: Option<BuildingsMaterials>,
 }
 
-struct BuildingsMaterials {
+pub struct BuildingsMaterials {
     pub ui_mat: Handle<StandardMaterial>,
     pub floor_mat: Handle<StandardMaterial>,
     pub wall_mat: Handle<StandardMaterial>,
@@ -33,7 +33,7 @@ impl Default for BuildingsRes {
 /// Pathfinding in a building is hierarchical. First a generic path is found in the graph of rooms & doors,
 /// then, optionally, explicit paths in each room's nav mesh.
 #[derive(Component)]
-struct Building;
+pub struct Building;
 
 /// Top level element of buildings. Contains purely physical elements such as floor tiles & walls,
 /// and navigation elements, such as rooms & doors.
@@ -41,32 +41,32 @@ struct Building;
 /// Can be resized, leading to cascaded resizing of anchored floor tiles & walls, & optionally floor(s) above.
 /// Can be extended by extruding from a selected section, leading to generating new external walls & optionally floor(s) above.
 #[derive(Component)]
-struct Floor;
+pub struct Floor;
 
 /// Navigable element of floors (anchored). Has collider(s).
 #[derive(Component)]
-struct FloorTile;
+pub struct FloorTile;
 
 /// Blocking element of floors (anchored). Containes wall tiles.
 ///
 /// May also be anchored to the floor above & become tilted.
 #[derive(Component)]
-struct Wall;
+pub struct Wall;
 
 /// Element of walls (anchored). Has collider(s).
 #[derive(Component)]
-struct WallTile;
+pub struct WallTile;
 
 /// Navigation element. Has nav mesh(es). Origin at center of main entrance. Contains furniture.
 #[derive(Component)]
-struct Room;
+pub struct Room;
 
 /// Navigation element connecting 2 rooms (nav meshes), or 1 room & outside. Origin at center of door.
 ///
 /// Contains door furniture. Anchored to wall tiles.
 /// Adding a door splits a wall tile into 3: one above, one to the left & one to the right.
 #[derive(Component)]
-struct Door {
+pub struct Door {
     /// If this is None, then it's a door leading to outside the building.
     pub outside: Option<Entity>,
     /// A room entity.
@@ -81,16 +81,23 @@ struct Door {
 
 /// Special type of floor laied onto the ground.
 #[derive(Component)]
-struct Foundation;
+pub struct Foundation;
 
 /// Special type of floor. May have no rooms or doors.
 #[derive(Component)]
-struct Roof;
+pub struct Roof;
 
-/// A special type of room. Entrance to a floor.
+/// A special type of room. Entrance to a floor (for people).
+///
 /// Contains a door leading to another floor's room, or outside.
 #[derive(Component)]
-struct Stairs;
+pub struct Stairs;
+
+/// A special type of room. Entrance to a floor (for vehicles).
+///
+/// Contains a door leading to another floor's room, or outside.
+#[derive(Component)]
+pub struct Ramp;
 
 fn setup_buildings(mut res: ResMut<BuildingsRes>, mut materials: ResMut<Assets<StandardMaterial>>) {
     res.materials = Some(BuildingsMaterials {

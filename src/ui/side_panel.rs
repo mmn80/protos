@@ -19,7 +19,8 @@ impl Plugin for SidePanelPlugin {
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
             .insert_resource(SidePanelState::default())
             .add_startup_system(configure_egui)
-            .add_system(update_side_panel);
+            .add_system(update_side_panel)
+            .add_system(inspector_ui);
     }
 }
 
@@ -39,6 +40,7 @@ pub struct SidePanelState {
     pub mouse_over: bool,
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
+    pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
     pub selected_show_path: bool,
@@ -51,11 +53,15 @@ impl Default for SidePanelState {
             mode: UiMode::Select,
             rapier_debug_enabled: false,
             selected_show_names: true,
+            selected_show_inspector: false,
             selected_show_move_gizmo: true,
             selected_show_path: true,
         }
     }
 }
+
+const SIDE_PANEL_WIDTH: f32 = 250.;
+const INSPECTOR_WIDTH: f32 = 300.;
 
 fn update_side_panel(
     mut egui_ctx: ResMut<EguiContext>,
@@ -63,7 +69,7 @@ fn update_side_panel(
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    q_selected: Query<Option<&Name>, With<Selected>>,
+    q_selected: Query<(Entity, Option<&Name>), With<Selected>>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -73,12 +79,15 @@ fn update_side_panel(
     state.mouse_over = true;
     if let Some(window) = windows.get_primary() {
         if let Some(mouse_pos) = window.cursor_position() {
-            state.mouse_over = mouse_pos.x <= 200.;
+            state.mouse_over = mouse_pos.x <= SIDE_PANEL_WIDTH;
+            if !state.mouse_over && !q_selected.is_empty() {
+                state.mouse_over = mouse_pos.x >= window.width() - INSPECTOR_WIDTH;
+            }
         }
     }
 
     egui::SidePanel::left("side_panel")
-        .default_width(200.0)
+        .exact_width(SIDE_PANEL_WIDTH)
         .show(egui_ctx.ctx_mut(), |ui| {
             let fps = diagnostics
                 .get_measurement(FrameTimeDiagnosticsPlugin::FPS)
@@ -100,6 +109,7 @@ fn update_side_panel(
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.checkbox(&mut state.selected_show_names, "Show names");
+                    ui.checkbox(&mut state.selected_show_inspector, "Show inspector");
                     ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmos");
                     ui.checkbox(&mut state.selected_show_path, "Show paths");
 
@@ -110,9 +120,11 @@ fn update_side_panel(
                             egui::Color32::DARK_GREEN,
                             format!("{} objects selected:", selected.len()),
                         );
-                        for name in selected.iter().take(20) {
+                        for (ent, name) in selected.iter().take(20) {
                             if let Some(name) = name {
                                 ui.label(format!("- {}", name.as_str()));
+                            } else {
+                                ui.label(format!("- {:?}", ent));
                             }
                         }
                         if selected.len() > 20 {
@@ -136,4 +148,45 @@ fn update_side_panel(
                     ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot balls");
                 });
         });
+}
+
+fn inspector_ui(world: &mut World) {
+    let egui_context = world
+        .resource_mut::<bevy_egui::EguiContext>()
+        .ctx_mut()
+        .clone();
+
+    {
+        let state = world.resource::<SidePanelState>();
+        if !state.selected_show_inspector {
+            return;
+        }
+    }
+
+    let selected = {
+        let mut q_selected = world.query_filtered::<(Entity, Option<&Name>), With<Selected>>();
+        q_selected.iter(&world).next().map(|(entity, name)| {
+            (
+                entity,
+                if let Some(name) = name {
+                    format!("Inspector: {}", name.as_str())
+                } else {
+                    format!("Inspector: {:?}", entity)
+                },
+            )
+        })
+    };
+
+    if let Some((entity, name)) = selected {
+        egui::SidePanel::right("inspector")
+            .exact_width(INSPECTOR_WIDTH)
+            .show(&egui_context, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.heading(name);
+                    bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
+                        world, entity, ui,
+                    );
+                });
+            });
+    }
 }
