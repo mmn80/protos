@@ -28,7 +28,7 @@ enum AddCubeUiState {
     PickAttachP0,
     PickAttachP1,
     PickAttachP2,
-    PickLength,
+    PickHeight,
 }
 
 impl Default for AddCubeUiState {
@@ -40,12 +40,13 @@ impl Default for AddCubeUiState {
 #[derive(Default)]
 struct AddCubeUiRes {
     state: AddCubeUiState,
-    attach_p0: Option<Vec3>,
-    attach_p0_normal: Option<Vec3>,
-    attach_p1: Option<Vec3>,
-    attach_p2: Option<Vec3>,
-    length: Option<f32>,
+    attach: Option<Entity>,
     cube: Option<Entity>,
+    p0: Option<Vec3>,
+    p0_n: Option<Vec3>,
+    p1: Option<Vec3>,
+    p2: Option<Vec3>,
+    height: Option<f32>,
 }
 
 const CUBE_INIT_LEN: f32 = 0.1;
@@ -68,25 +69,16 @@ fn add_cube_ui(
         }
 
         if let Some(cube) = state.cube {
-            if let (Ok(mut cube_trans), Some(p0), Some(p0_n), Some(p1)) = (
-                q_trans.get_mut(cube),
-                state.attach_p0,
-                state.attach_p0_normal,
-                state.attach_p1,
-            ) {
+            if let (Ok(mut cube_tr), Some(p0), Some(p0_n), Some(p1)) =
+                (q_trans.get_mut(cube), state.p0, state.p0_n, state.p1)
+            {
                 let dir_x = (p1 - p0).normalize();
-                cube_trans.rotation =
+                cube_tr.rotation =
                     Quat::from_mat3(&Mat3::from_cols(dir_x, p0_n, dir_x.cross(p0_n).normalize()));
-                let length = state.length.unwrap_or(CUBE_INIT_LEN);
-                cube_trans.translation = (p0 + p1 + length * cube_trans.up()) / 2.;
-                let p2 = state
-                    .attach_p2
-                    .unwrap_or(p1 + cube_trans.back() * CUBE_INIT_LEN);
-                cube_trans.scale = Vec3::new(
-                    (p1 - p0).length(),
-                    length,
-                    (p2 - p1).dot(cube_trans.back()).abs() * 2.,
-                );
+                let height = state.height.unwrap_or(CUBE_INIT_LEN);
+                cube_tr.translation = (p0 + p1 + height * cube_tr.up()) / 2.;
+                let p2 = state.p2.unwrap_or(p1 + cube_tr.back() * CUBE_INIT_LEN);
+                cube_tr.scale = Vec3::new((p1 - p0).length(), height, (p2 - p1).length() * 2.);
             }
         }
 
@@ -109,20 +101,12 @@ fn add_cube_ui(
                         let p0_n = hit.normal.normalize();
                         let p0 = hit.point;
 
-                        state.attach_p0 = Some(p0);
-                        state.attach_p0_normal = Some(p0_n);
+                        state.attach = Some(attach);
+                        state.p0 = Some(p0);
+                        state.p0_n = Some(p0_n);
                         state.state = AddCubeUiState::PickAttachP1;
 
-                        let attach_tr = q_global_trans.get(attach).unwrap();
-                        let dir_x = {
-                            let dir_x = p0_n.cross(attach_tr.back());
-                            if dir_x.length() < 0.01 {
-                                p0_n.cross(attach_tr.up())
-                            } else {
-                                dir_x
-                            }
-                            .normalize()
-                        };
+                        let dir_x = p0_n.any_orthonormal_vector();
                         state.cube = Some(
                             cmd.spawn((
                                 PbrBundle {
@@ -147,59 +131,74 @@ fn add_cube_ui(
                     }
                 }
             } else if state.state == AddCubeUiState::PickAttachP1 {
-                let p0 = state.attach_p0.unwrap();
-                let normal = state.attach_p0_normal.unwrap();
-                if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &normal.into(), &ray_p) {
-                    state.attach_p1 = Some(ray.origin + toi * ray.direction);
+                let p0 = state.p0.unwrap();
+                let p0_n = state.p0_n.unwrap();
+                if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) {
+                    let mut p1 = ray.origin + toi * ray.direction;
+                    if let Ok(attach_tr) = q_global_trans.get(state.attach.unwrap()) {
+                        let dp = p1 - p0;
+                        let dp_len = dp.length();
+                        for snap in [attach_tr.up(), attach_tr.right(), attach_tr.back()] {
+                            let len = dp.dot(snap);
+                            if dp_len - len.abs() < 0.1 {
+                                p1 = p0 - len * p0_n.cross(p0_n.cross(snap)).normalize();
+                                break;
+                            }
+                        }
+                    }
+                    state.p1 = Some(p1);
                     if mouse.just_pressed(MouseButton::Left) {
                         state.state = AddCubeUiState::PickAttachP2;
                     }
                 }
             } else if state.state == AddCubeUiState::PickAttachP2 {
-                let p0 = state.attach_p0.unwrap();
-                let normal = state.attach_p0_normal.unwrap();
-                if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &normal.into(), &ray_p) {
-                    state.attach_p2 = Some(ray.origin + toi * ray.direction);
+                let p0 = state.p0.unwrap();
+                let p0_n = state.p0_n.unwrap();
+                let p1 = state.p1.unwrap();
+                if let (Some(toi), Ok(cube_trans)) = (
+                    ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p),
+                    q_trans.get(state.cube.unwrap()),
+                ) {
+                    let p2 = ray.origin + toi * ray.direction;
+                    let len = (p2 - p1).dot(cube_trans.back());
+                    state.p2 = Some(p1 + len * cube_trans.back());
                     if mouse.just_pressed(MouseButton::Left) {
-                        state.state = AddCubeUiState::PickLength;
+                        state.state = AddCubeUiState::PickHeight;
                     }
                 }
-            } else if state.state == AddCubeUiState::PickLength {
-                if let Ok(cube) = q_global_trans.get(state.cube.unwrap()) {
-                    if mouse.just_pressed(MouseButton::Left) {
-                        let material = materials.salmon.clone();
-                        let (scale, rotation) = {
-                            let srt = cube.to_scale_rotation_translation();
-                            (srt.0, srt.1)
-                        };
-                        cmd.spawn((
-                            PbrBundle {
-                                transform: Transform::from_translation(cube.translation())
-                                    .with_rotation(rotation),
-                                mesh: meshes
-                                    .add(Mesh::from(shape::Box::new(scale.x, scale.y, scale.z))),
-                                material,
-                                ..default()
-                            },
-                            Selectable,
-                            ScreenPosition::default(),
-                            RigidBody::KinematicPositionBased,
-                            Collider::cuboid(scale.x / 2., scale.y / 2., scale.z / 2.),
-                        ));
-                        clear_ui_state(&mut state, &mut cmd);
-                    } else {
-                        let p2 = state.attach_p2.unwrap();
-                        if let (Some(toi0), Some(toi1)) = (
-                            ray_toi_with_halfspace(&p2.into(), &cube.right().into(), &ray_p),
-                            ray_toi_with_halfspace(&p2.into(), &cube.back().into(), &ray_p),
-                        ) {
-                            let i0 = ray.origin + toi0 * ray.direction;
-                            let i1 = ray.origin + toi1 * ray.direction;
-                            let p2_y = cube.up().dot(p2);
-                            let y0 = cube.up().dot(i0);
-                            let y1 = cube.up().dot(i1);
-                            state.length = Some(((y0 + y1) / 2. - p2_y).max(CUBE_INIT_LEN));
-                        }
+            } else if state.state == AddCubeUiState::PickHeight {
+                let cube_tr = q_trans.get(state.cube.unwrap()).unwrap();
+                if mouse.just_pressed(MouseButton::Left) {
+                    let material = materials.salmon.clone();
+                    let s = cube_tr.scale;
+
+                    cmd.spawn((
+                        PbrBundle {
+                            transform: Transform::from_translation(cube_tr.translation)
+                                .with_rotation(cube_tr.rotation),
+                            mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                            material,
+                            ..default()
+                        },
+                        Selectable,
+                        ScreenPosition::default(),
+                        RigidBody::KinematicPositionBased,
+                        Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                    ));
+
+                    clear_ui_state(&mut state, &mut cmd);
+                } else {
+                    let p2 = state.p2.unwrap();
+                    if let (Some(toi0), Some(toi1)) = (
+                        ray_toi_with_halfspace(&p2.into(), &cube_tr.right().into(), &ray_p),
+                        ray_toi_with_halfspace(&p2.into(), &cube_tr.back().into(), &ray_p),
+                    ) {
+                        let i0 = ray.origin + toi0 * ray.direction;
+                        let i1 = ray.origin + toi1 * ray.direction;
+                        let p2_y = cube_tr.up().dot(p2);
+                        let y0 = cube_tr.up().dot(i0);
+                        let y1 = cube_tr.up().dot(i1);
+                        state.height = Some(((y0 + y1) / 2. - p2_y).max(CUBE_INIT_LEN));
                     }
                 }
             }
@@ -211,15 +210,16 @@ fn add_cube_ui(
 
 fn clear_ui_state(state: &mut AddCubeUiRes, cmd: &mut Commands) {
     state.state = AddCubeUiState::None;
-    state.attach_p0 = None;
-    state.attach_p0_normal = None;
-    state.attach_p1 = None;
-    state.attach_p2 = None;
-    state.length = None;
+    state.attach = None;
     if let Some(cube) = state.cube {
         cmd.entity(cube).despawn_recursive();
     }
     state.cube = None;
+    state.p0 = None;
+    state.p0_n = None;
+    state.p1 = None;
+    state.p2 = None;
+    state.height = None;
 }
 
 #[derive(Component)]
