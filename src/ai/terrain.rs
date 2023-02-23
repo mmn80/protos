@@ -16,10 +16,10 @@ impl Plugin for TerrainPlugin {
 }
 
 fn setup_terrain(
-    mut cmd: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
-    materials: Res<BasicMaterialsRes>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
+    materials: Res<BasicMaterialsRes>,
+    mut cmd: Commands,
 ) {
     let ground_size = Vec3::new(200.0, 1.0, 200.0);
 
