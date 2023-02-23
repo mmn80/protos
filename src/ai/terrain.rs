@@ -10,12 +10,19 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_terrain)
+        app.insert_resource(TerrainRes::default())
+            .add_startup_system(setup_terrain)
             .add_system(display_events);
     }
 }
 
+#[derive(Resource, Default)]
+pub struct TerrainRes {
+    pub ground: Option<Entity>,
+}
+
 fn setup_terrain(
+    mut terrain: ResMut<TerrainRes>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
     materials: Res<BasicMaterialsRes>,
@@ -23,20 +30,23 @@ fn setup_terrain(
 ) {
     let ground_size = Vec3::new(200.0, 1.0, 200.0);
 
-    cmd.spawn((
-        PbrBundle {
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            mesh: meshes.add(Mesh::from(shape::Box::new(
-                ground_size.x,
-                ground_size.y,
-                ground_size.z,
-            ))),
-            material: materials.terrain.clone(),
-            ..default()
-        },
-        RigidBody::Fixed,
-        Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
-    ));
+    terrain.ground = Some(
+        cmd.spawn((
+            PbrBundle {
+                transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                mesh: meshes.add(Mesh::from(shape::Box::new(
+                    ground_size.x,
+                    ground_size.y,
+                    ground_size.z,
+                ))),
+                material: materials.terrain.clone(),
+                ..default()
+            },
+            RigidBody::Fixed,
+            Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
+        ))
+        .id(),
+    );
 
     let mut lines = vec![
         (

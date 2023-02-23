@@ -14,6 +14,11 @@ use crate::{
     },
 };
 
+use super::{
+    joints::{HingeChild, HingeParent},
+    terrain::TerrainRes,
+};
+
 pub struct AddCubePlugin;
 
 impl Plugin for AddCubePlugin {
@@ -58,6 +63,7 @@ fn add_cube_ui(
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     q_camera: Query<&MainCamera>,
+    terrain: Res<TerrainRes>,
     mut q_trans: Query<&mut Transform>,
     q_global_trans: Query<&GlobalTransform>,
     mut cmd: Commands,
@@ -72,13 +78,13 @@ fn add_cube_ui(
             if let (Ok(mut cube_tr), Some(p0), Some(p0_n), Some(p1)) =
                 (q_trans.get_mut(cube), state.p0, state.p0_n, state.p1)
             {
+                let height = state.height.unwrap_or(CUBE_INIT_LEN);
                 let dir_x = (p1 - p0).normalize();
                 cube_tr.rotation =
                     Quat::from_mat3(&Mat3::from_cols(dir_x, p0_n, dir_x.cross(p0_n).normalize()));
-                let height = state.height.unwrap_or(CUBE_INIT_LEN);
-                cube_tr.translation = (p0 + p1 + height * cube_tr.up()) / 2.;
                 let p2 = state.p2.unwrap_or(p1 + cube_tr.back() * CUBE_INIT_LEN);
-                cube_tr.scale = Vec3::new((p1 - p0).length(), height, (p2 - p1).length() * 2.);
+                cube_tr.translation = (p0 + p2 + height * cube_tr.up()) / 2.;
+                cube_tr.scale = Vec3::new((p1 - p0).length(), height, (p2 - p1).length());
             }
         }
 
@@ -88,6 +94,7 @@ fn add_cube_ui(
 
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
+
             if state.state == AddCubeUiState::PickAttachP0 {
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.ui_transparent.clone();
@@ -96,7 +103,7 @@ fn add_cube_ui(
                         ray.direction,
                         1000.,
                         false,
-                        QueryFilter::new(),
+                        QueryFilter::new().exclude_sensors(),
                     ) {
                         let p0_n = hit.normal.normalize();
                         let p0 = hit.point;
@@ -154,11 +161,9 @@ fn add_cube_ui(
             } else if state.state == AddCubeUiState::PickAttachP2 {
                 let p0 = state.p0.unwrap();
                 let p0_n = state.p0_n.unwrap();
-                let p1 = state.p1.unwrap();
-                if let (Some(toi), Ok(cube_trans)) = (
-                    ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p),
-                    q_trans.get(state.cube.unwrap()),
-                ) {
+                if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) {
+                    let cube_trans = q_trans.get(state.cube.unwrap()).unwrap();
+                    let p1 = state.p1.unwrap();
                     let p2 = ray.origin + toi * ray.direction;
                     let len = (p2 - p1).dot(cube_trans.back());
                     state.p2 = Some(p1 + len * cube_trans.back());
@@ -171,20 +176,44 @@ fn add_cube_ui(
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.salmon.clone();
                     let s = cube_tr.scale;
+                    let child_trans = Transform::from_translation(cube_tr.translation)
+                        .with_rotation(cube_tr.rotation);
 
-                    cmd.spawn((
-                        PbrBundle {
-                            transform: Transform::from_translation(cube_tr.translation)
-                                .with_rotation(cube_tr.rotation),
-                            mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
-                            material,
-                            ..default()
-                        },
-                        Selectable,
-                        ScreenPosition::default(),
-                        RigidBody::KinematicPositionBased,
-                        Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                    ));
+                    let child = cmd
+                        .spawn((
+                            PbrBundle {
+                                transform: child_trans,
+                                mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                material,
+                                ..default()
+                            },
+                            Selectable,
+                            ScreenPosition::default(),
+                            RigidBody::KinematicPositionBased,
+                            Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                        ))
+                        .id();
+
+                    if terrain.ground.unwrap() != state.attach.unwrap() {
+                        let anchor = (state.p0.unwrap() + state.p1.unwrap()) / 2.;
+                        let attach_tr = q_global_trans.get(state.attach.unwrap()).unwrap();
+
+                        cmd.entity(child).insert(HingeChild {
+                            angle: 0.,
+                            axis: child_trans.right(),
+                            local_anchor_child: child_trans
+                                .compute_affine()
+                                .inverse()
+                                .transform_point3(anchor),
+                            local_anchor_parent: attach_tr
+                                .affine()
+                                .inverse()
+                                .transform_point3(anchor),
+                            parent: state.attach.unwrap(),
+                        });
+
+                        cmd.entity(state.attach.unwrap()).insert(HingeParent);
+                    }
 
                     clear_ui_state(&mut state, &mut cmd);
                 } else {

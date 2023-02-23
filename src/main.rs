@@ -4,7 +4,10 @@ use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
-    ai::{add_cube::AddCubePlugin, building::BuildingPlugin, terrain::TerrainPlugin},
+    ai::{
+        add_cube::AddCubePlugin, building::BuildingPlugin, joints::JointsPlugin,
+        terrain::TerrainPlugin,
+    },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     mesh::lines::LinesPlugin,
@@ -40,6 +43,7 @@ fn main() {
         .add_plugin(MoveGizmoPlugin)
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
+        .add_plugin(JointsPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)
         .add_plugin(BuildingPlugin)
