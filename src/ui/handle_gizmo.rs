@@ -6,7 +6,10 @@ use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
 use super::{basic_materials::BasicMaterialsRes, side_panel::SidePanelState};
-use crate::{camera::MainCamera, mesh::cone::Cone};
+use crate::{
+    camera::MainCamera,
+    mesh::{cone::Cone, cylinder::Cylinder},
+};
 
 pub struct HandleGizmoPlugin;
 
@@ -74,14 +77,19 @@ pub struct HandleGizmoElement;
 
 #[derive(Default)]
 struct HandleGizmoMeshes {
+    pub base: Option<Handle<Mesh>>,
     pub bar: Option<Handle<Mesh>>,
     pub cone: Option<Handle<Mesh>>,
+    pub ball: Option<Handle<Mesh>>,
 }
 
+const BASE_W: f32 = 0.8;
+const BASE_H: f32 = 0.1;
 const BAR_H: f32 = 2.0;
 const BAR_W: f32 = 0.1;
 const CONE_W: f32 = 0.8;
 const CONE_H: f32 = 1.0;
+const BALL_R: f32 = 0.5;
 
 fn add_handles(
     mut local: Local<HandleGizmoMeshes>,
@@ -91,11 +99,30 @@ fn add_handles(
     q_global_trans: Query<&GlobalTransform>,
     mut cmd: Commands,
 ) {
+    if local.base.is_none() {
+        local.base = Some(meshes.add(Mesh::from(Cylinder {
+            radius: BASE_W / 2.,
+            height: BASE_H,
+            resolution: 20,
+            segments: 1,
+        })));
+    }
     if local.bar.is_none() {
-        local.bar = Some(meshes.add(Mesh::from(shape::Box::new(BAR_W, BAR_H, BAR_W))));
+        local.bar = Some(meshes.add(Mesh::from(Cylinder {
+            radius: BAR_W / 2.,
+            height: BAR_H,
+            resolution: 10,
+            segments: 1,
+        })));
     }
     if local.cone.is_none() {
         local.cone = Some(meshes.add(Mesh::from(Cone::new(CONE_W / 2., CONE_H, 10))));
+    }
+    if local.ball.is_none() {
+        local.ball = Some(meshes.add(Mesh::from(shape::Icosphere {
+            radius: BALL_R,
+            subdivisions: 20,
+        })));
     }
 
     for AddHandleGizmo {
@@ -132,9 +159,24 @@ fn add_handles(
                             RigidBody::KinematicPositionBased,
                         ))
                         .with_children(|parent| {
+                            let mut dist = 0.;
                             parent.spawn((
                                 PbrBundle {
-                                    transform: Transform::from_xyz(0., BAR_H / 2., 0.),
+                                    transform: Transform::from_xyz(0., BASE_H / 2. + dist, 0.),
+                                    mesh: local.base.clone().unwrap(),
+                                    material: material.clone(),
+                                    ..default()
+                                },
+                                NotShadowCaster,
+                                NotShadowReceiver,
+                                HandleGizmoElement,
+                                Collider::cylinder(BASE_H / 2., BASE_W / 2.),
+                                Sensor,
+                            ));
+                            dist += BASE_H;
+                            parent.spawn((
+                                PbrBundle {
+                                    transform: Transform::from_xyz(0., dist + BAR_H / 2., 0.),
                                     mesh: local.bar.clone().unwrap(),
                                     material: material.clone(),
                                     ..default()
@@ -145,17 +187,18 @@ fn add_handles(
                                 Collider::cuboid(BAR_W / 2., BAR_H / 2., BAR_W / 2.),
                                 Sensor,
                             ));
+                            dist += BAR_H;
                             parent.spawn((
                                 PbrBundle {
-                                    transform: Transform::from_xyz(0., BAR_H + CONE_H / 2., 0.),
-                                    mesh: local.cone.clone().unwrap(),
+                                    transform: Transform::from_xyz(0., dist + BALL_R, 0.),
+                                    mesh: local.ball.clone().unwrap(),
                                     material: material.clone(),
                                     ..default()
                                 },
                                 NotShadowCaster,
                                 NotShadowReceiver,
                                 HandleGizmoElement,
-                                Collider::cone(CONE_H / 2., CONE_W / 2.),
+                                Collider::ball(BALL_R),
                                 Sensor,
                             ));
                         });

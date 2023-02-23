@@ -1,12 +1,10 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
 
 pub struct BuildingPlugin;
 
 impl Plugin for BuildingPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(BuildingsRes::default())
-            .add_startup_system(setup_buildings);
+        app.insert_resource(BuildingsRes::default());
     }
 }
 
@@ -89,5 +87,3 @@ pub struct Stairs;
 /// Contains a door leading to another floor's room, or outside.
 #[derive(Component)]
 pub struct Ramp;
-
-fn setup_buildings(mut res: ResMut<BuildingsRes>) {}
