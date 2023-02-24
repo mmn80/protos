@@ -1,14 +1,18 @@
 use bevy::{prelude::*, transform::TransformSystem};
 use std::f32::consts::PI;
 
+use crate::mesh::cylinder::Cylinder;
+
 pub struct JointsPlugin;
 
 impl Plugin for JointsPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<KinematicHinge>().add_system_to_stage(
-            CoreStage::PostUpdate,
-            process_joints.before(TransformSystem::TransformPropagate),
-        );
+        app.register_type::<KinematicHinge>()
+            .add_system_to_stage(
+                CoreStage::PostUpdate,
+                process_joints.before(TransformSystem::TransformPropagate),
+            )
+            .add_system(add_joint_mesh);
     }
 }
 
@@ -17,6 +21,7 @@ pub struct KinematicHinge {
     pub target_angle: f32,
     pub axis: Vec3,
     pub anchor: Vec3,
+    pub length: f32,
     pub start_dir_up: Vec3,
     pub speed: f32,
 }
@@ -59,5 +64,43 @@ fn process_joints(
         } else {
             cmd.entity(entity).remove::<KinematicHingeMoving>();
         }
+    }
+}
+
+fn add_joint_mesh(
+    mut meshes: ResMut<Assets<Mesh>>,
+    q_hinge: Query<
+        (
+            Entity,
+            &Transform,
+            &Handle<StandardMaterial>,
+            &KinematicHinge,
+        ),
+        Added<KinematicHinge>,
+    >,
+    mut cmd: Commands,
+) {
+    for (entity, tr, material, hinge) in &q_hinge {
+        cmd.entity(entity).with_children(|children| {
+            let dir_y = tr.compute_affine().inverse().transform_vector3(hinge.axis);
+            let dir_x = dir_y.any_orthonormal_vector();
+            children.spawn(PbrBundle {
+                transform: Transform::from_translation(hinge.anchor).with_rotation(
+                    Quat::from_mat3(&Mat3::from_cols(
+                        dir_x,
+                        dir_y,
+                        dir_x.cross(dir_y).normalize(),
+                    )),
+                ),
+                mesh: meshes.add(Mesh::from(Cylinder {
+                    radius: 0.1,
+                    height: hinge.length,
+                    resolution: 5,
+                    segments: 1,
+                })),
+                material: material.clone(),
+                ..default()
+            });
+        });
     }
 }

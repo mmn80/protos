@@ -195,17 +195,19 @@ fn add_cube_ui(
                             Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
                         ));
                         if terrain.ground.unwrap() != attach {
-                            let anchor = (state.p0.unwrap() + state.p1.unwrap()) / 2.;
+                            let (p0, p1) = (state.p0.unwrap(), state.p1.unwrap());
+                            let anchor = (p0 + p1) / 2.;
+                            let new_cube_inv = new_cube_tr.compute_affine().inverse();
                             let anchor_attach = attach_inv.transform_point3(anchor);
-                            let anchor_new_cube = new_cube_tr
-                                .compute_affine()
-                                .inverse()
-                                .transform_point3(anchor_attach);
+                            let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
+                            let hinge = new_cube_inv
+                                .transform_vector3(attach_inv.transform_vector3(p1 - p0));
 
                             new_cube.insert(KinematicHinge {
                                 target_angle: 0.,
                                 axis: new_cube_tr.right(),
                                 anchor: anchor_new_cube,
+                                length: hinge.length(),
                                 start_dir_up: new_cube_tr.up(),
                                 speed: 0.01,
                             });
