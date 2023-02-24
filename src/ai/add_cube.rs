@@ -204,12 +204,12 @@ fn add_cube_ui(
                                 .transform_vector3(attach_inv.transform_vector3(p1 - p0));
 
                             new_cube.insert(KinematicHinge {
-                                target_angle: 0.,
                                 axis: new_cube_tr.right(),
                                 anchor: anchor_new_cube,
                                 length: hinge.length(),
                                 start_dir_up: new_cube_tr.up(),
                                 speed: 0.01,
+                                show_mesh: true,
                             });
                         }
                     });

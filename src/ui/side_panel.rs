@@ -1,9 +1,13 @@
+use std::f32::consts::PI;
+
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
+
+use crate::ai::joints::{KinematicHinge, KinematicHingeCommand};
 
 use super::selection::Selected;
 
@@ -40,6 +44,7 @@ pub struct SidePanelState {
     pub mouse_over: bool,
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
+    hinge_target_angle: i16,
     pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
@@ -52,6 +57,7 @@ impl Default for SidePanelState {
             mouse_over: false,
             mode: UiMode::Select,
             rapier_debug_enabled: false,
+            hinge_target_angle: 0,
             selected_show_names: true,
             selected_show_inspector: false,
             selected_show_move_gizmo: true,
@@ -69,8 +75,9 @@ fn update_side_panel(
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
-    q_selected: Query<(Entity, Option<&Name>), With<Selected>>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
+    q_selected: Query<(Entity, Option<&Name>, Option<&KinematicHinge>), With<Selected>>,
+    mut cmd: Commands,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
         state.mode = UiMode::Select;
@@ -85,6 +92,8 @@ fn update_side_panel(
             }
         }
     }
+
+    let selected: Vec<_> = q_selected.iter().collect();
 
     egui::SidePanel::left("side_panel")
         .exact_width(SIDE_PANEL_WIDTH)
@@ -113,14 +122,13 @@ fn update_side_panel(
                     ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmos");
                     ui.checkbox(&mut state.selected_show_path, "Show paths");
 
-                    let selected: Vec<_> = q_selected.iter().collect();
                     if !selected.is_empty() {
                         ui.add_space(10.);
                         ui.colored_label(
                             egui::Color32::DARK_GREEN,
                             format!("{} objects selected:", selected.len()),
                         );
-                        for (ent, name) in selected.iter().take(20) {
+                        for (ent, name, _) in selected.iter().take(20) {
                             if let Some(name) = name {
                                 ui.label(format!("- {}", name.as_str()));
                             } else {
@@ -138,6 +146,19 @@ fn update_side_panel(
                 .show(ui, |ui| {
                     ui.checkbox(&mut state.rapier_debug_enabled, "Debug render");
                     debug_render_ctx.enabled = state.rapier_debug_enabled;
+
+                    if let Some((ent, _, Some(_))) = selected.first() {
+                        ui.add(
+                            egui::Slider::new(&mut state.hinge_target_angle, -180..=180)
+                                .text("angle"),
+                        );
+                        if ui.button("Add hinge target").clicked() {
+                            cmd.entity(*ent).insert(KinematicHingeCommand {
+                                target_angle: state.hinge_target_angle as f32 * PI / 180.,
+                                current_angle: 0.,
+                            });
+                        }
+                    }
                 });
 
             egui::CollapsingHeader::new("Ui mode")
