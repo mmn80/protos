@@ -203,9 +203,11 @@ fn add_cube_ui(
                                 .transform_point3(anchor_attach);
 
                             new_cube.insert(KinematicHinge {
-                                angle: 0.,
+                                target_angle: 0.,
                                 axis: new_cube_tr.right(),
                                 anchor: anchor_new_cube,
+                                start_dir_up: new_cube_tr.up(),
+                                speed: 0.01,
                             });
                         }
                     });
