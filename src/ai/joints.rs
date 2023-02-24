@@ -55,6 +55,7 @@ fn process_joints(
         Entity,
         &GlobalTransform,
         &mut Transform,
+        &Children,
         &Collider,
         &KinematicHinge,
         &mut KinematicHingeCommand,
@@ -62,7 +63,7 @@ fn process_joints(
     q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
-    for (entity, gtr, mut tr, collider, hinge, mut hinge_cmd) in &mut q_hinge {
+    for (entity, gtr, mut tr, children, collider, hinge, mut hinge_cmd) in &mut q_hinge {
         let srt = gtr.to_scale_rotation_translation();
         let parent = q_parent.iter_ancestors(entity).next();
 
@@ -73,7 +74,10 @@ fn process_joints(
             &collider,
             QueryFilter::new().exclude_sensors(),
             |colliding_ent| {
-                if colliding_ent == entity || parent == Some(colliding_ent) {
+                if colliding_ent == entity
+                    || parent == Some(colliding_ent)
+                    || children.contains(&colliding_ent)
+                {
                     true
                 } else {
                     warn!("We hit something: {:?}", colliding_ent);
