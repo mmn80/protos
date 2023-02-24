@@ -262,24 +262,24 @@ fn update_handles(
 
         if mouse.pressed(MouseButton::Left) && !ui.mouse_over {
             if let Some(active_gizmo) = local.active_gizmo {
-                if let (Some(target), Ok((gizmo, gizmo_tr))) = (
+                if let (Some(target), Ok((gizmo, gizmo_gtr))) = (
                     q_parent.iter_ancestors(active_gizmo).next(),
                     q_gizmo.get(active_gizmo),
                 ) {
                     let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-                    let center = gizmo_tr.transform_point(Vec3::ZERO);
+                    let center = gizmo_gtr.transform_point(Vec3::ZERO);
                     if let (Some(toi0), Some(toi1)) = (
-                        ray_toi_with_halfspace(&center.into(), &gizmo_tr.right().into(), &ray_p),
-                        ray_toi_with_halfspace(&center.into(), &gizmo_tr.back().into(), &ray_p),
+                        ray_toi_with_halfspace(&center.into(), &gizmo_gtr.right().into(), &ray_p),
+                        ray_toi_with_halfspace(&center.into(), &gizmo_gtr.back().into(), &ray_p),
                     ) {
-                        let y0 = gizmo_tr.up().dot(ray.origin + toi0 * ray.direction);
-                        let y1 = gizmo_tr.up().dot(ray.origin + toi1 * ray.direction);
+                        let y0 = gizmo_gtr.up().dot(ray.origin + toi0 * ray.direction);
+                        let y1 = gizmo_gtr.up().dot(ray.origin + toi1 * ray.direction);
                         let drag_y = (y0 + y1) / 2.;
                         if let Some(drag_last_y) = local.drag_last_y {
                             ev_drag.send(HandleGizmoDragged {
                                 entity: target,
                                 axis: gizmo.axis,
-                                direction: gizmo_tr.up(),
+                                direction: gizmo_gtr.up(),
                                 drag_delta: drag_y - drag_last_y,
                             });
                             local.drag_last_y = Some(drag_y);

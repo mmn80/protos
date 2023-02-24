@@ -25,7 +25,7 @@ fn update_move_gizmos(
     mut ev_remove: EventWriter<RemoveHandleGizmo>,
     mut ev_drag: EventReader<HandleGizmoDragged>,
     q_selected: Query<Entity, With<Selected>>,
-    mut q_gizmos: Query<(Entity, &mut Transform), With<HasMoveGizmos>>,
+    mut q_gizmos: Query<(Entity, &mut Transform, &GlobalTransform), With<HasMoveGizmos>>,
     mut cmd: Commands,
 ) {
     if ui.selected_show_move_gizmo {
@@ -46,7 +46,7 @@ fn update_move_gizmos(
             }
         }
 
-        for (entity, _) in &q_gizmos {
+        for (entity, _, _) in &q_gizmos {
             if !q_selected.contains(entity) {
                 for axis in [HandleGizmoAxis::X, HandleGizmoAxis::Y, HandleGizmoAxis::Z] {
                     ev_remove.send(RemoveHandleGizmo { entity, axis });
@@ -62,13 +62,15 @@ fn update_move_gizmos(
             drag_delta,
         } in ev_drag.iter()
         {
-            if let Ok((_, mut trans)) = q_gizmos.get_mut(*entity) {
-                trans.translation += *drag_delta * *direction;
+            if let Ok((_, mut tr, gtr)) = q_gizmos.get_mut(*entity) {
+                let dir = gtr.affine().inverse().transform_vector3(*direction);
+                let dir = tr.compute_affine().transform_vector3(dir).normalize();
+                tr.translation += *drag_delta * dir;
                 ui.mode = UiMode::Select;
             }
         }
     } else {
-        for (entity, _) in &q_gizmos {
+        for (entity, _, _) in &q_gizmos {
             for axis in [HandleGizmoAxis::X, HandleGizmoAxis::Y, HandleGizmoAxis::Z] {
                 ev_remove.send(RemoveHandleGizmo { entity, axis });
             }
