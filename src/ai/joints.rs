@@ -1,4 +1,5 @@
 use bevy::{prelude::*, transform::TransformSystem};
+use bevy_rapier3d::prelude::*;
 use std::f32::consts::PI;
 
 use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterialsRes};
@@ -45,27 +46,67 @@ impl KinematicHinge {
 pub struct KinematicHingeCommand {
     pub target_angle: f32,
     pub current_angle: f32,
+    pub last_non_colliding_angle: f32,
 }
 
 fn process_joints(
+    rapier: Res<RapierContext>,
     mut q_hinge: Query<(
         Entity,
+        &GlobalTransform,
         &mut Transform,
+        &Collider,
         &KinematicHinge,
         &mut KinematicHingeCommand,
     )>,
+    q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
-    for (entity, mut platform_tr, hinge, mut hinge_cmd) in &mut q_hinge {
-        let anchor = platform_tr.transform_point(hinge.anchor);
-        hinge_cmd.current_angle = hinge.get_angle(&platform_tr);
+    for (entity, gtr, mut tr, collider, hinge, mut hinge_cmd) in &mut q_hinge {
+        let srt = gtr.to_scale_rotation_translation();
+        let parent = q_parent.iter_ancestors(entity).next();
+
+        let mut colliding = false;
+        rapier.intersections_with_shape(
+            srt.2,
+            srt.1,
+            &collider,
+            QueryFilter::new().exclude_sensors(),
+            |colliding_ent| {
+                if colliding_ent == entity || parent == Some(colliding_ent) {
+                    true
+                } else {
+                    warn!("We hit something: {:?}", colliding_ent);
+                    colliding = true;
+                    false
+                }
+            },
+        );
+        let mut cmd_finished = colliding;
+
+        hinge_cmd.current_angle = hinge.get_angle(&tr);
         hinge_cmd.target_angle = hinge_cmd.target_angle.clamp(-PI + 0.01, PI);
-        let diff = hinge_cmd.target_angle - hinge_cmd.current_angle;
-        if diff.abs() > 0.001 {
-            let rotation =
-                Quat::from_axis_angle(hinge.axis, hinge.speed.min(diff.abs()) * diff.signum());
-            platform_tr.rotate_around(anchor, rotation);
+
+        if colliding {
+            hinge_cmd.target_angle = hinge_cmd.last_non_colliding_angle;
         } else {
+            hinge_cmd.last_non_colliding_angle = hinge_cmd.current_angle;
+        }
+
+        let diff = hinge_cmd.target_angle - hinge_cmd.current_angle;
+        if diff.abs() > 0.001 || colliding {
+            let rot_angle = if colliding {
+                diff
+            } else {
+                hinge.speed.min(diff.abs()) * diff.signum()
+            };
+            let anchor = tr.transform_point(hinge.anchor);
+            tr.rotate_around(anchor, Quat::from_axis_angle(hinge.axis, rot_angle));
+        } else {
+            cmd_finished = true;
+        }
+
+        if cmd_finished {
             cmd.entity(entity).remove::<KinematicHingeCommand>();
         }
     }

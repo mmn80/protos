@@ -156,6 +156,7 @@ fn update_side_panel(
                             cmd.entity(*ent).insert(KinematicHingeCommand {
                                 target_angle: state.hinge_target_angle as f32 * PI / 180.,
                                 current_angle: 0.,
+                                last_non_colliding_angle: 0.,
                             });
                         }
                     }
