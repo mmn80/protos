@@ -181,38 +181,34 @@ fn add_cube_ui(
                     .with_rotation(attach_inv.to_scale_rotation_translation().1 * cube_tr.rotation);
                     let s = cube_tr.scale;
 
-                    let new_cube = cmd
-                        .entity(attach)
-                        .with_children(|children| {
-                            children.spawn((
-                                PbrBundle {
-                                    transform: new_cube_tr,
-                                    mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
-                                    material,
-                                    ..default()
-                                },
-                                Selectable,
-                                ScreenPosition::default(),
-                                RigidBody::KinematicPositionBased,
-                                Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                            ));
-                        })
-                        .id();
+                    cmd.entity(attach).with_children(|children| {
+                        let mut new_cube = children.spawn((
+                            PbrBundle {
+                                transform: new_cube_tr,
+                                mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                material,
+                                ..default()
+                            },
+                            Selectable,
+                            ScreenPosition::default(),
+                            RigidBody::KinematicPositionBased,
+                            Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                        ));
+                        if terrain.ground.unwrap() != attach {
+                            let anchor = (state.p0.unwrap() + state.p1.unwrap()) / 2.;
+                            let anchor_attach = attach_inv.transform_point3(anchor);
+                            let anchor_new_cube = new_cube_tr
+                                .compute_affine()
+                                .inverse()
+                                .transform_point3(anchor_attach);
 
-                    if terrain.ground.unwrap() != attach {
-                        let anchor = (state.p0.unwrap() + state.p1.unwrap()) / 2.;
-                        let anchor_attach = attach_inv.inverse().transform_point3(anchor);
-                        let anchor_new_cube = new_cube_tr
-                            .compute_affine()
-                            .inverse()
-                            .transform_point3(anchor_attach);
-
-                        cmd.entity(new_cube).insert(KinematicHinge {
-                            angle: 0.,
-                            axis: new_cube_tr.right(),
-                            anchor: anchor_new_cube,
-                        });
-                    }
+                            new_cube.insert(KinematicHinge {
+                                angle: 0.,
+                                axis: new_cube_tr.right(),
+                                anchor: anchor_new_cube,
+                            });
+                        }
+                    });
 
                     clear_ui_state(&mut state, &mut cmd);
                 } else {
