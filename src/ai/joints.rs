@@ -1,39 +1,39 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, transform::TransformSystem};
 
 pub struct JointsPlugin;
 
 impl Plugin for JointsPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<HingeParent>()
-            .register_type::<HingeChild>()
-            .add_system(process_joints);
+        app.register_type::<KinematicHinge>().add_system_to_stage(
+            CoreStage::PostUpdate,
+            process_joints.after(TransformSystem::TransformPropagate),
+        );
     }
 }
 
 #[derive(Component, Reflect)]
-pub struct HingeChild {
+pub struct KinematicHinge {
     pub angle: f32,
     pub axis: Vec3,
-    pub local_anchor_child: Vec3,
-    pub local_anchor_parent: Vec3,
-    pub parent: Entity,
+    pub anchor: Vec3,
 }
 
-#[derive(Component, Reflect)]
-pub struct HingeParent;
+fn process_joints(mut q_child: Query<(&mut Transform, &GlobalTransform, &KinematicHinge)>) {
+    for (mut child_tr, child_gtr, child_h) in &mut q_child {
+        // let parent_anchor = parent_gtr.transform_point(child_h.local_anchor_parent);
+        // let child_anchor = child_gtr.transform_point(child_h.local_anchor_child);
+        // let diff = parent_anchor - child_anchor;
+        // child_tr.translation += diff;
 
-fn process_joints(
-    q_parent: Query<&GlobalTransform, (With<HingeParent>, Changed<GlobalTransform>)>,
-    mut q_child: Query<(&mut Transform, &GlobalTransform, &HingeChild)>,
-) {
-    for (mut child_tr, child_global_tr, child_h) in &mut q_child {
-        if let Ok(parent_tr) = q_parent.get(child_h.parent) {
-            let parent_anchor = parent_tr.transform_point(child_h.local_anchor_parent);
-            let child_anchor = child_global_tr.transform_point(child_h.local_anchor_child);
-            let diff = parent_anchor - child_anchor;
-            if diff.length() > 0.001 {
-                child_tr.translation += diff;
-            }
-        }
+        // let parent_axis = parent_gtr
+        //     .affine()
+        //     .transform_vector3(child_h.local_axis_parent)
+        //     .normalize();
+        // let child_axis = child_gtr
+        //     .affine()
+        //     .transform_vector3(child_h.local_axis_child)
+        //     .normalize();
+        // let rotation = Quat::from_rotation_arc(child_axis, parent_axis);
+        // child_tr.rotate(rotation);
     }
 }

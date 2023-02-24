@@ -14,10 +14,7 @@ use crate::{
     },
 };
 
-use super::{
-    joints::{HingeChild, HingeParent},
-    terrain::TerrainRes,
-};
+use super::{joints::KinematicHinge, terrain::TerrainRes};
 
 pub struct AddCubePlugin;
 
@@ -30,9 +27,9 @@ impl Plugin for AddCubePlugin {
 #[derive(PartialEq, Eq)]
 enum AddCubeUiState {
     None,
-    PickAttachP0,
-    PickAttachP1,
-    PickAttachP2,
+    PickP0,
+    PickP1,
+    PickP2,
     PickHeight,
 }
 
@@ -43,7 +40,7 @@ impl Default for AddCubeUiState {
 }
 
 #[derive(Default)]
-struct AddCubeUiRes {
+struct AddCubeLocal {
     state: AddCubeUiState,
     attach: Option<Entity>,
     cube: Option<Entity>,
@@ -57,21 +54,21 @@ struct AddCubeUiRes {
 const CUBE_INIT_LEN: f32 = 0.1;
 
 fn add_cube_ui(
+    mut state: Local<AddCubeLocal>,
+    mut meshes: ResMut<Assets<Mesh>>,
     ui: Res<SidePanelState>,
-    mut state: Local<AddCubeUiRes>,
-    materials: Res<BasicMaterialsRes>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    q_camera: Query<&MainCamera>,
     terrain: Res<TerrainRes>,
+    materials: Res<BasicMaterialsRes>,
+    q_camera: Query<&MainCamera>,
     mut q_trans: Query<&mut Transform>,
-    q_global_trans: Query<&GlobalTransform>,
+    q_gtrans: Query<&GlobalTransform>,
     mut cmd: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
 ) {
     if ui.mode == UiMode::AddCube {
         if state.state == AddCubeUiState::None {
-            state.state = AddCubeUiState::PickAttachP0;
+            state.state = AddCubeUiState::PickP0;
         }
 
         if let Some(cube) = state.cube {
@@ -95,7 +92,7 @@ fn add_cube_ui(
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
 
-            if state.state == AddCubeUiState::PickAttachP0 {
+            if state.state == AddCubeUiState::PickP0 {
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.ui_transparent.clone();
                     if let Some((attach, hit)) = rapier.cast_ray_and_get_normal(
@@ -111,7 +108,7 @@ fn add_cube_ui(
                         state.attach = Some(attach);
                         state.p0 = Some(p0);
                         state.p0_n = Some(p0_n);
-                        state.state = AddCubeUiState::PickAttachP1;
+                        state.state = AddCubeUiState::PickP1;
 
                         let dir_x = p0_n.any_orthonormal_vector();
                         state.cube = Some(
@@ -137,15 +134,15 @@ fn add_cube_ui(
                         );
                     }
                 }
-            } else if state.state == AddCubeUiState::PickAttachP1 {
+            } else if state.state == AddCubeUiState::PickP1 {
                 let p0 = state.p0.unwrap();
                 let p0_n = state.p0_n.unwrap();
                 if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) {
                     let mut p1 = ray.origin + toi * ray.direction;
-                    if let Ok(attach_tr) = q_global_trans.get(state.attach.unwrap()) {
+                    if let Ok(attach_gtr) = q_gtrans.get(state.attach.unwrap()) {
                         let dp = p1 - p0;
                         let dp_len = dp.length();
-                        for snap in [attach_tr.up(), attach_tr.right(), attach_tr.back()] {
+                        for snap in [attach_gtr.up(), attach_gtr.right(), attach_gtr.back()] {
                             let len = dp.dot(snap);
                             if dp_len - len.abs() < 0.1 {
                                 p1 = p0 - len * p0_n.cross(p0_n.cross(snap)).normalize();
@@ -155,18 +152,18 @@ fn add_cube_ui(
                     }
                     state.p1 = Some(p1);
                     if mouse.just_pressed(MouseButton::Left) {
-                        state.state = AddCubeUiState::PickAttachP2;
+                        state.state = AddCubeUiState::PickP2;
                     }
                 }
-            } else if state.state == AddCubeUiState::PickAttachP2 {
+            } else if state.state == AddCubeUiState::PickP2 {
                 let p0 = state.p0.unwrap();
                 let p0_n = state.p0_n.unwrap();
                 if let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) {
-                    let cube_trans = q_trans.get(state.cube.unwrap()).unwrap();
+                    let cube_tr = q_trans.get(state.cube.unwrap()).unwrap();
                     let p1 = state.p1.unwrap();
                     let p2 = ray.origin + toi * ray.direction;
-                    let len = (p2 - p1).dot(cube_trans.back());
-                    state.p2 = Some(p1 + len * cube_trans.back());
+                    let len = (p2 - p1).dot(cube_tr.back());
+                    state.p2 = Some(p1 + len * cube_tr.back());
                     if mouse.just_pressed(MouseButton::Left) {
                         state.state = AddCubeUiState::PickHeight;
                     }
@@ -175,44 +172,46 @@ fn add_cube_ui(
                 let cube_tr = q_trans.get(state.cube.unwrap()).unwrap();
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.salmon.clone();
+                    let attach = state.attach.unwrap();
+                    let attach_gtr = q_gtrans.get(attach).unwrap();
+                    let attach_inv = attach_gtr.affine().inverse();
+                    let new_cube_tr = Transform::from_translation(
+                        attach_inv.transform_point3(cube_tr.translation),
+                    )
+                    .with_rotation(attach_inv.to_scale_rotation_translation().1 * cube_tr.rotation);
                     let s = cube_tr.scale;
-                    let child_trans = Transform::from_translation(cube_tr.translation)
-                        .with_rotation(cube_tr.rotation);
 
-                    let child = cmd
-                        .spawn((
-                            PbrBundle {
-                                transform: child_trans,
-                                mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
-                                material,
-                                ..default()
-                            },
-                            Selectable,
-                            ScreenPosition::default(),
-                            RigidBody::KinematicPositionBased,
-                            Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                        ))
+                    let new_cube = cmd
+                        .entity(attach)
+                        .with_children(|children| {
+                            children.spawn((
+                                PbrBundle {
+                                    transform: new_cube_tr,
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                    material,
+                                    ..default()
+                                },
+                                Selectable,
+                                ScreenPosition::default(),
+                                RigidBody::KinematicPositionBased,
+                                Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                            ));
+                        })
                         .id();
 
-                    if terrain.ground.unwrap() != state.attach.unwrap() {
+                    if terrain.ground.unwrap() != attach {
                         let anchor = (state.p0.unwrap() + state.p1.unwrap()) / 2.;
-                        let attach_tr = q_global_trans.get(state.attach.unwrap()).unwrap();
+                        let anchor_attach = attach_inv.inverse().transform_point3(anchor);
+                        let anchor_new_cube = new_cube_tr
+                            .compute_affine()
+                            .inverse()
+                            .transform_point3(anchor_attach);
 
-                        cmd.entity(child).insert(HingeChild {
+                        cmd.entity(new_cube).insert(KinematicHinge {
                             angle: 0.,
-                            axis: child_trans.right(),
-                            local_anchor_child: child_trans
-                                .compute_affine()
-                                .inverse()
-                                .transform_point3(anchor),
-                            local_anchor_parent: attach_tr
-                                .affine()
-                                .inverse()
-                                .transform_point3(anchor),
-                            parent: state.attach.unwrap(),
+                            axis: new_cube_tr.right(),
+                            anchor: anchor_new_cube,
                         });
-
-                        cmd.entity(state.attach.unwrap()).insert(HingeParent);
                     }
 
                     clear_ui_state(&mut state, &mut cmd);
@@ -237,7 +236,7 @@ fn add_cube_ui(
     }
 }
 
-fn clear_ui_state(state: &mut AddCubeUiRes, cmd: &mut Commands) {
+fn clear_ui_state(state: &mut AddCubeLocal, cmd: &mut Commands) {
     state.state = AddCubeUiState::None;
     state.attach = None;
     if let Some(cube) = state.cube {
@@ -264,48 +263,46 @@ fn shoot_balls(
     mut cmd: Commands,
 ) {
     if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
-        if let Ok(camera) = q_camera.get_single() {
-            if let Some(ray) = camera.mouse_ray {
-                if mouse.just_pressed(MouseButton::Left) {
-                    cmd.spawn((
-                        PbrBundle {
-                            transform: Transform::from_translation(ray.origin),
-                            mesh: meshes.add(Mesh::from(shape::Icosphere {
-                                radius: 1.,
-                                subdivisions: 20,
-                            })),
-                            material: materials.gold.clone(),
-                            ..default()
-                        },
-                        ShootyBall,
-                        Selectable,
-                        ScreenPosition::default(),
-                        RigidBody::Dynamic,
-                        Damping {
-                            linear_damping: 0.,
-                            angular_damping: 0.,
-                        },
-                        Velocity {
-                            linvel: 30. * ray.direction,
-                            angvel: Vec3::ZERO,
-                        },
-                        Collider::ball(0.5),
-                        ColliderMassProperties::Density(0.8),
-                        Friction {
-                            coefficient: 0.8,
-                            combine_rule: CoefficientCombineRule::Average,
-                        },
-                        Restitution {
-                            coefficient: 0.5,
-                            combine_rule: CoefficientCombineRule::Average,
-                        },
-                    ));
-                }
+        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
+            if mouse.just_pressed(MouseButton::Left) {
+                cmd.spawn((
+                    PbrBundle {
+                        transform: Transform::from_translation(ray.origin),
+                        mesh: meshes.add(Mesh::from(shape::Icosphere {
+                            radius: 1.,
+                            subdivisions: 20,
+                        })),
+                        material: materials.gold.clone(),
+                        ..default()
+                    },
+                    ShootyBall,
+                    Selectable,
+                    ScreenPosition::default(),
+                    RigidBody::Dynamic,
+                    Damping {
+                        linear_damping: 0.,
+                        angular_damping: 0.,
+                    },
+                    Velocity {
+                        linvel: 30. * ray.direction,
+                        angvel: Vec3::ZERO,
+                    },
+                    Collider::ball(0.5),
+                    ColliderMassProperties::Density(0.8),
+                    Friction {
+                        coefficient: 0.8,
+                        combine_rule: CoefficientCombineRule::Average,
+                    },
+                    Restitution {
+                        coefficient: 0.3,
+                        combine_rule: CoefficientCombineRule::Average,
+                    },
+                ));
             }
         }
 
         for (ball, ball_tr) in &q_balls {
-            if ball_tr.translation().y < -10. {
+            if ball_tr.translation().y < -50. {
                 cmd.entity(ball).despawn_recursive();
             }
         }
