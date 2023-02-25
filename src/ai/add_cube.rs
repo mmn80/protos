@@ -287,7 +287,7 @@ fn shoot_balls(
                         linvel: 30. * ray.direction,
                         angvel: Vec3::ZERO,
                     },
-                    Collider::ball(0.5),
+                    Collider::ball(1.0),
                     ColliderMassProperties::Density(0.8),
                     Friction {
                         coefficient: 0.8,
