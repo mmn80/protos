@@ -4,7 +4,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::ui::side_panel::SidePanelState;
+use crate::ui::{selection::Selected, side_panel::SidePanelState};
 
 pub struct MainCameraPlugin;
 
@@ -67,12 +67,13 @@ fn main_camera(
     windows: Res<Windows>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
+    mouse: Res<Input<MouseButton>>,
     ui: Res<SidePanelState>,
-    input_mouse: Res<Input<MouseButton>>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     mut ev_cursor: EventReader<CursorMoved>,
     mut q_camera: Query<(&mut MainCamera, &mut Transform, &GlobalTransform, &Camera)>,
+    q_selection: Query<&GlobalTransform, With<Selected>>,
 ) {
     let orbit_button = MouseButton::Right;
 
@@ -81,7 +82,7 @@ fn main_camera(
     let mut orbit_button_changed = false;
 
     if !ui.mouse_over {
-        if input_mouse.pressed(orbit_button) {
+        if mouse.pressed(orbit_button) {
             for ev in ev_motion.iter() {
                 rotation_move += ev.delta;
             }
@@ -89,16 +90,16 @@ fn main_camera(
         for ev in ev_scroll.iter() {
             scroll += ev.y;
         }
-        if input_mouse.just_released(orbit_button) || input_mouse.just_pressed(orbit_button) {
+        if mouse.just_released(orbit_button) || mouse.just_pressed(orbit_button) {
             orbit_button_changed = true;
         }
     }
 
     let cursor_pos = ev_cursor.iter().last().map(|p| p.position);
 
-    for (mut main_camera, mut transform, global_transform, camera) in &mut q_camera {
+    for (mut main_camera, mut camera_tr, camera_gtr, camera) in &mut q_camera {
         if let Some(pos) = cursor_pos {
-            main_camera.mouse_ray = get_camera_mouse_ray(pos, camera, global_transform);
+            main_camera.mouse_ray = get_camera_mouse_ray(pos, camera, camera_gtr);
         }
 
         if keyboard.any_pressed([KeyCode::W, KeyCode::S, KeyCode::A, KeyCode::D]) {
@@ -106,34 +107,41 @@ fn main_camera(
             if keyboard.pressed(KeyCode::LShift) {
                 ds *= 4.;
             }
-            let mut forward = transform.forward();
+            let mut forward = camera_tr.forward();
             if forward.x.abs() < f32::EPSILON && forward.z.abs() < f32::EPSILON {
-                forward = transform.up();
+                forward = camera_tr.up();
             }
             forward.y = 0.;
             forward = forward.normalize();
-            let right = transform.right().normalize();
+            let right = camera_tr.right().normalize();
 
             if keyboard.pressed(KeyCode::W) {
                 main_camera.focus += ds * forward;
-                transform.translation += ds * forward;
+                camera_tr.translation += ds * forward;
             } else if keyboard.pressed(KeyCode::S) {
                 main_camera.focus -= ds * forward;
-                transform.translation -= ds * forward;
+                camera_tr.translation -= ds * forward;
             }
             if keyboard.pressed(KeyCode::A) {
                 main_camera.focus -= ds * right;
-                transform.translation -= ds * right;
+                camera_tr.translation -= ds * right;
             } else if keyboard.pressed(KeyCode::D) {
                 main_camera.focus += ds * right;
-                transform.translation += ds * right;
+                camera_tr.translation += ds * right;
             }
+        } else if keyboard.just_pressed(KeyCode::F) {
+            let current_focus = main_camera.focus;
+            main_camera.focus = Vec3::ZERO;
+            if let Some(selected_gtr) = q_selection.iter().next() {
+                main_camera.focus = selected_gtr.translation();
+            }
+            camera_tr.translation += main_camera.focus - current_focus;
         }
 
         if orbit_button_changed {
             // only check for upside down when orbiting started or ended this frame
             // if the camera is "upside" down, panning horizontally would be inverted, so invert the input to make it correct
-            let up = transform.rotation * Vec3::Y;
+            let up = camera_tr.rotation * Vec3::Y;
             main_camera.upside_down = up.y <= 0.0;
         }
 
@@ -152,8 +160,8 @@ fn main_camera(
             let delta_y = rotation_move.y / window.y * std::f32::consts::PI;
             let yaw = Quat::from_rotation_y(-delta_x);
             let pitch = Quat::from_rotation_x(-delta_y);
-            transform.rotation = yaw * transform.rotation; // rotate around global y axis
-            transform.rotation = transform.rotation * pitch; // rotate around local x axis
+            camera_tr.rotation = yaw * camera_tr.rotation; // rotate around global y axis
+            camera_tr.rotation = camera_tr.rotation * pitch; // rotate around local x axis
         } else if scroll.abs() > 0.0 {
             any = true;
             main_camera.radius -= scroll * main_camera.radius * 0.2;
@@ -165,8 +173,8 @@ fn main_camera(
             // emulating parent/child to make the yaw/y-axis rotation behave like a turntable
             // parent = x and y rotation
             // child = z-offset
-            let rot_matrix = Mat3::from_quat(transform.rotation);
-            transform.translation =
+            let rot_matrix = Mat3::from_quat(camera_tr.rotation);
+            camera_tr.translation =
                 main_camera.focus + rot_matrix.mul_vec3(Vec3::new(0.0, 0.0, main_camera.radius));
         }
     }
