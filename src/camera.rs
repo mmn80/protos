@@ -132,8 +132,9 @@ fn main_camera(
         } else if keyboard.just_pressed(KeyCode::F) {
             let current_focus = main_camera.focus;
             main_camera.focus = Vec3::ZERO;
-            if let Some(selected_gtr) = q_selection.iter().next() {
-                main_camera.focus = selected_gtr.translation();
+            let selected: Vec<_> = q_selection.iter().map(|gtr| gtr.translation()).collect();
+            if !selected.is_empty() {
+                main_camera.focus = selected.iter().sum::<Vec3>() / selected.len() as f32;
             }
             camera_tr.translation += main_camera.focus - current_focus;
         }
