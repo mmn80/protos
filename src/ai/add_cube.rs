@@ -6,7 +6,7 @@ use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
 use super::{
-    joints::KinematicHinge,
+    kinematic_joints::{KinematicJointType, RevoluteJoint, SphericalJoint},
     kinematic_rig::{KinematicRigCollider, KinematicRigMesh},
 };
 use crate::{
@@ -196,14 +196,8 @@ fn add_cube_ui(
                                 mesh_inv.to_scale_rotation_translation().1 * cube_tr.rotation,
                             );
                             let new_cube_inv = new_cube_tr.compute_affine().inverse();
-
-                            let (p0, p1) = (state.p0.unwrap(), state.p1.unwrap());
-                            let anchor = (p0 + p1) / 2.;
-
-                            let anchor_attach = mesh_inv.transform_point3(anchor);
-                            let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
-                            let hinge =
-                                new_cube_inv.transform_vector3(mesh_inv.transform_vector3(p1 - p0));
+                            let (p0, p1, p2) =
+                                (state.p0.unwrap(), state.p1.unwrap(), state.p2.unwrap());
 
                             let mesh_ent = cmd
                                 .spawn((
@@ -214,18 +208,33 @@ fn add_cube_ui(
                                         material,
                                         ..default()
                                     },
-                                    KinematicHinge {
-                                        axis: new_cube_tr.right(),
-                                        anchor: anchor_new_cube,
-                                        length: hinge.length(),
-                                        start_dir_up: new_cube_tr.up(),
-                                        speed: 0.01,
-                                        show_mesh: true,
-                                    },
                                     Selectable,
                                     ScreenPosition::default(),
                                 ))
                                 .id();
+                            if ui.add_joint_type == KinematicJointType::Revolute {
+                                let anchor = (p0 + p1) / 2.;
+                                let anchor_attach = mesh_inv.transform_point3(anchor);
+                                let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
+                                let hinge = new_cube_inv
+                                    .transform_vector3(mesh_inv.transform_vector3(p1 - p0));
+                                cmd.entity(mesh_ent).insert(RevoluteJoint {
+                                    axis: new_cube_tr.right(),
+                                    anchor: anchor_new_cube,
+                                    length: hinge.length(),
+                                    start_dir: new_cube_tr.up(),
+                                    show_mesh: true,
+                                });
+                            } else if ui.add_joint_type == KinematicJointType::Spherical {
+                                let anchor = (p0 + p2) / 2.;
+                                let anchor_attach = mesh_inv.transform_point3(anchor);
+                                let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
+                                cmd.entity(mesh_ent).insert(SphericalJoint {
+                                    anchor: anchor_new_cube,
+                                    start_dir: new_cube_tr.up(),
+                                    show_mesh: true,
+                                });
+                            }
                             cmd.entity(mesh_p).add_child(mesh_ent);
 
                             (coll_ent, mesh_ent, false)

@@ -7,7 +7,9 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
 
-use crate::ai::joints::{KinematicHinge, KinematicHingeCommand};
+use crate::ai::kinematic_joints::{
+    KinematicJointType, RevoluteJoint, RevoluteJointCommand, SphericalJoint, SphericalJointCommand,
+};
 
 use super::selection::Selected;
 
@@ -44,8 +46,12 @@ pub struct SidePanelState {
     pub mouse_over: bool,
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
-    hinge_target_angle: i16,
-    hinge_stop_at_collisions: bool,
+    pub revolute_target_angle: i16,
+    pub spherical_target_angle_x: i16,
+    pub spherical_target_angle_y: i16,
+    pub spherical_target_angle_z: i16,
+    pub joint_stop_at_collisions: bool,
+    pub add_joint_type: KinematicJointType,
     pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
@@ -58,8 +64,12 @@ impl Default for SidePanelState {
             mouse_over: false,
             mode: UiMode::Select,
             rapier_debug_enabled: false,
-            hinge_target_angle: 0,
-            hinge_stop_at_collisions: false,
+            revolute_target_angle: 0,
+            spherical_target_angle_x: 0,
+            spherical_target_angle_y: 0,
+            spherical_target_angle_z: 0,
+            joint_stop_at_collisions: false,
+            add_joint_type: KinematicJointType::Revolute,
             selected_show_names: true,
             selected_show_inspector: false,
             selected_show_move_gizmo: true,
@@ -78,7 +88,15 @@ fn update_side_panel(
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
-    q_selected: Query<(Entity, Option<&Name>, Option<&KinematicHinge>), With<Selected>>,
+    q_selected: Query<
+        (
+            Entity,
+            Option<&Name>,
+            Option<&RevoluteJoint>,
+            Option<&SphericalJoint>,
+        ),
+        With<Selected>,
+    >,
     mut cmd: Commands,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -130,7 +148,7 @@ fn update_side_panel(
                             egui::Color32::DARK_GREEN,
                             format!("{} objects selected:", selected.len()),
                         );
-                        for (ent, name, _) in selected.iter().take(20) {
+                        for (ent, name, _, _) in selected.iter().take(20) {
                             if let Some(name) = name {
                                 ui.label(format!("- {}", name.as_str()));
                             } else {
@@ -149,19 +167,43 @@ fn update_side_panel(
                     ui.checkbox(&mut state.rapier_debug_enabled, "Debug render");
                     debug_render_ctx.enabled = state.rapier_debug_enabled;
 
-                    if let Some((ent, _, Some(_))) = selected.first() {
+                    if let Some((ent, _, Some(_), None)) = selected.first() {
                         ui.add(
-                            egui::Slider::new(&mut state.hinge_target_angle, -180..=180)
+                            egui::Slider::new(&mut state.revolute_target_angle, -180..=180)
                                 .text("angle"),
                         );
-                        ui.checkbox(&mut state.hinge_stop_at_collisions, "Stop at collisions");
-                        if ui.button("Add hinge target").clicked() {
-                            cmd.entity(*ent).insert(KinematicHingeCommand {
-                                target_angle: state.hinge_target_angle as f32 * PI / 180.,
-                                current_angle: 0.,
-                                last_non_colliding_angle: 0.,
-                                stop_at_collisions: state.hinge_stop_at_collisions,
-                            });
+                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        if ui.button("Add revolute joint target").clicked() {
+                            cmd.entity(*ent).insert(RevoluteJointCommand::new(
+                                state.revolute_target_angle as f32 * PI / 180.,
+                                0.01,
+                                state.joint_stop_at_collisions,
+                            ));
+                        }
+                    }
+
+                    if let Some((ent, _, None, Some(_))) = selected.first() {
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
+                                .text("angle y"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_x, -180..=180)
+                                .text("angle x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_z, -180..=180)
+                                .text("angle z"),
+                        );
+                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        if ui.button("Add spherical joint target").clicked() {
+                            cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
+                                state.spherical_target_angle_y as f32 * PI / 180.,
+                                state.spherical_target_angle_x as f32 * PI / 180.,
+                                state.spherical_target_angle_z as f32 * PI / 180.,
+                                0.01,
+                                state.joint_stop_at_collisions,
+                            ));
                         }
                     }
                 });
@@ -173,6 +215,18 @@ fn update_side_panel(
                     ui.selectable_value(&mut state.mode, UiMode::AddCube, "Add cube");
                     ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot balls");
                 });
+            if state.mode == UiMode::AddCube {
+                ui.selectable_value(
+                    &mut state.add_joint_type,
+                    KinematicJointType::Revolute,
+                    "Revolute",
+                );
+                ui.selectable_value(
+                    &mut state.add_joint_type,
+                    KinematicJointType::Spherical,
+                    "Spherical",
+                );
+            }
         });
 }
 

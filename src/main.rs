@@ -5,7 +5,7 @@ use bevy_rapier3d::prelude::*;
 
 use protos::{
     ai::{
-        add_cube::AddCubePlugin, building::BuildingPlugin, joints::JointsPlugin,
+        add_cube::AddCubePlugin, building::BuildingPlugin, kinematic_joints::KinematicJointsPlugin,
         kinematic_rig::KinematicRigPlugin, terrain::TerrainPlugin,
     },
     camera::MainCameraPlugin,
@@ -44,7 +44,7 @@ fn main() {
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
         .add_plugin(KinematicRigPlugin)
-        .add_plugin(JointsPlugin)
+        .add_plugin(KinematicJointsPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)
         .add_plugin(BuildingPlugin)

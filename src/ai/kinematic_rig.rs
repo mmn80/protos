@@ -47,6 +47,7 @@ fn update_kinematic_colliders(
                     );
                     coll_tr.rotation = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
 
+                    // fix for bevy_rapier not auto syncing with the above
                     let h = { rapier.entity2collider().get(&coll_ent).unwrap().clone() };
                     let c = rapier.colliders.get_mut(h).unwrap();
                     c.set_position_wrt_parent(Isometry::from_parts(
