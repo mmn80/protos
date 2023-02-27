@@ -6,7 +6,7 @@ use bevy_rapier3d::prelude::*;
 use protos::{
     ai::{
         add_cube::AddCubePlugin, building::BuildingPlugin, joints::JointsPlugin,
-        terrain::TerrainPlugin,
+        kinematic_rig::KinematicRigPlugin, terrain::TerrainPlugin,
     },
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
@@ -43,6 +43,7 @@ fn main() {
         .add_plugin(MoveGizmoPlugin)
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
+        .add_plugin(KinematicRigPlugin)
         .add_plugin(JointsPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)

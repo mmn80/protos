@@ -4,6 +4,8 @@ use std::f32::consts::PI;
 
 use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterialsRes};
 
+use super::kinematic_rig::{KinematicRigCollider, KinematicRigMesh};
+
 pub struct JointsPlugin;
 
 impl Plugin for JointsPlugin {
@@ -47,6 +49,7 @@ pub struct KinematicHingeCommand {
     pub target_angle: f32,
     pub current_angle: f32,
     pub last_non_colliding_angle: f32,
+    pub stop_at_collisions: bool,
 }
 
 fn process_joints(
@@ -55,37 +58,41 @@ fn process_joints(
         Entity,
         &GlobalTransform,
         &mut Transform,
-        &Children,
-        &Collider,
+        &KinematicRigMesh,
         &KinematicHinge,
         &mut KinematicHingeCommand,
     )>,
     q_parent: Query<&Parent>,
+    q_collider: Query<(Entity, &Collider), With<KinematicRigCollider>>,
     mut cmd: Commands,
 ) {
-    for (entity, gtr, mut tr, children, collider, hinge, mut hinge_cmd) in &mut q_hinge {
+    for (entity, gtr, mut tr, rig_mesh, hinge, mut hinge_cmd) in &mut q_hinge {
         let srt = gtr.to_scale_rotation_translation();
-        let parent = q_parent.iter_ancestors(entity).next();
+
+        let (coll_ent, coll) = q_collider.get(rig_mesh.collider).unwrap();
+        let parent = q_parent.iter_ancestors(coll_ent).next().unwrap();
 
         let mut colliding = false;
-        rapier.intersections_with_shape(
-            srt.2,
-            srt.1,
-            &collider,
-            QueryFilter::new().exclude_sensors(),
-            |colliding_ent| {
-                if colliding_ent == entity
-                    || parent == Some(colliding_ent)
-                    || children.contains(&colliding_ent)
-                {
-                    true
-                } else {
-                    warn!("We hit something: {:?}", colliding_ent);
-                    colliding = true;
-                    false
-                }
-            },
-        );
+        if hinge_cmd.stop_at_collisions {
+            rapier.intersections_with_shape(
+                srt.2,
+                srt.1,
+                &coll,
+                QueryFilter::new().exclude_sensors(),
+                |colliding_ent| {
+                    if colliding_ent == entity
+                        || parent == colliding_ent
+                        || q_parent.iter_ancestors(colliding_ent).next() == Some(parent)
+                    {
+                        true
+                    } else {
+                        warn!("We hit something: {:?}", colliding_ent);
+                        colliding = true;
+                        false
+                    }
+                },
+            );
+        }
         let mut cmd_finished = colliding;
 
         hinge_cmd.current_angle = hinge.get_angle(&tr);

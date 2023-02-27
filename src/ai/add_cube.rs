@@ -5,6 +5,10 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
+use super::{
+    joints::KinematicHinge,
+    kinematic_rig::{KinematicRigCollider, KinematicRigMesh},
+};
 use crate::{
     camera::{MainCamera, ScreenPosition},
     ui::{
@@ -13,8 +17,6 @@ use crate::{
         side_panel::{SidePanelState, UiMode},
     },
 };
-
-use super::{joints::KinematicHinge, terrain::TerrainRes};
 
 pub struct AddCubePlugin;
 
@@ -59,11 +61,11 @@ fn add_cube_ui(
     ui: Res<SidePanelState>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    terrain: Res<TerrainRes>,
     materials: Res<BasicMaterialsRes>,
     q_camera: Query<&MainCamera>,
     mut q_trans: Query<&mut Transform>,
     q_gtrans: Query<&GlobalTransform>,
+    q_coll: Query<(&KinematicRigCollider, &Parent)>,
     mut cmd: Commands,
 ) {
     if ui.mode == UiMode::AddCube {
@@ -172,47 +174,103 @@ fn add_cube_ui(
                 let cube_tr = q_trans.get(state.cube.unwrap()).unwrap();
                 if mouse.just_pressed(MouseButton::Left) {
                     let material = materials.salmon.clone();
-                    let attach = state.attach.unwrap();
-                    let attach_gtr = q_gtrans.get(attach).unwrap();
-                    let attach_inv = attach_gtr.affine().inverse();
-                    let new_cube_tr = Transform::from_translation(
-                        attach_inv.transform_point3(cube_tr.translation),
-                    )
-                    .with_rotation(attach_inv.to_scale_rotation_translation().1 * cube_tr.rotation);
-                    let s = cube_tr.scale;
 
-                    cmd.entity(attach).with_children(|children| {
-                        let mut new_cube = children.spawn((
-                            PbrBundle {
-                                transform: new_cube_tr,
-                                mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
-                                material,
-                                ..default()
-                            },
-                            Selectable,
-                            ScreenPosition::default(),
-                            RigidBody::KinematicPositionBased,
-                            Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                        ));
-                        if terrain.ground.unwrap() != attach {
+                    let (coll_ent, mesh_ent, is_root) = {
+                        if let Ok((coll, colp_p)) = q_coll.get(state.attach.unwrap()) {
+                            let s = cube_tr.scale;
+                            let coll_ent = cmd
+                                .spawn((
+                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
+                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                                ))
+                                .id();
+                            cmd.entity(colp_p.get()).add_child(coll_ent);
+
+                            let mesh_p = coll.mesh;
+                            let mesh_gtr = q_gtrans.get(mesh_p).unwrap();
+                            let mesh_inv = mesh_gtr.affine().inverse();
+                            let new_cube_tr = Transform::from_translation(
+                                mesh_inv.transform_point3(cube_tr.translation),
+                            )
+                            .with_rotation(
+                                mesh_inv.to_scale_rotation_translation().1 * cube_tr.rotation,
+                            );
+                            let new_cube_inv = new_cube_tr.compute_affine().inverse();
+
                             let (p0, p1) = (state.p0.unwrap(), state.p1.unwrap());
                             let anchor = (p0 + p1) / 2.;
-                            let new_cube_inv = new_cube_tr.compute_affine().inverse();
-                            let anchor_attach = attach_inv.transform_point3(anchor);
-                            let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
-                            let hinge = new_cube_inv
-                                .transform_vector3(attach_inv.transform_vector3(p1 - p0));
 
-                            new_cube.insert(KinematicHinge {
-                                axis: new_cube_tr.right(),
-                                anchor: anchor_new_cube,
-                                length: hinge.length(),
-                                start_dir_up: new_cube_tr.up(),
-                                speed: 0.01,
-                                show_mesh: true,
-                            });
+                            let anchor_attach = mesh_inv.transform_point3(anchor);
+                            let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
+                            let hinge =
+                                new_cube_inv.transform_vector3(mesh_inv.transform_vector3(p1 - p0));
+
+                            let mesh_ent = cmd
+                                .spawn((
+                                    PbrBundle {
+                                        transform: new_cube_tr,
+                                        mesh: meshes
+                                            .add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                        material,
+                                        ..default()
+                                    },
+                                    KinematicHinge {
+                                        axis: new_cube_tr.right(),
+                                        anchor: anchor_new_cube,
+                                        length: hinge.length(),
+                                        start_dir_up: new_cube_tr.up(),
+                                        speed: 0.01,
+                                        show_mesh: true,
+                                    },
+                                    Selectable,
+                                    ScreenPosition::default(),
+                                ))
+                                .id();
+                            cmd.entity(mesh_p).add_child(mesh_ent);
+
+                            (coll_ent, mesh_ent, false)
+                        } else {
+                            let new_obj = cmd
+                                .spawn((
+                                    SpatialBundle::from(
+                                        Transform::from_translation(cube_tr.translation)
+                                            .with_rotation(cube_tr.rotation),
+                                    ),
+                                    RigidBody::Dynamic,
+                                    Selectable,
+                                    ScreenPosition::default(),
+                                ))
+                                .id();
+
+                            let s = cube_tr.scale;
+                            let coll_ent = cmd
+                                .spawn((
+                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
+                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                                ))
+                                .id();
+                            cmd.entity(new_obj).add_child(coll_ent);
+
+                            let mesh_ent = cmd
+                                .spawn((PbrBundle {
+                                    transform: Transform::IDENTITY,
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                    material,
+                                    ..default()
+                                },))
+                                .id();
+                            cmd.entity(new_obj).add_child(mesh_ent);
+
+                            (coll_ent, mesh_ent, true)
                         }
+                    };
+
+                    cmd.entity(coll_ent).insert(KinematicRigCollider {
+                        mesh: mesh_ent,
+                        is_root,
                     });
+                    cmd.entity(mesh_ent)
+                        .insert(KinematicRigMesh { collider: coll_ent });
 
                     clear_ui_state(&mut state, &mut cmd);
                 } else {

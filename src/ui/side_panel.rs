@@ -45,6 +45,7 @@ pub struct SidePanelState {
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
     hinge_target_angle: i16,
+    hinge_stop_at_collisions: bool,
     pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
@@ -58,6 +59,7 @@ impl Default for SidePanelState {
             mode: UiMode::Select,
             rapier_debug_enabled: false,
             hinge_target_angle: 0,
+            hinge_stop_at_collisions: false,
             selected_show_names: true,
             selected_show_inspector: false,
             selected_show_move_gizmo: true,
@@ -152,11 +154,13 @@ fn update_side_panel(
                             egui::Slider::new(&mut state.hinge_target_angle, -180..=180)
                                 .text("angle"),
                         );
+                        ui.checkbox(&mut state.hinge_stop_at_collisions, "Stop at collisions");
                         if ui.button("Add hinge target").clicked() {
                             cmd.entity(*ent).insert(KinematicHingeCommand {
                                 target_angle: state.hinge_target_angle as f32 * PI / 180.,
                                 current_angle: 0.,
                                 last_non_colliding_angle: 0.,
+                                stop_at_collisions: state.hinge_stop_at_collisions,
                             });
                         }
                     }

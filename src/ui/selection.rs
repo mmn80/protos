@@ -2,7 +2,10 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
 use super::side_panel::{SidePanelState, UiMode};
-use crate::camera::{MainCamera, ScreenPosition};
+use crate::{
+    ai::kinematic_rig::KinematicRigCollider,
+    camera::{MainCamera, ScreenPosition},
+};
 
 pub struct SelectionPlugin;
 
@@ -84,6 +87,7 @@ fn update_selected(
     mut selection_rect: ResMut<SelectionRect>,
     q_camera: Query<&MainCamera>,
     q_selectable: Query<(Entity, &ScreenPosition), With<Selectable>>,
+    q_selectable_col: Query<&KinematicRigCollider>,
     q_selected: Query<Entity, With<Selected>>,
     q_parent: Query<&Parent>,
     q_sensor: Query<&Sensor>,
@@ -102,7 +106,12 @@ fn update_selected(
                         let mut sel_ent = None;
                         if q_selectable.contains(hit_ent) {
                             sel_ent = Some(hit_ent)
-                        } else {
+                        } else if let Ok(coll) = q_selectable_col.get(hit_ent) {
+                            if !coll.is_root {
+                                sel_ent = Some(coll.mesh);
+                            }
+                        }
+                        if sel_ent.is_none() {
                             for parent in q_parent.iter_ancestors(hit_ent) {
                                 if q_selectable.contains(parent) {
                                     sel_ent = Some(parent);
