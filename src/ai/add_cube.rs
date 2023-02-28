@@ -231,8 +231,9 @@ fn add_cube_ui(
                                 let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
                                 cmd.entity(mesh_ent).insert(SphericalJoint {
                                     anchor: anchor_new_cube,
-                                    start_dir: new_cube_tr.up(),
                                     show_mesh: true,
+                                    start_rot: new_cube_tr.rotation,
+                                    start_pos: new_cube_tr.translation,
                                 });
                             }
                             cmd.entity(mesh_p).add_child(mesh_ent);

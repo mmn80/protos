@@ -184,10 +184,6 @@ fn update_side_panel(
 
                     if let Some((ent, _, None, Some(_))) = selected.first() {
                         ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
-                                .text("angle y"),
-                        );
-                        ui.add(
                             egui::Slider::new(&mut state.spherical_target_angle_x, -180..=180)
                                 .text("angle x"),
                         );
@@ -195,13 +191,17 @@ fn update_side_panel(
                             egui::Slider::new(&mut state.spherical_target_angle_z, -180..=180)
                                 .text("angle z"),
                         );
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
+                                .text("angle y"),
+                        );
                         ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
                         if ui.button("Add spherical joint target").clicked() {
                             cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
-                                state.spherical_target_angle_y as f32 * PI / 180.,
                                 state.spherical_target_angle_x as f32 * PI / 180.,
                                 state.spherical_target_angle_z as f32 * PI / 180.,
-                                0.01,
+                                state.spherical_target_angle_y as f32 * PI / 180.,
+                                0.02,
                                 state.joint_stop_at_collisions,
                             ));
                         }
