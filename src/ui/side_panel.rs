@@ -71,8 +71,8 @@ impl Default for SidePanelState {
             joint_stop_at_collisions: false,
             add_joint_type: KinematicJointType::Revolute,
             selected_show_names: true,
-            selected_show_inspector: false,
-            selected_show_move_gizmo: true,
+            selected_show_inspector: true,
+            selected_show_move_gizmo: false,
             selected_show_path: true,
         }
     }

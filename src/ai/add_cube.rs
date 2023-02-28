@@ -178,13 +178,6 @@ fn add_cube_ui(
                     let (coll_ent, mesh_ent, is_root) = {
                         if let Ok((coll, colp_p)) = q_coll.get(state.attach.unwrap()) {
                             let s = cube_tr.scale;
-                            let coll_ent = cmd
-                                .spawn((
-                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
-                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                                ))
-                                .id();
-                            cmd.entity(colp_p.get()).add_child(coll_ent);
 
                             let mesh_p = coll.mesh;
                             let mesh_gtr = q_gtrans.get(mesh_p).unwrap();
@@ -208,7 +201,6 @@ fn add_cube_ui(
                                         material,
                                         ..default()
                                     },
-                                    Selectable,
                                     ScreenPosition::default(),
                                 ))
                                 .id();
@@ -238,6 +230,15 @@ fn add_cube_ui(
                             }
                             cmd.entity(mesh_p).add_child(mesh_ent);
 
+                            let coll_ent = cmd
+                                .spawn((
+                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
+                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                                    Selectable::new(mesh_ent, Some(mesh_ent)),
+                                ))
+                                .id();
+                            cmd.entity(colp_p.get()).add_child(coll_ent);
+
                             (coll_ent, mesh_ent, false)
                         } else {
                             let new_obj = cmd
@@ -247,19 +248,11 @@ fn add_cube_ui(
                                             .with_rotation(cube_tr.rotation),
                                     ),
                                     RigidBody::Dynamic,
-                                    Selectable,
                                     ScreenPosition::default(),
                                 ))
                                 .id();
 
                             let s = cube_tr.scale;
-                            let coll_ent = cmd
-                                .spawn((
-                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
-                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                                ))
-                                .id();
-                            cmd.entity(new_obj).add_child(coll_ent);
 
                             let mesh_ent = cmd
                                 .spawn((PbrBundle {
@@ -270,6 +263,15 @@ fn add_cube_ui(
                                 },))
                                 .id();
                             cmd.entity(new_obj).add_child(mesh_ent);
+
+                            let coll_ent = cmd
+                                .spawn((
+                                    SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
+                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                                    Selectable::new(new_obj, Some(mesh_ent)),
+                                ))
+                                .id();
+                            cmd.entity(new_obj).add_child(coll_ent);
 
                             (coll_ent, mesh_ent, true)
                         }
@@ -333,39 +335,41 @@ fn shoot_balls(
     if ui.mode == UiMode::ShootBalls && !ui.mouse_over {
         if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
             if mouse.just_pressed(MouseButton::Left) {
-                cmd.spawn((
-                    PbrBundle {
-                        transform: Transform::from_translation(ray.origin),
-                        mesh: meshes.add(Mesh::from(shape::Icosphere {
-                            radius: 1.,
-                            subdivisions: 20,
-                        })),
-                        material: materials.gold.clone(),
-                        ..default()
-                    },
-                    ShootyBall,
-                    Selectable,
-                    ScreenPosition::default(),
-                    RigidBody::Dynamic,
-                    Damping {
-                        linear_damping: 0.,
-                        angular_damping: 0.,
-                    },
-                    Velocity {
-                        linvel: 30. * ray.direction,
-                        angvel: Vec3::ZERO,
-                    },
-                    Collider::ball(1.0),
-                    ColliderMassProperties::Density(0.8),
-                    Friction {
-                        coefficient: 0.8,
-                        combine_rule: CoefficientCombineRule::Average,
-                    },
-                    Restitution {
-                        coefficient: 0.3,
-                        combine_rule: CoefficientCombineRule::Average,
-                    },
-                ));
+                let ball = cmd
+                    .spawn((
+                        PbrBundle {
+                            transform: Transform::from_translation(ray.origin),
+                            mesh: meshes.add(Mesh::from(shape::Icosphere {
+                                radius: 1.,
+                                subdivisions: 20,
+                            })),
+                            material: materials.gold.clone(),
+                            ..default()
+                        },
+                        ShootyBall,
+                        ScreenPosition::default(),
+                        RigidBody::Dynamic,
+                        Damping {
+                            linear_damping: 0.,
+                            angular_damping: 0.,
+                        },
+                        Velocity {
+                            linvel: 30. * ray.direction,
+                            angvel: Vec3::ZERO,
+                        },
+                        Collider::ball(1.0),
+                        ColliderMassProperties::Density(0.8),
+                        Friction {
+                            coefficient: 0.8,
+                            combine_rule: CoefficientCombineRule::Average,
+                        },
+                        Restitution {
+                            coefficient: 0.3,
+                            combine_rule: CoefficientCombineRule::Average,
+                        },
+                    ))
+                    .id();
+                cmd.entity(ball).insert(Selectable::new(ball, Some(ball)));
             }
         }
 
