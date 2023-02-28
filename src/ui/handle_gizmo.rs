@@ -156,7 +156,6 @@ fn add_handles(
                                 axis: *axis,
                                 material: material.clone(),
                             },
-                            RigidBody::KinematicPositionBased,
                         ))
                         .with_children(|parent| {
                             let mut dist = 0.;
