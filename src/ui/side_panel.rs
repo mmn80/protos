@@ -55,7 +55,6 @@ pub struct SidePanelState {
     pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
-    pub selected_show_path: bool,
 }
 
 impl Default for SidePanelState {
@@ -73,7 +72,6 @@ impl Default for SidePanelState {
             selected_show_names: true,
             selected_show_inspector: true,
             selected_show_move_gizmo: false,
-            selected_show_path: true,
         }
     }
 }
@@ -139,8 +137,7 @@ fn update_side_panel(
                 .show(ui, |ui| {
                     ui.checkbox(&mut state.selected_show_names, "Show names");
                     ui.checkbox(&mut state.selected_show_inspector, "Show inspector");
-                    ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmos");
-                    ui.checkbox(&mut state.selected_show_path, "Show paths");
+                    ui.checkbox(&mut state.selected_show_move_gizmo, "Show move gizmo");
 
                     if !selected.is_empty() {
                         ui.add_space(10.);
@@ -159,6 +156,68 @@ fn update_side_panel(
                             ui.label("...");
                         }
                     }
+
+                    if selected.len() == 1 {
+                        let single = selected.first().unwrap();
+                        if let (ent, _, Some(_), None) = single {
+                            ui.group(|ui| {
+                                ui.strong("Revolute joint");
+                                ui.add(
+                                    egui::Slider::new(&mut state.revolute_target_angle, -180..=180)
+                                        .text("angle"),
+                                );
+                                ui.checkbox(
+                                    &mut state.joint_stop_at_collisions,
+                                    "Stop at collisions",
+                                );
+                                if ui.button("Add joint target").clicked() {
+                                    cmd.entity(*ent).insert(RevoluteJointCommand::new(
+                                        state.revolute_target_angle as f32 * PI / 180.,
+                                        0.01,
+                                        state.joint_stop_at_collisions,
+                                    ));
+                                }
+                            });
+                        } else if let (ent, _, None, Some(_)) = single {
+                            ui.group(|ui| {
+                                ui.strong("Spherical joint");
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.spherical_target_angle_x,
+                                        -180..=180,
+                                    )
+                                    .text("angle x"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.spherical_target_angle_z,
+                                        -180..=180,
+                                    )
+                                    .text("angle z"),
+                                );
+                                ui.add(
+                                    egui::Slider::new(
+                                        &mut state.spherical_target_angle_y,
+                                        -180..=180,
+                                    )
+                                    .text("angle y"),
+                                );
+                                ui.checkbox(
+                                    &mut state.joint_stop_at_collisions,
+                                    "Stop at collisions",
+                                );
+                                if ui.button("Add joint target").clicked() {
+                                    cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
+                                        state.spherical_target_angle_x as f32 * PI / 180.,
+                                        state.spherical_target_angle_z as f32 * PI / 180.,
+                                        state.spherical_target_angle_y as f32 * PI / 180.,
+                                        0.02,
+                                        state.joint_stop_at_collisions,
+                                    ));
+                                }
+                            });
+                        }
+                    }
                 });
 
             egui::CollapsingHeader::new("Physics")
@@ -167,67 +226,40 @@ fn update_side_panel(
                     ui.checkbox(&mut state.rapier_debug_enabled, "Debug render");
                     debug_render_ctx.enabled = state.rapier_debug_enabled;
 
-                    if let Some((ent, _, Some(_), None)) = selected.first() {
-                        ui.add(
-                            egui::Slider::new(&mut state.revolute_target_angle, -180..=180)
-                                .text("angle"),
-                        );
-                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
-                        if ui.button("Add revolute joint target").clicked() {
-                            cmd.entity(*ent).insert(RevoluteJointCommand::new(
-                                state.revolute_target_angle as f32 * PI / 180.,
-                                0.01,
-                                state.joint_stop_at_collisions,
-                            ));
-                        }
+                    state_toggle(ui, &mut state, UiMode::AddCube, "Add cube");
+
+                    if state.mode == UiMode::AddCube {
+                        ui.indent(10, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label("Joint type:");
+                                ui.selectable_value(
+                                    &mut state.add_joint_type,
+                                    KinematicJointType::Revolute,
+                                    "Revolute",
+                                );
+                                ui.selectable_value(
+                                    &mut state.add_joint_type,
+                                    KinematicJointType::Spherical,
+                                    "Spherical",
+                                );
+                            });
+                        });
                     }
 
-                    if let Some((ent, _, None, Some(_))) = selected.first() {
-                        ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_x, -180..=180)
-                                .text("angle x"),
-                        );
-                        ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_z, -180..=180)
-                                .text("angle z"),
-                        );
-                        ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
-                                .text("angle y"),
-                        );
-                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
-                        if ui.button("Add spherical joint target").clicked() {
-                            cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
-                                state.spherical_target_angle_x as f32 * PI / 180.,
-                                state.spherical_target_angle_z as f32 * PI / 180.,
-                                state.spherical_target_angle_y as f32 * PI / 180.,
-                                0.02,
-                                state.joint_stop_at_collisions,
-                            ));
-                        }
-                    }
+                    state_toggle(ui, &mut state, UiMode::ShootBalls, "Shoot balls");
                 });
-
-            egui::CollapsingHeader::new("Ui mode")
-                .default_open(true)
-                .show(ui, |ui| {
-                    ui.selectable_value(&mut state.mode, UiMode::Select, "Select");
-                    ui.selectable_value(&mut state.mode, UiMode::AddCube, "Add cube");
-                    ui.selectable_value(&mut state.mode, UiMode::ShootBalls, "Shoot balls");
-                });
-            if state.mode == UiMode::AddCube {
-                ui.selectable_value(
-                    &mut state.add_joint_type,
-                    KinematicJointType::Revolute,
-                    "Revolute",
-                );
-                ui.selectable_value(
-                    &mut state.add_joint_type,
-                    KinematicJointType::Spherical,
-                    "Spherical",
-                );
-            }
         });
+}
+
+fn state_toggle(ui: &mut egui::Ui, state: &mut SidePanelState, mode: UiMode, text: &str) {
+    let mut val = state.mode == mode;
+    let val1 = val;
+    ui.toggle_value(&mut val, text);
+    if val {
+        state.mode = mode;
+    } else if val1 {
+        state.mode = UiMode::Select
+    };
 }
 
 fn inspector_ui(world: &mut World) {
