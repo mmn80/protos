@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
 use super::{
-    basic_materials::BasicMaterialsRes,
+    basic_materials::BasicMaterials,
     side_panel::{SidePanelState, UiMode},
 };
 use crate::camera::{MainCamera, ScreenPosition};
@@ -98,7 +98,7 @@ fn update_selected(
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     ui: Res<SidePanelState>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mut selection_rect: ResMut<SelectionRect>,
     q_camera: Query<&MainCamera>,
     q_selectable: Query<&Selectable>,

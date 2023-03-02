@@ -5,7 +5,7 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use super::{basic_materials::BasicMaterialsRes, side_panel::SidePanelState};
+use super::{basic_materials::BasicMaterials, side_panel::SidePanelState};
 use crate::{
     camera::MainCamera,
     mesh::{cone::Cone, cylinder::Cylinder},
@@ -236,7 +236,7 @@ fn update_handles(
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     ui: Res<SidePanelState>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     q_parent: Query<&Parent>,
     q_camera: Query<&MainCamera>,
     q_gizmo: Query<(&HandleGizmo, &GlobalTransform)>,

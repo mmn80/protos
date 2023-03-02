@@ -4,12 +4,12 @@ pub struct BasicMaterialsPlugin;
 
 impl Plugin for BasicMaterialsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<BasicMaterialsRes>();
+        app.init_resource::<BasicMaterials>();
     }
 }
 
 #[derive(Resource)]
-pub struct BasicMaterialsRes {
+pub struct BasicMaterials {
     pub ui_red: Handle<StandardMaterial>,
     pub ui_green: Handle<StandardMaterial>,
     pub ui_blue: Handle<StandardMaterial>,
@@ -20,13 +20,13 @@ pub struct BasicMaterialsRes {
     pub gold: Handle<StandardMaterial>,
 }
 
-impl FromWorld for BasicMaterialsRes {
+impl FromWorld for BasicMaterials {
     fn from_world(world: &mut World) -> Self {
         let mut materials = world
             .get_resource_mut::<Assets<StandardMaterial>>()
             .unwrap();
 
-        BasicMaterialsRes {
+        BasicMaterials {
             ui_red: materials.add(StandardMaterial {
                 base_color: Color::rgb(0.9, 0.5, 0.5),
                 emissive: Color::rgb(0.9, 0.5, 0.5),

@@ -7,12 +7,12 @@ use parry3d::query::details::ray_toi_with_halfspace;
 
 use super::{
     kinematic_joints::{KinematicJointType, RevoluteJoint, SphericalJoint},
-    kinematic_rig::{KinematicRigCollider, KinematicRigMesh},
+    kinematic_rig::{IkBone, IkRoot, RigCollider, RigMesh},
 };
 use crate::{
     camera::{MainCamera, ScreenPosition},
     ui::{
-        basic_materials::BasicMaterialsRes,
+        basic_materials::BasicMaterials,
         selection::Selectable,
         side_panel::{SidePanelState, UiMode},
     },
@@ -61,11 +61,12 @@ fn add_cube_ui(
     ui: Res<SidePanelState>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
     mut q_trans: Query<&mut Transform>,
     q_gtrans: Query<&GlobalTransform>,
-    q_coll: Query<(&KinematicRigCollider, &Parent)>,
+    q_coll: Query<(&RigCollider, &Parent)>,
+    q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
     if ui.mode == UiMode::AddCube {
@@ -177,64 +178,60 @@ fn add_cube_ui(
 
                     let (coll_ent, mesh_ent, is_root) = {
                         if let Ok((coll, colp_p)) = q_coll.get(state.attach.unwrap()) {
-                            let s = cube_tr.scale;
-
-                            let mesh_p = coll.mesh;
-                            let mesh_gtr = q_gtrans.get(mesh_p).unwrap();
-                            let mesh_inv = mesh_gtr.affine().inverse();
-                            let new_cube_tr = Transform::from_translation(
-                                mesh_inv.transform_point3(cube_tr.translation),
-                            )
-                            .with_rotation(
-                                mesh_inv.to_scale_rotation_translation().1 * cube_tr.rotation,
-                            );
-                            let new_cube_inv = new_cube_tr.compute_affine().inverse();
+                            let parent_ent = q_parent.get(coll.mesh).unwrap().get();
+                            let parent_inv = q_gtrans.get(parent_ent).unwrap().affine().inverse();
                             let (p0, p1, p2) =
                                 (state.p0.unwrap(), state.p1.unwrap(), state.p2.unwrap());
+                            let sz = cube_tr.scale;
 
-                            let mesh_ent = cmd
+                            let new_bone_tr = Transform::from_translation(
+                                parent_inv.transform_point3((p0 + p2) / 2.),
+                            )
+                            .with_rotation(
+                                parent_inv.to_scale_rotation_translation().1 * cube_tr.rotation,
+                            );
+
+                            let bone_ent = cmd
                                 .spawn((
-                                    PbrBundle {
-                                        transform: new_cube_tr,
-                                        mesh: meshes
-                                            .add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
-                                        material,
-                                        ..default()
-                                    },
+                                    SpatialBundle::from(new_bone_tr),
                                     ScreenPosition::default(),
+                                    IkBone::new(sz.y),
                                 ))
                                 .id();
+                            cmd.entity(parent_ent).add_child(bone_ent);
+
+                            let mesh_ent = cmd
+                                .spawn((PbrBundle {
+                                    transform: Transform::from_xyz(0., sz.y / 2., 0.),
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(sz.x, sz.y, sz.z))),
+                                    material,
+                                    ..default()
+                                },))
+                                .id();
+                            cmd.entity(bone_ent).add_child(mesh_ent);
+
                             if ui.add_joint_type == KinematicJointType::Revolute {
-                                let anchor = (p0 + p1) / 2.;
-                                let anchor_attach = mesh_inv.transform_point3(anchor);
-                                let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
-                                let hinge = new_cube_inv
-                                    .transform_vector3(mesh_inv.transform_vector3(p1 - p0));
-                                cmd.entity(mesh_ent).insert(RevoluteJoint {
-                                    axis: new_cube_tr.right(),
-                                    anchor: anchor_new_cube,
+                                let hinge = new_bone_tr
+                                    .compute_affine()
+                                    .inverse()
+                                    .transform_vector3(parent_inv.transform_vector3(p1 - p0));
+                                cmd.entity(bone_ent).insert(RevoluteJoint {
                                     length: hinge.length(),
-                                    start_dir: new_cube_tr.up(),
+                                    start_dir: new_bone_tr.up(),
                                     show_mesh: true,
                                 });
                             } else if ui.add_joint_type == KinematicJointType::Spherical {
-                                let anchor = (p0 + p2) / 2.;
-                                let anchor_attach = mesh_inv.transform_point3(anchor);
-                                let anchor_new_cube = new_cube_inv.transform_point3(anchor_attach);
-                                cmd.entity(mesh_ent).insert(SphericalJoint {
-                                    anchor: anchor_new_cube,
+                                cmd.entity(bone_ent).insert(SphericalJoint {
                                     show_mesh: true,
-                                    start_rot: new_cube_tr.rotation,
-                                    start_pos: new_cube_tr.translation,
+                                    start_rot: new_bone_tr.rotation,
                                 });
                             }
-                            cmd.entity(mesh_p).add_child(mesh_ent);
 
                             let coll_ent = cmd
                                 .spawn((
                                     SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
-                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
-                                    Selectable::new(mesh_ent, Some(mesh_ent)),
+                                    Collider::cuboid(sz.x / 2., sz.y / 2., sz.z / 2.),
+                                    Selectable::new(bone_ent, Some(mesh_ent)),
                                 ))
                                 .id();
                             cmd.entity(colp_p.get()).add_child(coll_ent);
@@ -249,15 +246,15 @@ fn add_cube_ui(
                                     ),
                                     RigidBody::Dynamic,
                                     ScreenPosition::default(),
+                                    IkRoot,
                                 ))
                                 .id();
-
-                            let s = cube_tr.scale;
+                            let sz = cube_tr.scale;
 
                             let mesh_ent = cmd
                                 .spawn((PbrBundle {
                                     transform: Transform::IDENTITY,
-                                    mesh: meshes.add(Mesh::from(shape::Box::new(s.x, s.y, s.z))),
+                                    mesh: meshes.add(Mesh::from(shape::Box::new(sz.x, sz.y, sz.z))),
                                     material,
                                     ..default()
                                 },))
@@ -267,7 +264,7 @@ fn add_cube_ui(
                             let coll_ent = cmd
                                 .spawn((
                                     SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
-                                    Collider::cuboid(s.x / 2., s.y / 2., s.z / 2.),
+                                    Collider::cuboid(sz.x / 2., sz.y / 2., sz.z / 2.),
                                     Selectable::new(new_obj, Some(mesh_ent)),
                                 ))
                                 .id();
@@ -277,12 +274,11 @@ fn add_cube_ui(
                         }
                     };
 
-                    cmd.entity(coll_ent).insert(KinematicRigCollider {
+                    cmd.entity(coll_ent).insert(RigCollider {
                         mesh: mesh_ent,
                         is_root,
                     });
-                    cmd.entity(mesh_ent)
-                        .insert(KinematicRigMesh { collider: coll_ent });
+                    cmd.entity(mesh_ent).insert(RigMesh { collider: coll_ent });
 
                     clear_ui_state(&mut state, &mut cmd);
                 } else {
@@ -325,7 +321,7 @@ pub struct ShootyBall;
 
 fn shoot_balls(
     ui: Res<SidePanelState>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mouse: Res<Input<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
     q_camera: Query<&MainCamera>,

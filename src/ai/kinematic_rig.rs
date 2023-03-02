@@ -5,28 +5,33 @@ pub struct KinematicRigPlugin;
 
 impl Plugin for KinematicRigPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<KinematicRigCollider>()
-            .register_type::<KinematicRigMesh>()
+        app.register_type::<RigCollider>()
+            .register_type::<RigMesh>()
+            .register_type::<IkRoot>()
+            .register_type::<IkRootDriver>()
+            .register_type::<IkLoop>()
+            .register_type::<IkBone>()
+            .register_type::<IkEffector>()
             .add_system(update_kinematic_colliders);
     }
 }
 
 #[derive(Component, Reflect)]
-pub struct KinematicRigCollider {
+pub struct RigCollider {
     pub mesh: Entity,
     pub is_root: bool,
 }
 
 #[derive(Component, Reflect)]
-pub struct KinematicRigMesh {
+pub struct RigMesh {
     pub collider: Entity,
 }
 
 fn update_kinematic_colliders(
     mut rapier: ResMut<RapierContext>,
     q_object: Query<&GlobalTransform, With<RigidBody>>,
-    mut q_coll: Query<(Entity, &KinematicRigCollider, &mut Transform)>,
-    q_mesh: Query<&GlobalTransform, (Without<RigidBody>, With<KinematicRigMesh>)>,
+    mut q_coll: Query<(Entity, &RigCollider, &mut Transform)>,
+    q_mesh: Query<&GlobalTransform, (Without<RigidBody>, With<RigMesh>)>,
     q_parent: Query<&Parent>,
 ) {
     for (coll_ent, kcoll, mut coll_tr) in &mut q_coll {
@@ -59,3 +64,26 @@ fn update_kinematic_colliders(
         }
     }
 }
+
+#[derive(Component, Reflect)]
+pub struct IkRoot;
+
+#[derive(Component, Reflect)]
+pub struct IkRootDriver;
+
+#[derive(Component, Reflect)]
+pub struct IkLoop;
+
+#[derive(Component, Reflect)]
+pub struct IkBone {
+    pub length: f32,
+}
+
+impl IkBone {
+    pub fn new(length: f32) -> Self {
+        Self { length }
+    }
+}
+
+#[derive(Component, Reflect)]
+pub struct IkEffector;

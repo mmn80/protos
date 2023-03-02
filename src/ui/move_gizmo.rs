@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::{
-    basic_materials::BasicMaterialsRes,
+    basic_materials::BasicMaterials,
     handle_gizmo::{AddHandleGizmo, HandleGizmoAxis, HandleGizmoDragged, RemoveHandleGizmo},
     selection::Selected,
     side_panel::{SidePanelState, UiMode},
@@ -20,7 +20,7 @@ pub struct HasMoveGizmos;
 
 fn update_move_gizmos(
     mut ui: ResMut<SidePanelState>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mut ev_add: EventWriter<AddHandleGizmo>,
     mut ev_remove: EventWriter<RemoveHandleGizmo>,
     mut ev_drag: EventReader<HandleGizmoDragged>,

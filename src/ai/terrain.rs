@@ -3,7 +3,7 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     mesh::lines::{LineList, LineMaterial},
-    ui::basic_materials::BasicMaterialsRes,
+    ui::basic_materials::BasicMaterials,
 };
 
 pub struct TerrainPlugin;
@@ -25,7 +25,7 @@ fn setup_terrain(
     mut terrain: ResMut<TerrainRes>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mut cmd: Commands,
 ) {
     let ground_size = Vec3::new(200.0, 1.0, 200.0);

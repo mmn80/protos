@@ -1,10 +1,7 @@
 use bevy::{prelude::*, transform::TransformSystem};
-use bevy_rapier3d::prelude::*;
 use std::f32::consts::PI;
 
-use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterialsRes};
-
-use super::kinematic_rig::{KinematicRigCollider, KinematicRigMesh};
+use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterials};
 
 pub struct KinematicJointsPlugin;
 
@@ -35,24 +32,22 @@ pub enum KinematicJointType {
 
 #[derive(Component, Reflect)]
 pub struct RevoluteJoint {
-    pub axis: Vec3,
-    pub anchor: Vec3,
     pub length: f32,
     pub start_dir: Vec3,
     pub show_mesh: bool,
 }
 
 impl RevoluteJoint {
-    pub fn get_angle(&self, transform: &Transform) -> f32 {
+    pub fn get_angle(&self, tr: &Transform) -> f32 {
         let sign = {
-            let dir = self.start_dir.cross(transform.up());
-            if dir.length() > 0.01 && dir.dot(transform.right()) < 0.01 {
+            let dir = self.start_dir.cross(tr.up());
+            if dir.length() > 0.01 && dir.dot(tr.right()) < 0.01 {
                 -1.
             } else {
                 1.
             }
         };
-        sign * self.start_dir.angle_between(transform.up())
+        sign * self.start_dir.angle_between(tr.up())
     }
 }
 
@@ -78,50 +73,20 @@ impl RevoluteJointCommand {
 }
 
 fn update_revolute_joints(
-    rapier: Res<RapierContext>,
     mut q_joint: Query<(
         Entity,
-        &GlobalTransform,
         &mut Transform,
-        &KinematicRigMesh,
         &RevoluteJoint,
         &mut RevoluteJointCommand,
     )>,
-    q_parent: Query<&Parent>,
-    q_collider: Query<(Entity, &Collider), With<KinematicRigCollider>>,
     mut cmd: Commands,
 ) {
-    for (entity, gtr, mut tr, rig_mesh, joint, mut joint_cmd) in &mut q_joint {
-        let srt = gtr.to_scale_rotation_translation();
-
-        let (coll_ent, coll) = q_collider.get(rig_mesh.collider).unwrap();
-        let parent = q_parent.iter_ancestors(coll_ent).next().unwrap();
-
-        let mut colliding = false;
-        if joint_cmd.stop_at_collisions {
-            rapier.intersections_with_shape(
-                srt.2,
-                srt.1,
-                &coll,
-                QueryFilter::new().exclude_sensors(),
-                |colliding_ent| {
-                    if colliding_ent == entity
-                        || parent == colliding_ent
-                        || q_parent.iter_ancestors(colliding_ent).next() == Some(parent)
-                    {
-                        true
-                    } else {
-                        warn!("We hit something: {:?}", colliding_ent);
-                        colliding = true;
-                        false
-                    }
-                },
-            );
-        }
-        let mut cmd_finished = colliding;
-
+    for (entity, mut tr, joint, mut joint_cmd) in &mut q_joint {
         joint_cmd.current_angle = joint.get_angle(&tr);
         joint_cmd.target_angle = joint_cmd.target_angle.clamp(-PI + 0.01, PI);
+
+        let colliding = false;
+        let mut cmd_finished = colliding;
 
         if colliding {
             joint_cmd.target_angle = joint_cmd.last_non_colliding_angle;
@@ -136,8 +101,8 @@ fn update_revolute_joints(
             } else {
                 joint_cmd.speed.min(diff.abs()) * diff.signum()
             };
-            let anchor = tr.transform_point(joint.anchor);
-            tr.rotate_around(anchor, Quat::from_axis_angle(joint.axis, rot_angle));
+            let axis = tr.right();
+            tr.rotate_axis(axis, rot_angle);
         } else {
             cmd_finished = true;
         }
@@ -152,12 +117,10 @@ fn update_revolute_joints(
 pub struct RevoluteJointMesh;
 
 fn update_revolute_joint_mesh(
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mut meshes: ResMut<Assets<Mesh>>,
     q_joint: Query<(
         Entity,
-        &Transform,
-        &Handle<StandardMaterial>,
         &RevoluteJoint,
         Option<&RevoluteJointCommand>,
         &Children,
@@ -168,15 +131,15 @@ fn update_revolute_joint_mesh(
     >,
     mut cmd: Commands,
 ) {
-    for (entity, tr, material, joint, joint_cmd, children) in &q_joint {
+    for (entity, joint, joint_cmd, children) in &q_joint {
         if joint.show_mesh {
             let material = if joint_cmd.is_some() {
                 &materials.ui_green
             } else {
-                material
+                &materials.ui_blue
             };
-            let mesh_ent = children.iter().find(|c| q_mesh.contains(**c));
-            if let Some(mesh_ent) = mesh_ent {
+
+            if let Some(mesh_ent) = children.iter().find(|c| q_mesh.contains(**c)) {
                 if let Ok(mut mesh_material) = q_mesh.get_mut(*mesh_ent) {
                     if mesh_material.as_ref() != material {
                         *mesh_material = material.clone();
@@ -184,17 +147,13 @@ fn update_revolute_joint_mesh(
                 }
             } else {
                 cmd.entity(entity).with_children(|children| {
-                    let dir_y = tr.compute_affine().inverse().transform_vector3(joint.axis);
-                    let dir_x = dir_y.any_orthonormal_vector();
                     children.spawn((
                         PbrBundle {
-                            transform: Transform::from_translation(joint.anchor).with_rotation(
-                                Quat::from_mat3(&Mat3::from_cols(
-                                    dir_x,
-                                    dir_y,
-                                    dir_x.cross(dir_y).normalize(),
-                                )),
-                            ),
+                            transform: Transform::from_rotation(Quat::from_mat3(&Mat3::from_cols(
+                                Vec3::NEG_Y,
+                                Vec3::X,
+                                Vec3::Z,
+                            ))),
                             mesh: meshes.add(Mesh::from(Cylinder {
                                 radius: 0.1,
                                 height: joint.length - 0.01,
@@ -220,10 +179,8 @@ fn update_revolute_joint_mesh(
 
 #[derive(Component, Reflect)]
 pub struct SphericalJoint {
-    pub anchor: Vec3,
     pub show_mesh: bool,
     pub start_rot: Quat,
-    pub start_pos: Vec3,
 }
 
 #[derive(Component, Reflect)]
@@ -270,46 +227,16 @@ impl SphericalJointCommand {
 }
 
 fn update_spherical_joints(
-    rapier: Res<RapierContext>,
     mut q_joint: Query<(
         Entity,
-        &GlobalTransform,
         &mut Transform,
-        &KinematicRigMesh,
         &SphericalJoint,
         &mut SphericalJointCommand,
     )>,
-    q_parent: Query<&Parent>,
-    q_collider: Query<(Entity, &Collider), With<KinematicRigCollider>>,
     mut cmd: Commands,
 ) {
-    for (entity, gtr, mut tr, rig_mesh, joint, mut joint_cmd) in &mut q_joint {
-        let srt = gtr.to_scale_rotation_translation();
-
-        let (coll_ent, coll) = q_collider.get(rig_mesh.collider).unwrap();
-        let parent = q_parent.iter_ancestors(coll_ent).next().unwrap();
-
-        let mut colliding = false;
-        if joint_cmd.stop_at_collisions {
-            rapier.intersections_with_shape(
-                srt.2,
-                srt.1,
-                &coll,
-                QueryFilter::new().exclude_sensors(),
-                |colliding_ent| {
-                    if colliding_ent == entity
-                        || parent == colliding_ent
-                        || q_parent.iter_ancestors(colliding_ent).next() == Some(parent)
-                    {
-                        true
-                    } else {
-                        warn!("We hit something: {:?}", colliding_ent);
-                        colliding = true;
-                        false
-                    }
-                },
-            );
-        }
+    for (entity, mut tr, joint, mut joint_cmd) in &mut q_joint {
+        let colliding = false;
         let mut cmd_finished = colliding;
 
         if joint_cmd.start_rot.is_none() {
@@ -339,10 +266,8 @@ fn update_spherical_joints(
             .slerp(joint_cmd.target_rot, joint_cmd.current)
             .normalize();
 
-        tr.translation = joint.start_pos;
         tr.rotation = joint.start_rot;
-        let anchor = tr.transform_point(joint.anchor);
-        tr.rotate_around(anchor, current_rot);
+        tr.rotate(current_rot);
 
         if cmd_finished {
             cmd.entity(entity).remove::<SphericalJointCommand>();
@@ -354,11 +279,10 @@ fn update_spherical_joints(
 pub struct SphericalJointMesh;
 
 fn update_spherical_joint_mesh(
-    materials: Res<BasicMaterialsRes>,
+    materials: Res<BasicMaterials>,
     mut meshes: ResMut<Assets<Mesh>>,
     q_joint: Query<(
         Entity,
-        &Handle<StandardMaterial>,
         &SphericalJoint,
         Option<&SphericalJointCommand>,
         &Children,
@@ -369,15 +293,15 @@ fn update_spherical_joint_mesh(
     >,
     mut cmd: Commands,
 ) {
-    for (entity, material, joint, joint_cmd, children) in &q_joint {
+    for (entity, joint, joint_cmd, children) in &q_joint {
         if joint.show_mesh {
             let material = if joint_cmd.is_some() {
                 &materials.ui_green
             } else {
-                material
+                &materials.ui_blue
             };
-            let mesh_ent = children.iter().find(|c| q_mesh.contains(**c));
-            if let Some(mesh_ent) = mesh_ent {
+
+            if let Some(mesh_ent) = children.iter().find(|c| q_mesh.contains(**c)) {
                 if let Ok(mut mesh_material) = q_mesh.get_mut(*mesh_ent) {
                     if mesh_material.as_ref() != material {
                         *mesh_material = material.clone();
@@ -387,7 +311,7 @@ fn update_spherical_joint_mesh(
                 cmd.entity(entity).with_children(|children| {
                     children.spawn((
                         PbrBundle {
-                            transform: Transform::from_translation(joint.anchor),
+                            transform: Transform::IDENTITY,
                             mesh: meshes.add(Mesh::from(shape::Icosphere {
                                 radius: 0.2,
                                 subdivisions: 5,
