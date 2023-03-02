@@ -231,6 +231,7 @@ fn add_cube_ui(
                                 .spawn((
                                     SpatialBundle::from(Transform::from_translation(Vec3::ZERO)),
                                     Collider::cuboid(sz.x / 2., sz.y / 2., sz.z / 2.),
+                                    ColliderDisabled,
                                     Selectable::new(bone_ent, Some(mesh_ent)),
                                 ))
                                 .id();

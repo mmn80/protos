@@ -33,6 +33,7 @@ fn update_kinematic_colliders(
     mut q_coll: Query<(Entity, &RigCollider, &mut Transform)>,
     q_mesh: Query<&GlobalTransform, (Without<RigidBody>, With<RigMesh>)>,
     q_parent: Query<&Parent>,
+    mut cmd: Commands,
 ) {
     for (coll_ent, kcoll, mut coll_tr) in &mut q_coll {
         if !kcoll.is_root {
@@ -59,6 +60,8 @@ fn update_kinematic_colliders(
                         mesh_obj_pos.into(),
                         coll_tr.rotation.into(),
                     ));
+
+                    cmd.entity(coll_ent).remove::<ColliderDisabled>();
                 }
             }
         }
