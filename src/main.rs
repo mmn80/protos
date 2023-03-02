@@ -4,16 +4,15 @@ use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
-    ai::{
-        add_cube::AddCubePlugin, building::BuildingPlugin, kinematic_joints::KinematicJointsPlugin,
-        kinematic_rig::KinematicRigPlugin, terrain::TerrainPlugin,
-    },
+    ai::{building::BuildingPlugin, terrain::TerrainPlugin},
+    anim::{auto_collider::AutoColliderPlugin, joint::JointPlugin, rig::RigPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     mesh::lines::LinesPlugin,
     ui::{
-        basic_materials::BasicMaterialsPlugin, handle_gizmo::HandleGizmoPlugin,
-        move_gizmo::MoveGizmoPlugin, selection::SelectionPlugin, side_panel::SidePanelPlugin,
+        add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin,
+        handle_gizmo::HandleGizmoPlugin, move_gizmo::MoveGizmoPlugin, selection::SelectionPlugin,
+        side_panel::SidePanelPlugin,
     },
 };
 
@@ -43,8 +42,9 @@ fn main() {
         .add_plugin(MoveGizmoPlugin)
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
-        .add_plugin(KinematicRigPlugin)
-        .add_plugin(KinematicJointsPlugin)
+        .add_plugin(RigPlugin)
+        .add_plugin(JointPlugin)
+        .add_plugin(AutoColliderPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)
         .add_plugin(BuildingPlugin)

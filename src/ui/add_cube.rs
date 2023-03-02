@@ -6,16 +6,16 @@ use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
 use super::{
-    kinematic_joints::{KinematicJointType, RevoluteJoint, SphericalJoint},
-    kinematic_rig::{IkBone, IkRoot, RigCollider, RigMesh},
+    basic_materials::BasicMaterials,
+    selection::Selectable,
+    side_panel::{SidePanelState, UiMode},
 };
 use crate::{
-    camera::{MainCamera, ScreenPosition},
-    ui::{
-        basic_materials::BasicMaterials,
-        selection::Selectable,
-        side_panel::{SidePanelState, UiMode},
+    anim::{
+        auto_collider::{AutoCollider, AutoColliderMesh, AutoColliderRoot},
+        rig::{KiBone, KiJointType, KiRevoluteJoint, KiRoot, KiSphericalJoint},
     },
+    camera::{MainCamera, ScreenPosition},
 };
 
 pub struct AddCubePlugin;
@@ -65,7 +65,7 @@ fn add_cube_ui(
     q_camera: Query<&MainCamera>,
     mut q_trans: Query<&mut Transform>,
     q_gtrans: Query<&GlobalTransform>,
-    q_coll: Query<(&RigCollider, &Parent)>,
+    q_coll: Query<(&AutoCollider, &Parent)>,
     q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
@@ -195,7 +195,7 @@ fn add_cube_ui(
                                 .spawn((
                                     SpatialBundle::from(new_bone_tr),
                                     ScreenPosition::default(),
-                                    IkBone::new(sz.y),
+                                    KiBone::new(sz.y),
                                 ))
                                 .id();
                             cmd.entity(parent_ent).add_child(bone_ent);
@@ -210,18 +210,18 @@ fn add_cube_ui(
                                 .id();
                             cmd.entity(bone_ent).add_child(mesh_ent);
 
-                            if ui.add_joint_type == KinematicJointType::Revolute {
+                            if ui.add_joint_type == KiJointType::Revolute {
                                 let hinge = new_bone_tr
                                     .compute_affine()
                                     .inverse()
                                     .transform_vector3(parent_inv.transform_vector3(p1 - p0));
-                                cmd.entity(bone_ent).insert(RevoluteJoint {
+                                cmd.entity(bone_ent).insert(KiRevoluteJoint {
                                     length: hinge.length(),
                                     start_dir: new_bone_tr.up(),
                                     show_mesh: true,
                                 });
-                            } else if ui.add_joint_type == KinematicJointType::Spherical {
-                                cmd.entity(bone_ent).insert(SphericalJoint {
+                            } else if ui.add_joint_type == KiJointType::Spherical {
+                                cmd.entity(bone_ent).insert(KiSphericalJoint {
                                     show_mesh: true,
                                     start_rot: new_bone_tr.rotation,
                                 });
@@ -247,7 +247,8 @@ fn add_cube_ui(
                                     ),
                                     RigidBody::Dynamic,
                                     ScreenPosition::default(),
-                                    IkRoot,
+                                    KiRoot,
+                                    AutoColliderRoot,
                                 ))
                                 .id();
                             let sz = cube_tr.scale;
@@ -275,11 +276,12 @@ fn add_cube_ui(
                         }
                     };
 
-                    cmd.entity(coll_ent).insert(RigCollider {
+                    cmd.entity(coll_ent).insert(AutoCollider {
                         mesh: mesh_ent,
-                        is_root,
+                        update_transform: !is_root,
                     });
-                    cmd.entity(mesh_ent).insert(RigMesh { collider: coll_ent });
+                    cmd.entity(mesh_ent)
+                        .insert(AutoColliderMesh { collider: coll_ent });
 
                     clear_ui_state(&mut state, &mut cmd);
                 } else {

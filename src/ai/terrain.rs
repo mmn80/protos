@@ -12,7 +12,7 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(TerrainRes::default())
             .add_startup_system(setup_terrain)
-            .add_system(display_events);
+            .add_system(display_rapier_events);
     }
 }
 
@@ -83,15 +83,15 @@ fn setup_terrain(
     ));
 }
 
-fn display_events(
-    mut collision_events: EventReader<CollisionEvent>,
-    mut contact_force_events: EventReader<ContactForceEvent>,
+fn display_rapier_events(
+    mut collision_ev: EventReader<CollisionEvent>,
+    mut contact_force_ev: EventReader<ContactForceEvent>,
 ) {
-    for collision_event in collision_events.iter() {
-        println!("Received collision event: {:?}", collision_event);
+    for collision_event in collision_ev.iter() {
+        info!("Collision: {:?}", collision_event);
     }
 
-    for contact_force_event in contact_force_events.iter() {
-        println!("Received contact force event: {:?}", contact_force_event);
+    for contact_force_event in contact_force_ev.iter() {
+        info!("Contact force: {:?}", contact_force_event);
     }
 }

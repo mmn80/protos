@@ -7,8 +7,9 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
 
-use crate::ai::kinematic_joints::{
-    KinematicJointType, RevoluteJoint, RevoluteJointCommand, SphericalJoint, SphericalJointCommand,
+use crate::anim::{
+    joint::{RevoluteJointCommand, SphericalJointCommand},
+    rig::{KiJointType, KiRevoluteJoint, KiSphericalJoint},
 };
 
 use super::selection::Selected;
@@ -51,7 +52,7 @@ pub struct SidePanelState {
     pub spherical_target_angle_y: i16,
     pub spherical_target_angle_z: i16,
     pub joint_stop_at_collisions: bool,
-    pub add_joint_type: KinematicJointType,
+    pub add_joint_type: KiJointType,
     pub selected_show_inspector: bool,
     pub selected_show_names: bool,
     pub selected_show_move_gizmo: bool,
@@ -68,7 +69,7 @@ impl Default for SidePanelState {
             spherical_target_angle_y: 0,
             spherical_target_angle_z: 0,
             joint_stop_at_collisions: false,
-            add_joint_type: KinematicJointType::Revolute,
+            add_joint_type: KiJointType::Revolute,
             selected_show_names: true,
             selected_show_inspector: true,
             selected_show_move_gizmo: false,
@@ -90,8 +91,8 @@ fn update_side_panel(
         (
             Entity,
             Option<&Name>,
-            Option<&RevoluteJoint>,
-            Option<&SphericalJoint>,
+            Option<&KiRevoluteJoint>,
+            Option<&KiSphericalJoint>,
         ),
         With<Selected>,
     >,
@@ -234,12 +235,12 @@ fn update_side_panel(
                                 ui.label("Joint type:");
                                 ui.selectable_value(
                                     &mut state.add_joint_type,
-                                    KinematicJointType::Revolute,
+                                    KiJointType::Revolute,
                                     "Revolute",
                                 );
                                 ui.selectable_value(
                                     &mut state.add_joint_type,
-                                    KinematicJointType::Spherical,
+                                    KiJointType::Spherical,
                                     "Spherical",
                                 );
                             });

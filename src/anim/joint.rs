@@ -1,15 +1,16 @@
-use bevy::{prelude::*, transform::TransformSystem};
 use std::f32::consts::PI;
+
+use bevy::{prelude::*, transform::TransformSystem};
 
 use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterials};
 
-pub struct KinematicJointsPlugin;
+use super::rig::{KiRevoluteJoint, KiSphericalJoint};
 
-impl Plugin for KinematicJointsPlugin {
+pub struct JointPlugin;
+
+impl Plugin for JointPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<RevoluteJoint>()
-            .register_type::<RevoluteJointCommand>()
-            .register_type::<SphericalJoint>()
+        app.register_type::<RevoluteJointCommand>()
             .register_type::<SphericalJointCommand>()
             .add_system_to_stage(
                 CoreStage::PostUpdate,
@@ -21,33 +22,6 @@ impl Plugin for KinematicJointsPlugin {
             )
             .add_system(update_revolute_joint_mesh)
             .add_system(update_spherical_joint_mesh);
-    }
-}
-
-#[derive(PartialEq, Eq)]
-pub enum KinematicJointType {
-    Revolute,
-    Spherical,
-}
-
-#[derive(Component, Reflect)]
-pub struct RevoluteJoint {
-    pub length: f32,
-    pub start_dir: Vec3,
-    pub show_mesh: bool,
-}
-
-impl RevoluteJoint {
-    pub fn get_angle(&self, tr: &Transform) -> f32 {
-        let sign = {
-            let dir = self.start_dir.cross(tr.up());
-            if dir.length() > 0.01 && dir.dot(tr.right()) < 0.01 {
-                -1.
-            } else {
-                1.
-            }
-        };
-        sign * self.start_dir.angle_between(tr.up())
     }
 }
 
@@ -76,7 +50,7 @@ fn update_revolute_joints(
     mut q_joint: Query<(
         Entity,
         &mut Transform,
-        &RevoluteJoint,
+        &KiRevoluteJoint,
         &mut RevoluteJointCommand,
     )>,
     mut cmd: Commands,
@@ -121,13 +95,13 @@ fn update_revolute_joint_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     q_joint: Query<(
         Entity,
-        &RevoluteJoint,
+        &KiRevoluteJoint,
         Option<&RevoluteJointCommand>,
         &Children,
     )>,
     mut q_mesh: Query<
         &mut Handle<StandardMaterial>,
-        (With<RevoluteJointMesh>, Without<RevoluteJoint>),
+        (With<RevoluteJointMesh>, Without<KiRevoluteJoint>),
     >,
     mut cmd: Commands,
 ) {
@@ -178,12 +152,6 @@ fn update_revolute_joint_mesh(
 }
 
 #[derive(Component, Reflect)]
-pub struct SphericalJoint {
-    pub show_mesh: bool,
-    pub start_rot: Quat,
-}
-
-#[derive(Component, Reflect)]
 pub struct SphericalJointCommand {
     start_rot: Option<Quat>,
     pub target_rot: Quat,
@@ -230,7 +198,7 @@ fn update_spherical_joints(
     mut q_joint: Query<(
         Entity,
         &mut Transform,
-        &SphericalJoint,
+        &KiSphericalJoint,
         &mut SphericalJointCommand,
     )>,
     mut cmd: Commands,
@@ -283,13 +251,13 @@ fn update_spherical_joint_mesh(
     mut meshes: ResMut<Assets<Mesh>>,
     q_joint: Query<(
         Entity,
-        &SphericalJoint,
+        &KiSphericalJoint,
         Option<&SphericalJointCommand>,
         &Children,
     )>,
     mut q_mesh: Query<
         &mut Handle<StandardMaterial>,
-        (With<SphericalJointMesh>, Without<SphericalJoint>),
+        (With<SphericalJointMesh>, Without<KiSphericalJoint>),
     >,
     mut cmd: Commands,
 ) {
