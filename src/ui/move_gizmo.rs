@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use super::{
     basic_materials::BasicMaterials,
     handle_gizmo::{AddHandleGizmo, HandleGizmoAxis, HandleGizmoDragged, RemoveHandleGizmo},
-    selection::Selected,
+    selection::{Selected, SelectionUiState},
     side_panel::{SidePanelState, UiMode},
 };
 
@@ -20,6 +20,7 @@ pub struct HasMoveGizmos;
 
 fn update_move_gizmos(
     mut ui: ResMut<SidePanelState>,
+    sel_ui: Res<SelectionUiState>,
     materials: Res<BasicMaterials>,
     mut ev_add: EventWriter<AddHandleGizmo>,
     mut ev_remove: EventWriter<RemoveHandleGizmo>,
@@ -28,7 +29,7 @@ fn update_move_gizmos(
     mut q_gizmos: Query<(Entity, &mut Transform, &GlobalTransform), With<HasMoveGizmos>>,
     mut cmd: Commands,
 ) {
-    if ui.selected_show_move_gizmo {
+    if sel_ui.show_move_gizmo {
         for sel in &q_selected {
             if !q_gizmos.contains(sel) {
                 for (axis, material) in [

@@ -1,11 +1,21 @@
+use std::f32::consts::PI;
+
 use bevy::prelude::*;
+use bevy_inspector_egui::egui;
 use bevy_rapier3d::prelude::*;
+
+use crate::{
+    anim::{
+        joint::{RevoluteJointCommand, SphericalJointCommand},
+        rig::{KiRevoluteJoint, KiSphericalJoint},
+    },
+    camera::{MainCamera, ScreenPosition},
+};
 
 use super::{
     basic_materials::BasicMaterials,
     side_panel::{SidePanelState, UiMode},
 };
-use crate::camera::{MainCamera, ScreenPosition};
 
 pub struct SelectionPlugin;
 
@@ -13,6 +23,7 @@ impl Plugin for SelectionPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Selectable>()
             .register_type::<Selected>()
+            .init_resource::<SelectionUiState>()
             .add_startup_system(setup)
             .add_event::<DeselectedEvent>()
             .insert_resource(SelectionRect::default())
@@ -21,7 +32,8 @@ impl Plugin for SelectionPlugin {
                 update_selected.after("update_screen_position"),
             )
             .add_system(update_selected_names)
-            .add_system(update_select_ui_rect);
+            .add_system(update_select_ui_rect)
+            .add_system(inspector_ui);
     }
 }
 
@@ -244,6 +256,33 @@ fn update_select_ui_rect(
 }
 
 #[derive(Resource)]
+pub struct SelectionUiState {
+    pub show_inspector: bool,
+    pub show_names: bool,
+    pub show_move_gizmo: bool,
+    pub revolute_target_angle: i16,
+    pub spherical_target_angle_x: i16,
+    pub spherical_target_angle_y: i16,
+    pub spherical_target_angle_z: i16,
+    pub joint_stop_at_collisions: bool,
+}
+
+impl Default for SelectionUiState {
+    fn default() -> Self {
+        Self {
+            show_inspector: true,
+            show_names: true,
+            show_move_gizmo: false,
+            revolute_target_angle: 0,
+            spherical_target_angle_x: 0,
+            spherical_target_angle_y: 0,
+            spherical_target_angle_z: 0,
+            joint_stop_at_collisions: false,
+        }
+    }
+}
+
+#[derive(Resource)]
 struct LoadedFont(Handle<Font>);
 
 #[derive(Clone, Component, Debug, Default)]
@@ -253,7 +292,7 @@ pub struct UnitNameUiNode;
 pub struct UnitNameUiNodeRef(Entity);
 
 fn update_selected_names(
-    panel: Res<SidePanelState>,
+    ui: Res<SelectionUiState>,
     loaded_font: Res<LoadedFont>,
     added_q: Query<(Entity, &Name, &ScreenPosition), Added<Selected>>,
     moved_q: Query<(Entity, &ScreenPosition, &UnitNameUiNodeRef)>,
@@ -261,7 +300,7 @@ fn update_selected_names(
     mut ev_deselected: EventReader<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if panel.selected_show_names {
+    if ui.show_names {
         let text_alignment = TextAlignment {
             vertical: VerticalAlign::Center,
             horizontal: HorizontalAlign::Center,
@@ -300,7 +339,7 @@ fn update_selected_names(
     }
 
     for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in &moved_q {
-        if panel.selected_show_names {
+        if ui.show_names {
             if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
                 let cam_fact = 1. / screen_pos.camera_dist;
                 style.position.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
@@ -318,5 +357,133 @@ fn update_selected_names(
             cmd.entity(*ui_node).despawn_recursive();
             cmd.entity(*unit_ent).remove::<UnitNameUiNodeRef>();
         }
+    }
+}
+
+pub fn selection_ui(
+    ui: &mut egui::Ui,
+    mut state: ResMut<SelectionUiState>,
+    selected: Vec<(
+        Entity,
+        Option<&Name>,
+        Option<&KiRevoluteJoint>,
+        Option<&KiSphericalJoint>,
+    )>,
+    mut cmd: Commands,
+) {
+    egui::CollapsingHeader::new("Selection")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.checkbox(&mut state.show_names, "Show names");
+            ui.checkbox(&mut state.show_inspector, "Show inspector");
+            ui.checkbox(&mut state.show_move_gizmo, "Show move gizmo");
+
+            if !selected.is_empty() {
+                ui.add_space(10.);
+                ui.colored_label(
+                    egui::Color32::DARK_GREEN,
+                    format!("{} objects selected:", selected.len()),
+                );
+                for (ent, name, _, _) in selected.iter().take(20) {
+                    if let Some(name) = name {
+                        ui.label(format!("- {}", name.as_str()));
+                    } else {
+                        ui.label(format!("- {:?}", ent));
+                    }
+                }
+                if selected.len() > 20 {
+                    ui.label("...");
+                }
+            }
+
+            if selected.len() == 1 {
+                let single = selected.first().unwrap();
+                if let (ent, _, Some(_), None) = single {
+                    ui.group(|ui| {
+                        ui.strong("Revolute joint");
+                        ui.add(
+                            egui::Slider::new(&mut state.revolute_target_angle, -180..=180)
+                                .text("angle"),
+                        );
+                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        if ui.button("Add joint target").clicked() {
+                            cmd.entity(*ent).insert(RevoluteJointCommand::new(
+                                state.revolute_target_angle as f32 * PI / 180.,
+                                0.01,
+                                state.joint_stop_at_collisions,
+                            ));
+                        }
+                    });
+                } else if let (ent, _, None, Some(_)) = single {
+                    ui.group(|ui| {
+                        ui.strong("Spherical joint");
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_x, -180..=180)
+                                .text("angle x"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_z, -180..=180)
+                                .text("angle z"),
+                        );
+                        ui.add(
+                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
+                                .text("angle y"),
+                        );
+                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        if ui.button("Add joint target").clicked() {
+                            cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
+                                state.spherical_target_angle_x as f32 * PI / 180.,
+                                state.spherical_target_angle_z as f32 * PI / 180.,
+                                state.spherical_target_angle_y as f32 * PI / 180.,
+                                0.02,
+                                state.joint_stop_at_collisions,
+                            ));
+                        }
+                    });
+                }
+            }
+        });
+}
+
+pub const INSPECTOR_WIDTH: f32 = 300.;
+
+fn inspector_ui(world: &mut World) {
+    let egui_ctx = world
+        .resource_mut::<bevy_egui::EguiContext>()
+        .ctx_mut()
+        .clone();
+
+    {
+        let state = world.resource::<SelectionUiState>();
+        if !state.show_inspector {
+            return;
+        }
+    }
+
+    let selected = {
+        let mut q_selected = world.query_filtered::<(Entity, Option<&Name>), With<Selected>>();
+        q_selected.iter(&world).next().map(|(entity, name)| {
+            (
+                entity,
+                if let Some(name) = name {
+                    format!("Inspector: {}", name.as_str())
+                } else {
+                    format!("Inspector: {:?}", entity)
+                },
+            )
+        })
+    };
+
+    if let Some((entity, name)) = selected {
+        egui::SidePanel::right("inspector")
+            .exact_width(INSPECTOR_WIDTH)
+            .show(&egui_ctx, |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.heading(name);
+                    bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
+                        world, entity, ui,
+                    );
+                });
+            });
     }
 }

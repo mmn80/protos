@@ -2,14 +2,10 @@ use bevy::{
     pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
 };
+use bevy_inspector_egui::egui;
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use super::{
-    basic_materials::BasicMaterials,
-    selection::Selectable,
-    side_panel::{SidePanelState, UiMode},
-};
 use crate::{
     anim::{
         auto_collider::{AutoCollider, AutoColliderMesh, AutoColliderRoot},
@@ -18,16 +14,37 @@ use crate::{
     camera::{MainCamera, ScreenPosition},
 };
 
+use super::{
+    basic_materials::BasicMaterials,
+    selection::Selectable,
+    side_panel::{ui_mode_toggle, SidePanelState, UiMode},
+};
+
 pub struct AddCubePlugin;
 
 impl Plugin for AddCubePlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(add_cube_ui).add_system(shoot_balls);
+        app.init_resource::<AddCubeUiState>()
+            .add_system(update_add_cube)
+            .add_system(shoot_balls);
+    }
+}
+
+#[derive(Resource)]
+pub struct AddCubeUiState {
+    pub joint_type: KiJointType,
+}
+
+impl Default for AddCubeUiState {
+    fn default() -> Self {
+        Self {
+            joint_type: KiJointType::Revolute,
+        }
     }
 }
 
 #[derive(PartialEq, Eq)]
-enum AddCubeUiState {
+enum AddCubeModeState {
     None,
     PickP0,
     PickP1,
@@ -35,15 +52,15 @@ enum AddCubeUiState {
     PickHeight,
 }
 
-impl Default for AddCubeUiState {
+impl Default for AddCubeModeState {
     fn default() -> Self {
-        AddCubeUiState::None
+        AddCubeModeState::None
     }
 }
 
 #[derive(Default)]
 struct AddCubeLocal {
-    state: AddCubeUiState,
+    state: AddCubeModeState,
     attach: Option<Entity>,
     cube: Option<Entity>,
     p0: Option<Vec3>,
@@ -55,10 +72,11 @@ struct AddCubeLocal {
 
 const CUBE_INIT_LEN: f32 = 0.1;
 
-fn add_cube_ui(
+fn update_add_cube(
     mut state: Local<AddCubeLocal>,
     mut meshes: ResMut<Assets<Mesh>>,
     ui: Res<SidePanelState>,
+    cube_ui: Res<AddCubeUiState>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     materials: Res<BasicMaterials>,
@@ -70,14 +88,14 @@ fn add_cube_ui(
     mut cmd: Commands,
 ) {
     if ui.mode != UiMode::AddCube {
-        if state.state != AddCubeUiState::None {
+        if state.state != AddCubeModeState::None {
             clear_ui_state(&mut state, &mut cmd);
         }
         return;
     }
 
-    if state.state == AddCubeUiState::None {
-        state.state = AddCubeUiState::PickP0;
+    if state.state == AddCubeModeState::None {
+        state.state = AddCubeModeState::PickP0;
     }
 
     if let Some(cube) = state.cube {
@@ -101,7 +119,7 @@ fn add_cube_ui(
     let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
     let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
 
-    if state.state == AddCubeUiState::PickP0 {
+    if state.state == AddCubeModeState::PickP0 {
         if mouse.just_pressed(MouseButton::Left) {
             let material = materials.ui_transparent.clone();
             let Some((attach, hit)) = rapier.cast_ray_and_get_normal(
@@ -118,7 +136,7 @@ fn add_cube_ui(
             state.attach = Some(attach);
             state.p0 = Some(p0);
             state.p0_n = Some(p0_n);
-            state.state = AddCubeUiState::PickP1;
+            state.state = AddCubeModeState::PickP1;
 
             let dir_x = p0_n.any_orthonormal_vector();
             state.cube = Some(
@@ -141,7 +159,7 @@ fn add_cube_ui(
                 .id(),
             );
         }
-    } else if state.state == AddCubeUiState::PickP1 {
+    } else if state.state == AddCubeModeState::PickP1 {
         let p0 = state.p0.unwrap();
         let p0_n = state.p0_n.unwrap();
         let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) else { return };
@@ -159,9 +177,9 @@ fn add_cube_ui(
         }
         state.p1 = Some(p1);
         if mouse.just_pressed(MouseButton::Left) {
-            state.state = AddCubeUiState::PickP2;
+            state.state = AddCubeModeState::PickP2;
         }
-    } else if state.state == AddCubeUiState::PickP2 {
+    } else if state.state == AddCubeModeState::PickP2 {
         let p0 = state.p0.unwrap();
         let p0_n = state.p0_n.unwrap();
         let Some(toi) = ray_toi_with_halfspace(&p0.into(), &p0_n.into(), &ray_p) else { return };
@@ -171,9 +189,9 @@ fn add_cube_ui(
         let len = (p2 - p1).dot(cube_tr.back());
         state.p2 = Some(p1 + len * cube_tr.back());
         if mouse.just_pressed(MouseButton::Left) {
-            state.state = AddCubeUiState::PickHeight;
+            state.state = AddCubeModeState::PickHeight;
         }
-    } else if state.state == AddCubeUiState::PickHeight {
+    } else if state.state == AddCubeModeState::PickHeight {
         let cube_tr = q_trans.get(state.cube.unwrap()).unwrap();
         if mouse.just_pressed(MouseButton::Left) {
             let material = materials.salmon.clone();
@@ -210,7 +228,7 @@ fn add_cube_ui(
                         .id();
                     cmd.entity(bone_ent).add_child(mesh_ent);
 
-                    if ui.add_joint_type == KiJointType::Revolute {
+                    if cube_ui.joint_type == KiJointType::Revolute {
                         let hinge = new_bone_tr
                             .compute_affine()
                             .inverse()
@@ -220,7 +238,7 @@ fn add_cube_ui(
                             start_dir: new_bone_tr.up(),
                             show_mesh: true,
                         });
-                    } else if ui.add_joint_type == KiJointType::Spherical {
+                    } else if cube_ui.joint_type == KiJointType::Spherical {
                         cmd.entity(bone_ent).insert(KiSphericalJoint {
                             show_mesh: true,
                             start_rot: new_bone_tr.rotation,
@@ -301,7 +319,7 @@ fn add_cube_ui(
 }
 
 fn clear_ui_state(state: &mut AddCubeLocal, cmd: &mut Commands) {
-    state.state = AddCubeUiState::None;
+    state.state = AddCubeModeState::None;
     state.attach = None;
     if let Some(cube) = state.cube {
         cmd.entity(cube).despawn_recursive();
@@ -312,6 +330,26 @@ fn clear_ui_state(state: &mut AddCubeLocal, cmd: &mut Commands) {
     state.p1 = None;
     state.p2 = None;
     state.height = None;
+}
+
+pub fn add_cube_ui(
+    ui: &mut egui::Ui,
+    mut ui_state: ResMut<SidePanelState>,
+    mut state: ResMut<AddCubeUiState>,
+) {
+    ui_mode_toggle(ui, &mut ui_state, UiMode::AddCube, "Add cube");
+
+    if ui_state.mode == UiMode::AddCube {
+        ui.indent(10, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Joint type:");
+                ui.selectable_value(&mut state.joint_type, KiJointType::Revolute, "Revolute");
+                ui.selectable_value(&mut state.joint_type, KiJointType::Spherical, "Spherical");
+            });
+        });
+    }
+
+    ui_mode_toggle(ui, &mut ui_state, UiMode::ShootBalls, "Shoot balls");
 }
 
 #[derive(Component)]

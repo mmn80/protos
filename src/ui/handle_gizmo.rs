@@ -5,11 +5,12 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use super::{basic_materials::BasicMaterials, side_panel::SidePanelState};
 use crate::{
     camera::MainCamera,
     mesh::{cone::Cone, cylinder::Cylinder},
 };
+
+use super::{basic_materials::BasicMaterials, side_panel::SidePanelState};
 
 pub struct HandleGizmoPlugin;
 
