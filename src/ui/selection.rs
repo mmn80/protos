@@ -109,120 +109,115 @@ fn update_selected(
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if !ui.mouse_over && ui.mode == UiMode::Select {
-        let mut processed_single = false;
+    if ui.mouse_over || ui.mode != UiMode::Select {
+        return;
+    };
 
-        if mouse.just_pressed(MouseButton::Left) {
-            if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-                if let Some((hit_ent, _)) =
-                    rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
-                {
-                    if !q_sensor.contains(hit_ent) {
-                        let shift = keyboard.pressed(KeyCode::LShift);
-                        let mut sel_ent = None;
-                        let mut to_remove = vec![];
-                        if let Ok(selectable) = q_selectable.get(hit_ent) {
-                            processed_single = true;
-                            sel_ent = Some(selectable.selected);
-                            if !q_selected.contains(selectable.selected) {
-                                let mut material = None;
-                                if let Some(mesh_ent) = selectable.mesh {
-                                    if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
-                                        material = Some(mat.clone());
-                                        *mat = materials.ui_transparent.clone();
-                                    }
-                                }
-                                cmd.entity(selectable.selected).insert(Selected {
-                                    material,
-                                    mesh: selectable.mesh,
-                                });
-                            } else if shift {
-                                to_remove.push(selectable.selected);
-                            }
-                        }
-                        if !shift {
-                            for (selected, _) in &q_selected {
-                                let mut remove = true;
-                                if let Some(sel_ent) = sel_ent {
-                                    remove = sel_ent != selected;
-                                }
-                                if remove {
-                                    to_remove.push(selected);
-                                }
-                            }
-                        }
-                        for deselected in to_remove {
-                            if let Ok((_, selected)) = q_selected.get(deselected) {
-                                if let Some(material) = selected.material.clone() {
-                                    if let Some(mesh_ent) = selected.mesh {
-                                        if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
-                                            *mat = material;
-                                        }
-                                    }
-                                }
-                                cmd.entity(deselected).remove::<Selected>();
-                                ev_deselected.send(DeselectedEvent(deselected));
-                            }
-                        }
-                    } else {
+    let mut processed_single = false;
+
+    if mouse.just_pressed(MouseButton::Left) {
+        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
+            if let Some((hit_ent, _)) =
+                rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
+            {
+                if !q_sensor.contains(hit_ent) {
+                    let shift = keyboard.pressed(KeyCode::LShift);
+                    let mut sel_ent = None;
+                    let mut to_remove = vec![];
+                    if let Ok(selectable) = q_selectable.get(hit_ent) {
                         processed_single = true;
-                    }
-                }
-            }
-        }
-
-        if !processed_single {
-            let do_select_rect = {
-                selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
-                if let Some(window) = windows.get_primary() {
-                    let mouse_pos = window.cursor_position();
-                    if mouse.just_pressed(MouseButton::Left) {
-                        selection_rect.begin = mouse_pos.clone();
-                        selection_rect.end = selection_rect.begin;
-                    } else if selection_rect.begin.is_some() {
-                        if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
-                            selection_rect.end = Some(mouse_pos.unwrap());
-                        } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
-                            selection_rect.begin = None;
-                            selection_rect.end = None;
+                        sel_ent = Some(selectable.selected);
+                        if !q_selected.contains(selectable.selected) {
+                            let mut material = None;
+                            if let Some(mesh_ent) = selectable.mesh {
+                                if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
+                                    material = Some(mat.clone());
+                                    *mat = materials.ui_transparent.clone();
+                                }
+                            }
+                            cmd.entity(selectable.selected).insert(Selected {
+                                material,
+                                mesh: selectable.mesh,
+                            });
+                        } else if shift {
+                            to_remove.push(selectable.selected);
                         }
                     }
-                    if mouse.just_released(MouseButton::Left) {
-                        selection_rect.get_rect()
-                    } else {
-                        None
+                    if !shift {
+                        for (selected, _) in &q_selected {
+                            let mut remove = true;
+                            if let Some(sel_ent) = sel_ent {
+                                remove = sel_ent != selected;
+                            }
+                            if remove {
+                                to_remove.push(selected);
+                            }
+                        }
+                    }
+                    for deselected in to_remove {
+                        let Ok((_, selected)) = q_selected.get(deselected) else { continue };
+                        if let Some(material) = selected.material.clone() {
+                            if let Some(mesh_ent) = selected.mesh {
+                                if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
+                                    *mat = material;
+                                }
+                            }
+                        }
+                        cmd.entity(deselected).remove::<Selected>();
+                        ev_deselected.send(DeselectedEvent(deselected));
                     }
                 } else {
-                    return;
+                    processed_single = true;
                 }
-            };
-
-            if let Some(rect) = do_select_rect {
-                for selectable in &q_selectable {
-                    if let Ok(ScreenPosition {
-                        position,
-                        camera_dist: _,
-                    }) = q_screen_pos.get(selectable.selected)
-                    {
-                        if position.x > rect.min.x
-                            && position.x < rect.max.x
-                            && position.y < rect.max.y
-                            && position.y > rect.min.y
-                        {
-                            cmd.entity(selectable.selected).insert(Selected {
-                                material: None,
-                                mesh: None,
-                            });
-                        } else if selection_rect.clear_previous {
-                            cmd.entity(selectable.selected).remove::<Selected>();
-                            ev_deselected.send(DeselectedEvent(selectable.selected));
-                        }
-                    }
-                }
-                selection_rect.begin = None;
-                selection_rect.end = None;
             }
         }
+    }
+
+    if !processed_single {
+        let do_select_rect = {
+            selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
+            let Some(window) = windows.get_primary() else { return };
+            let mouse_pos = window.cursor_position();
+            if mouse.just_pressed(MouseButton::Left) {
+                selection_rect.begin = mouse_pos.clone();
+                selection_rect.end = selection_rect.begin;
+            } else if selection_rect.begin.is_some() {
+                if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
+                    selection_rect.end = Some(mouse_pos.unwrap());
+                } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
+                    selection_rect.begin = None;
+                    selection_rect.end = None;
+                }
+            }
+            if mouse.just_released(MouseButton::Left) {
+                selection_rect.get_rect()
+            } else {
+                None
+            }
+        };
+
+        let Some(rect) = do_select_rect else { return };
+        for selectable in &q_selectable {
+            let Ok(ScreenPosition {
+                position,
+                camera_dist: _,
+            }) = q_screen_pos.get(selectable.selected) else { continue };
+            if position.x > rect.min.x
+                && position.x < rect.max.x
+                && position.y < rect.max.y
+                && position.y > rect.min.y
+            {
+                cmd.entity(selectable.selected).insert(Selected {
+                    material: None,
+                    mesh: None,
+                });
+            } else if selection_rect.clear_previous {
+                cmd.entity(selectable.selected).remove::<Selected>();
+                ev_deselected.send(DeselectedEvent(selectable.selected));
+            }
+        }
+        selection_rect.begin = None;
+        selection_rect.end = None;
     }
 }
 
@@ -231,20 +226,19 @@ fn update_select_ui_rect(
     windows: Res<Windows>,
     mut q_style: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
-    if let Some(window) = windows.get_primary() {
-        let window_height = window.height();
-        for (mut style, mut visibility) in &mut q_style {
-            if let Some(rect) = selection_rect.get_rect() {
-                style.size.width = Val::Px(rect.width());
-                style.size.height = Val::Px(rect.height());
-                style.position.left = Val::Px(rect.min.x);
-                style.position.right = Val::Px(rect.max.x);
-                style.position.bottom = Val::Px(window_height - rect.min.y);
-                style.position.top = Val::Px(window_height - rect.max.y);
-                visibility.is_visible = true;
-            } else {
-                visibility.is_visible = false;
-            }
+    let Some(window) = windows.get_primary() else { return };
+    let window_height = window.height();
+    for (mut style, mut visibility) in &mut q_style {
+        if let Some(rect) = selection_rect.get_rect() {
+            style.size.width = Val::Px(rect.width());
+            style.size.height = Val::Px(rect.height());
+            style.position.left = Val::Px(rect.min.x);
+            style.position.right = Val::Px(rect.max.x);
+            style.position.bottom = Val::Px(window_height - rect.min.y);
+            style.position.top = Val::Px(window_height - rect.max.y);
+            visibility.is_visible = true;
+        } else {
+            visibility.is_visible = false;
         }
     }
 }

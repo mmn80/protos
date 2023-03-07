@@ -131,79 +131,76 @@ fn add_handles(
         material,
     } in ev_add.iter()
     {
-        if let Ok(trans) = q_global_trans.get(*entity) {
-            let (dir_y, dir_x) = axis.to_yx_axes(trans);
-            let pos = trans.translation();
-            if let Some((_ent, attach_point_toi)) =
-                rapier.cast_ray(pos, dir_y, 50., false, QueryFilter::new())
-            {
-                let inverse = trans.affine().inverse();
-                let attach_point = inverse.transform_point3(pos + attach_point_toi * dir_y);
-                let dir_x = inverse.transform_vector3(dir_x).normalize();
-                let dir_y = inverse.transform_vector3(dir_y).normalize();
-                cmd.entity(*entity).with_children(|parent| {
-                    let rotation = Quat::from_mat3(&Mat3::from_cols(
-                        dir_x,
-                        dir_y,
-                        dir_x.cross(dir_y).normalize(),
+        let Ok(trans) = q_global_trans.get(*entity) else { continue };
+        let (dir_y, dir_x) = axis.to_yx_axes(trans);
+        let pos = trans.translation();
+        let Some((_ent, attach_point_toi)) =
+            rapier.cast_ray(pos, dir_y, 50., false, QueryFilter::new()) else { continue };
+        let inverse = trans.affine().inverse();
+        let attach_point = inverse.transform_point3(pos + attach_point_toi * dir_y);
+        let dir_x = inverse.transform_vector3(dir_x).normalize();
+        let dir_y = inverse.transform_vector3(dir_y).normalize();
+        cmd.entity(*entity).with_children(|parent| {
+            let rotation = Quat::from_mat3(&Mat3::from_cols(
+                dir_x,
+                dir_y,
+                dir_x.cross(dir_y).normalize(),
+            ));
+            parent
+                .spawn((
+                    SpatialBundle::from(
+                        Transform::from_translation(attach_point).with_rotation(rotation),
+                    ),
+                    HandleGizmo {
+                        axis: *axis,
+                        material: material.clone(),
+                    },
+                ))
+                .with_children(|parent| {
+                    let mut dist = 0.;
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::from_xyz(0., BASE_H / 2. + dist, 0.),
+                            mesh: local.base.clone().unwrap(),
+                            material: material.clone(),
+                            ..default()
+                        },
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                        HandleGizmoElement,
+                        Collider::cylinder(BASE_H / 2., BASE_W / 2.),
+                        Sensor,
                     ));
-                    parent
-                        .spawn((
-                            SpatialBundle::from(
-                                Transform::from_translation(attach_point).with_rotation(rotation),
-                            ),
-                            HandleGizmo {
-                                axis: *axis,
-                                material: material.clone(),
-                            },
-                        ))
-                        .with_children(|parent| {
-                            let mut dist = 0.;
-                            parent.spawn((
-                                PbrBundle {
-                                    transform: Transform::from_xyz(0., BASE_H / 2. + dist, 0.),
-                                    mesh: local.base.clone().unwrap(),
-                                    material: material.clone(),
-                                    ..default()
-                                },
-                                NotShadowCaster,
-                                NotShadowReceiver,
-                                HandleGizmoElement,
-                                Collider::cylinder(BASE_H / 2., BASE_W / 2.),
-                                Sensor,
-                            ));
-                            dist += BASE_H;
-                            parent.spawn((
-                                PbrBundle {
-                                    transform: Transform::from_xyz(0., dist + BAR_H / 2., 0.),
-                                    mesh: local.bar.clone().unwrap(),
-                                    material: material.clone(),
-                                    ..default()
-                                },
-                                NotShadowCaster,
-                                NotShadowReceiver,
-                                HandleGizmoElement,
-                                Collider::cuboid(BAR_W / 2., BAR_H / 2., BAR_W / 2.),
-                                Sensor,
-                            ));
-                            dist += BAR_H;
-                            parent.spawn((
-                                PbrBundle {
-                                    transform: Transform::from_xyz(0., dist + BALL_R, 0.),
-                                    mesh: local.ball.clone().unwrap(),
-                                    material: material.clone(),
-                                    ..default()
-                                },
-                                NotShadowCaster,
-                                NotShadowReceiver,
-                                HandleGizmoElement,
-                                Collider::ball(BALL_R),
-                                Sensor,
-                            ));
-                        });
+                    dist += BASE_H;
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::from_xyz(0., dist + BAR_H / 2., 0.),
+                            mesh: local.bar.clone().unwrap(),
+                            material: material.clone(),
+                            ..default()
+                        },
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                        HandleGizmoElement,
+                        Collider::cuboid(BAR_W / 2., BAR_H / 2., BAR_W / 2.),
+                        Sensor,
+                    ));
+                    dist += BAR_H;
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::from_xyz(0., dist + BALL_R, 0.),
+                            mesh: local.ball.clone().unwrap(),
+                            material: material.clone(),
+                            ..default()
+                        },
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                        HandleGizmoElement,
+                        Collider::ball(BALL_R),
+                        Sensor,
+                    ));
                 });
-            }
-        }
+        });
     }
 }
 
@@ -242,72 +239,69 @@ fn update_handles(
     q_gizmo: Query<(&HandleGizmo, &GlobalTransform)>,
     mut q_material: Query<(Entity, &mut Handle<StandardMaterial>), With<HandleGizmoElement>>,
 ) {
-    if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-        if local.active_gizmo.is_none() {
-            if let Some((hit_ent, _)) = rapier.cast_ray(
-                ray.origin,
-                ray.direction,
-                1000.,
-                false,
-                QueryFilter::new().exclude_solids(),
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    if local.active_gizmo.is_none() {
+        if let Some((hit_ent, _)) = rapier.cast_ray(
+            ray.origin,
+            ray.direction,
+            1000.,
+            false,
+            QueryFilter::new().exclude_solids(),
+        ) {
+            if let Some(gizmo) = q_parent.iter_ancestors(hit_ent).next() {
+                if q_gizmo.contains(gizmo) {
+                    local.active_gizmo = Some(gizmo);
+                }
+            }
+        }
+    }
+
+    if mouse.pressed(MouseButton::Left) && !ui.mouse_over {
+        if let Some(active_gizmo) = local.active_gizmo {
+            if let (Some(target), Ok((gizmo, gizmo_gtr))) = (
+                q_parent.iter_ancestors(active_gizmo).next(),
+                q_gizmo.get(active_gizmo),
             ) {
-                if let Some(gizmo) = q_parent.iter_ancestors(hit_ent).next() {
-                    if q_gizmo.contains(gizmo) {
-                        local.active_gizmo = Some(gizmo);
-                    }
-                }
-            }
-        }
-
-        if mouse.pressed(MouseButton::Left) && !ui.mouse_over {
-            if let Some(active_gizmo) = local.active_gizmo {
-                if let (Some(target), Ok((gizmo, gizmo_gtr))) = (
-                    q_parent.iter_ancestors(active_gizmo).next(),
-                    q_gizmo.get(active_gizmo),
+                let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
+                let center = gizmo_gtr.transform_point(Vec3::ZERO);
+                if let (Some(toi0), Some(toi1)) = (
+                    ray_toi_with_halfspace(&center.into(), &gizmo_gtr.right().into(), &ray_p),
+                    ray_toi_with_halfspace(&center.into(), &gizmo_gtr.back().into(), &ray_p),
                 ) {
-                    let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
-                    let center = gizmo_gtr.transform_point(Vec3::ZERO);
-                    if let (Some(toi0), Some(toi1)) = (
-                        ray_toi_with_halfspace(&center.into(), &gizmo_gtr.right().into(), &ray_p),
-                        ray_toi_with_halfspace(&center.into(), &gizmo_gtr.back().into(), &ray_p),
-                    ) {
-                        let y0 = gizmo_gtr.up().dot(ray.origin + toi0 * ray.direction);
-                        let y1 = gizmo_gtr.up().dot(ray.origin + toi1 * ray.direction);
-                        let drag_y = (y0 + y1) / 2.;
-                        if let Some(drag_last_y) = local.drag_last_y {
-                            ev_drag.send(HandleGizmoDragged {
-                                entity: target,
-                                axis: gizmo.axis,
-                                direction: gizmo_gtr.up(),
-                                drag_delta: drag_y - drag_last_y,
-                            });
-                            local.drag_last_y = Some(drag_y);
-                        } else {
-                            local.drag_last_y = Some(drag_y);
-                        }
+                    let y0 = gizmo_gtr.up().dot(ray.origin + toi0 * ray.direction);
+                    let y1 = gizmo_gtr.up().dot(ray.origin + toi1 * ray.direction);
+                    let drag_y = (y0 + y1) / 2.;
+                    if let Some(drag_last_y) = local.drag_last_y {
+                        ev_drag.send(HandleGizmoDragged {
+                            entity: target,
+                            axis: gizmo.axis,
+                            direction: gizmo_gtr.up(),
+                            drag_delta: drag_y - drag_last_y,
+                        });
+                        local.drag_last_y = Some(drag_y);
+                    } else {
+                        local.drag_last_y = Some(drag_y);
                     }
                 }
             }
         }
+    }
 
-        for (element, mut mat_handle) in q_material.iter_mut() {
-            let parent = q_parent.iter_ancestors(element).next();
-            if let Some(parent) = parent {
-                if Some(parent) == local.active_gizmo {
-                    if *mat_handle != materials.ui_selected {
-                        *mat_handle = materials.ui_selected.clone();
-                    }
-                } else if let Ok((gizmo, _)) = q_gizmo.get(parent) {
-                    if *mat_handle != gizmo.material {
-                        *mat_handle = gizmo.material.clone();
-                    }
-                }
+    for (element, mut mat_handle) in q_material.iter_mut() {
+        let Some(parent) = q_parent.iter_ancestors(element).next() else { continue };
+        if Some(parent) == local.active_gizmo {
+            if *mat_handle != materials.ui_selected {
+                *mat_handle = materials.ui_selected.clone();
+            }
+        } else if let Ok((gizmo, _)) = q_gizmo.get(parent) {
+            if *mat_handle != gizmo.material {
+                *mat_handle = gizmo.material.clone();
             }
         }
+    }
 
-        if !mouse.pressed(MouseButton::Left) || ui.mouse_over {
-            local.active_gizmo = None;
-            local.drag_last_y = None;
-        }
+    if !mouse.pressed(MouseButton::Left) || ui.mouse_over {
+        local.active_gizmo = None;
+        local.drag_last_y = None;
     }
 }

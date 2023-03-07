@@ -194,18 +194,15 @@ pub struct ScreenPosition {
 }
 
 fn update_screen_position(
-    camera_query: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
-    mut units_query: Query<(&GlobalTransform, &mut ScreenPosition)>,
+    q_camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
+    mut q_selectable: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
-    for (camera_transform, camera) in &camera_query {
-        for (transform, mut screen_position) in &mut units_query {
-            if let Some(pos) = camera.world_to_viewport(camera_transform, transform.translation()) {
-                screen_position.position = pos;
-                screen_position.camera_dist =
-                    (transform.translation() - camera_transform.translation()).length();
-            }
-        }
-        break;
+    let Some((camera_transform, camera)) = q_camera.iter().next() else { return };
+    for (transform, mut screen_position) in &mut q_selectable {
+        let Some(pos) = camera.world_to_viewport(camera_transform, transform.translation()) else { continue };
+        screen_position.position = pos;
+        screen_position.camera_dist =
+            (transform.translation() - camera_transform.translation()).length();
     }
 }
 
