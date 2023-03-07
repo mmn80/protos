@@ -58,6 +58,9 @@ impl Default for AddCubeModeState {
     }
 }
 
+#[derive(Component)]
+struct AddCubeSelector;
+
 #[derive(Default)]
 struct AddCubeLocal {
     state: AddCubeModeState,
@@ -81,7 +84,7 @@ fn update_add_cube(
     rapier: Res<RapierContext>,
     materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
-    mut q_trans: Query<&mut Transform>,
+    mut q_trans: Query<&mut Transform, With<AddCubeSelector>>,
     q_gtrans: Query<&GlobalTransform>,
     q_coll: Query<(&AutoCollider, &Parent)>,
     q_parent: Query<&Parent>,
@@ -155,6 +158,7 @@ fn update_add_cube(
                     },
                     NotShadowCaster,
                     NotShadowReceiver,
+                    AddCubeSelector,
                 ))
                 .id(),
             );
