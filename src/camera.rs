@@ -2,6 +2,7 @@ use bevy::{
     core_pipeline::bloom::BloomSettings,
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
+    window::PrimaryWindow,
 };
 
 use crate::ui::{selection::Selected, side_panel::SidePanelState};
@@ -11,10 +12,7 @@ pub struct MainCameraPlugin;
 impl Plugin for MainCameraPlugin {
     fn build(&self, app: &mut App) {
         app.add_startup_system(spawn_camera)
-            .add_system_to_stage(
-                CoreStage::PreUpdate,
-                update_screen_position.label("update_screen_position"),
-            )
+            .add_system(update_screen_position.in_base_set(CoreSet::PreUpdate))
             .add_system(main_camera);
     }
 }
@@ -64,7 +62,6 @@ fn spawn_camera(mut commands: Commands) {
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.
 fn main_camera(
-    windows: Res<Windows>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
@@ -72,6 +69,7 @@ fn main_camera(
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     mut ev_cursor: EventReader<CursorMoved>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     mut q_camera: Query<(&mut MainCamera, &mut Transform, &GlobalTransform, &Camera)>,
     q_selection: Query<&GlobalTransform, With<Selected>>,
 ) {
@@ -149,7 +147,10 @@ fn main_camera(
         let mut any = false;
         if rotation_move.length_squared() > 0.0 {
             any = true;
-            let window = get_primary_window_size(&windows);
+            let window = {
+                let window = q_window.single();
+                Vec2::new(window.width(), window.height())
+            };
             let delta_x = {
                 let delta = rotation_move.x / window.x * std::f32::consts::PI * 2.0;
                 if main_camera.upside_down {
@@ -181,19 +182,13 @@ fn main_camera(
     }
 }
 
-fn get_primary_window_size(windows: &Res<Windows>) -> Vec2 {
-    let window = windows.get_primary().unwrap();
-    let window = Vec2::new(window.width() as f32, window.height() as f32);
-    window
-}
-
 #[derive(Clone, Component, Debug, Default)]
 pub struct ScreenPosition {
     pub position: Vec2,
     pub camera_dist: f32,
 }
 
-fn update_screen_position(
+pub fn update_screen_position(
     q_camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
     mut q_selectable: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {

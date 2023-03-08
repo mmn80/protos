@@ -4,7 +4,7 @@ pub struct BuildingPlugin;
 
 impl Plugin for BuildingPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(BuildingsRes::default());
+        app.init_resource::<BuildingsRes>();
     }
 }
 

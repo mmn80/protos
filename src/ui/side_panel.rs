@@ -1,8 +1,9 @@
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
+    window::PrimaryWindow,
 };
-use bevy_egui::{egui, EguiContext, EguiSettings};
+use bevy_egui::{egui, EguiContexts, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
 
 use crate::anim::rig::{KiRevoluteJoint, KiSphericalJoint};
@@ -16,19 +17,19 @@ pub struct SidePanelPlugin;
 
 impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SidePanelState::default())
+        app.init_resource::<SidePanelState>()
             .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
-            .insert_resource(SidePanelState::default())
+            .init_resource::<SidePanelState>()
             .add_startup_system(configure_egui)
             .add_system(update_side_panel);
     }
 }
 
-fn configure_egui(_egui_ctx: ResMut<EguiContext>, mut egui_settings: ResMut<EguiSettings>) {
+fn configure_egui(mut _contexts: EguiContexts, mut egui_settings: ResMut<EguiSettings>) {
     egui_settings.scale_factor = 1.0;
 }
 
@@ -59,14 +60,14 @@ impl Default for SidePanelState {
 const SIDE_PANEL_WIDTH: f32 = 250.;
 
 fn update_side_panel(
-    mut egui_ctx: ResMut<EguiContext>,
-    windows: Res<Windows>,
+    mut egui_ctx: EguiContexts,
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
     mut state: ResMut<SidePanelState>,
     sel_state: ResMut<SelectionUiState>,
     add_cube_state: ResMut<AddCubeUiState>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     q_selected: Query<
         (
             Entity,
@@ -83,7 +84,7 @@ fn update_side_panel(
     }
 
     state.mouse_over = true;
-    if let Some(window) = windows.get_primary() {
+    if let Ok(window) = q_window.get_single() {
         if let Some(mouse_pos) = window.cursor_position() {
             state.mouse_over = mouse_pos.x <= SIDE_PANEL_WIDTH;
             if !state.mouse_over && sel_state.show_inspector && !q_selected.is_empty() {

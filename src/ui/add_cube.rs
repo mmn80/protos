@@ -25,8 +25,7 @@ pub struct AddCubePlugin;
 impl Plugin for AddCubePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AddCubeUiState>()
-            .add_system(update_add_cube)
-            .add_system(shoot_balls);
+            .add_systems((update_add_cube, shoot_balls));
     }
 }
 
@@ -383,10 +382,13 @@ fn shoot_balls(
         .spawn((
             PbrBundle {
                 transform: Transform::from_translation(ray.origin),
-                mesh: meshes.add(Mesh::from(shape::Icosphere {
-                    radius: 1.,
-                    subdivisions: 20,
-                })),
+                mesh: meshes.add(
+                    Mesh::try_from(shape::Icosphere {
+                        radius: 1.,
+                        subdivisions: 20,
+                    })
+                    .unwrap(),
+                ),
                 material: materials.gold.clone(),
                 ..default()
             },

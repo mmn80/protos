@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::{prelude::*, transform::TransformSystem};
 
-use crate::{mesh::cylinder::Cylinder, ui::basic_materials::BasicMaterials};
+use crate::ui::basic_materials::BasicMaterials;
 
 use super::rig::{KiRevoluteJoint, KiSphericalJoint};
 
@@ -12,16 +12,12 @@ impl Plugin for JointPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<RevoluteJointCommand>()
             .register_type::<SphericalJointCommand>()
-            .add_system_to_stage(
-                CoreStage::PostUpdate,
-                update_revolute_joints.before(TransformSystem::TransformPropagate),
+            .add_systems(
+                (update_revolute_joints, update_spherical_joints)
+                    .in_base_set(CoreSet::PostUpdate)
+                    .before(TransformSystem::TransformPropagate),
             )
-            .add_system_to_stage(
-                CoreStage::PostUpdate,
-                update_spherical_joints.before(TransformSystem::TransformPropagate),
-            )
-            .add_system(update_revolute_joint_mesh)
-            .add_system(update_spherical_joint_mesh);
+            .add_systems((update_revolute_joint_mesh, update_spherical_joint_mesh));
     }
 }
 
@@ -128,12 +124,15 @@ fn update_revolute_joint_mesh(
                                 Vec3::X,
                                 Vec3::Z,
                             ))),
-                            mesh: meshes.add(Mesh::from(Cylinder {
-                                radius: 0.1,
-                                height: joint.length - 0.01,
-                                resolution: 5,
-                                segments: 1,
-                            })),
+                            mesh: meshes.add(
+                                Mesh::try_from(shape::Cylinder {
+                                    radius: 0.1,
+                                    height: joint.length - 0.01,
+                                    resolution: 5,
+                                    segments: 1,
+                                })
+                                .unwrap(),
+                            ),
                             material: material.clone(),
                             ..default()
                         },
@@ -280,10 +279,13 @@ fn update_spherical_joint_mesh(
                     children.spawn((
                         PbrBundle {
                             transform: Transform::IDENTITY,
-                            mesh: meshes.add(Mesh::from(shape::Icosphere {
-                                radius: 0.2,
-                                subdivisions: 5,
-                            })),
+                            mesh: meshes.add(
+                                Mesh::try_from(shape::Icosphere {
+                                    radius: 0.2,
+                                    subdivisions: 5,
+                                })
+                                .unwrap(),
+                            ),
                             material: material.clone(),
                             ..default()
                         },

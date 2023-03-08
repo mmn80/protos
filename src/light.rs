@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
 
 pub struct MainLightsPlugin;
 
@@ -8,8 +8,6 @@ impl Plugin for MainLightsPlugin {
             .add_system(animate_light_direction);
     }
 }
-
-const LIGHT_SZ: f32 = 100.;
 
 fn spawn_main_lights(mut commands: Commands) {
     // ambient light
@@ -21,18 +19,17 @@ fn spawn_main_lights(mut commands: Commands) {
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 20000.0,
-            shadow_projection: OrthographicProjection {
-                left: -LIGHT_SZ,
-                right: LIGHT_SZ,
-                bottom: -LIGHT_SZ,
-                top: LIGHT_SZ,
-                near: -10.0 * LIGHT_SZ,
-                far: 10.0 * LIGHT_SZ,
-                ..default()
-            },
             shadows_enabled: true,
             ..default()
         },
+        cascade_shadow_config: CascadeShadowConfigBuilder {
+            num_cascades: 4,
+            minimum_distance: 0.1,
+            maximum_distance: 1000.0,
+            first_cascade_far_bound: 5.0,
+            overlap_proportion: 0.2,
+        }
+        .build(),
         transform: Transform {
             translation: Vec3::new(0.0, 2.0, 0.0),
             rotation: Quat::from_rotation_x(-std::f32::consts::FRAC_PI_4),

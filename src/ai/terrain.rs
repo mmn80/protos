@@ -10,7 +10,7 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(TerrainRes::default())
+        app.init_resource::<TerrainRes>()
             .add_startup_system(setup_terrain)
             .add_system(display_rapier_events);
     }

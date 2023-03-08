@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, window::PrimaryWindow};
+use bevy_egui::EguiContext;
 use bevy_inspector_egui::egui;
 use bevy_rapier3d::prelude::*;
 
@@ -24,16 +25,15 @@ impl Plugin for SelectionPlugin {
         app.register_type::<Selectable>()
             .register_type::<Selected>()
             .init_resource::<SelectionUiState>()
-            .add_startup_system(setup)
+            .init_resource::<SelectionRect>()
             .add_event::<DeselectedEvent>()
-            .insert_resource(SelectionRect::default())
-            .add_system_to_stage(
-                CoreStage::PreUpdate,
-                update_selected.after("update_screen_position"),
+            .add_startup_system(setup)
+            .add_system(
+                update_selected
+                    .in_base_set(CoreSet::PreUpdate)
+                    .after(crate::camera::update_screen_position),
             )
-            .add_system(update_selected_names)
-            .add_system(update_select_ui_rect)
-            .add_system(inspector_ui);
+            .add_systems((update_selected_names, update_select_ui_rect, inspector_ui));
     }
 }
 
@@ -55,7 +55,7 @@ fn setup(mut cmd: Commands, asset_server: Res<AssetServer>) {
                     ..default()
                 },
                 background_color: Color::rgba(0.1, 0.8, 0.1, 0.1).into(),
-                visibility: Visibility { is_visible: false },
+                visibility: Visibility::Hidden,
                 ..default()
             },
             SelectionRectUiNode,
@@ -105,13 +105,13 @@ impl SelectionRect {
 struct DeselectedEvent(Entity);
 
 fn update_selected(
-    windows: Res<Windows>,
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     ui: Res<SidePanelState>,
     materials: Res<BasicMaterials>,
     mut selection_rect: ResMut<SelectionRect>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<&MainCamera>,
     q_selectable: Query<&Selectable>,
     q_selected: Query<(Entity, &Selected)>,
@@ -188,7 +188,7 @@ fn update_selected(
     if !processed_single {
         let do_select_rect = {
             selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
-            let Some(window) = windows.get_primary() else { return };
+            let Ok(window) = q_window.get_single() else { return };
             let mouse_pos = window.cursor_position();
             if mouse.just_pressed(MouseButton::Left) {
                 selection_rect.begin = mouse_pos.clone();
@@ -235,10 +235,10 @@ fn update_selected(
 
 fn update_select_ui_rect(
     selection_rect: Res<SelectionRect>,
-    windows: Res<Windows>,
+    q_window: Query<&Window, With<PrimaryWindow>>,
     mut q_style: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
-    let Some(window) = windows.get_primary() else { return };
+    let Ok(window) = q_window.get_single() else { return };
     let window_height = window.height();
     for (mut style, mut visibility) in &mut q_style {
         if let Some(rect) = selection_rect.get_rect() {
@@ -248,9 +248,9 @@ fn update_select_ui_rect(
             style.position.right = Val::Px(rect.max.x);
             style.position.bottom = Val::Px(window_height - rect.min.y);
             style.position.top = Val::Px(window_height - rect.max.y);
-            visibility.is_visible = true;
+            *visibility = Visibility::Inherited;
         } else {
-            visibility.is_visible = false;
+            *visibility = Visibility::Hidden;
         }
     }
 }
@@ -301,10 +301,7 @@ fn update_selected_names(
     mut cmd: Commands,
 ) {
     if ui.show_names {
-        let text_alignment = TextAlignment {
-            vertical: VerticalAlign::Center,
-            horizontal: HorizontalAlign::Center,
-        };
+        let text_alignment = TextAlignment::Center;
         let text_style = TextStyle {
             font: loaded_font.0.clone(),
             font_size: 20.0,
@@ -448,9 +445,9 @@ pub fn selection_ui(
 pub const INSPECTOR_WIDTH: f32 = 300.;
 
 fn inspector_ui(world: &mut World) {
-    let egui_ctx = world
-        .resource_mut::<bevy_egui::EguiContext>()
-        .ctx_mut()
+    let mut egui_ctx = world
+        .query_filtered::<&mut EguiContext, With<PrimaryWindow>>()
+        .single(world)
         .clone();
 
     {
@@ -477,7 +474,7 @@ fn inspector_ui(world: &mut World) {
     if let Some((entity, name)) = selected {
         egui::SidePanel::right("inspector")
             .exact_width(INSPECTOR_WIDTH)
-            .show(&egui_ctx, |ui| {
+            .show(egui_ctx.get_mut(), |ui| {
                 egui::ScrollArea::vertical().show(ui, |ui| {
                     ui.heading(name);
                     bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(

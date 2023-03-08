@@ -5,10 +5,7 @@ use bevy::{
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use crate::{
-    camera::MainCamera,
-    mesh::{cone::Cone, cylinder::Cylinder},
-};
+use crate::{camera::MainCamera, mesh::cone::Cone};
 
 use super::{basic_materials::BasicMaterials, side_panel::SidePanelState};
 
@@ -20,9 +17,7 @@ impl Plugin for HandleGizmoPlugin {
             .add_event::<AddHandleGizmo>()
             .add_event::<RemoveHandleGizmo>()
             .add_event::<HandleGizmoDragged>()
-            .add_system(add_handles)
-            .add_system(remove_handles)
-            .add_system(update_handles);
+            .add_systems((add_handles, remove_handles, update_handles));
     }
 }
 
@@ -101,29 +96,44 @@ fn add_handles(
     mut cmd: Commands,
 ) {
     if local.base.is_none() {
-        local.base = Some(meshes.add(Mesh::from(Cylinder {
-            radius: BASE_W / 2.,
-            height: BASE_H,
-            resolution: 20,
-            segments: 1,
-        })));
+        local.base = Some(
+            meshes.add(
+                Mesh::try_from(shape::Cylinder {
+                    radius: BASE_W / 2.,
+                    height: BASE_H,
+                    resolution: 20,
+                    segments: 1,
+                })
+                .unwrap(),
+            ),
+        );
     }
     if local.bar.is_none() {
-        local.bar = Some(meshes.add(Mesh::from(Cylinder {
-            radius: BAR_W / 2.,
-            height: BAR_H,
-            resolution: 10,
-            segments: 1,
-        })));
+        local.bar = Some(
+            meshes.add(
+                Mesh::try_from(shape::Cylinder {
+                    radius: BAR_W / 2.,
+                    height: BAR_H,
+                    resolution: 10,
+                    segments: 1,
+                })
+                .unwrap(),
+            ),
+        );
     }
     if local.cone.is_none() {
         local.cone = Some(meshes.add(Mesh::from(Cone::new(CONE_W / 2., CONE_H, 10))));
     }
     if local.ball.is_none() {
-        local.ball = Some(meshes.add(Mesh::from(shape::Icosphere {
-            radius: BALL_R,
-            subdivisions: 20,
-        })));
+        local.ball = Some(
+            meshes.add(
+                Mesh::try_from(shape::Icosphere {
+                    radius: BALL_R,
+                    subdivisions: 20,
+                })
+                .unwrap(),
+            ),
+        );
     }
 
     for AddHandleGizmo {

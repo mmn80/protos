@@ -18,13 +18,13 @@ use protos::{
 
 fn main() {
     App::new()
-        .insert_resource(Msaa { samples: 4 })
+        .insert_resource(Msaa::Sample4)
         .insert_resource(ClearColor(INFINITE_TEMP_COLOR))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "Prototype".to_string(),
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
