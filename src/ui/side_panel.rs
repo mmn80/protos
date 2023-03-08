@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
     window::PrimaryWindow,
 };
-use bevy_egui::{egui, EguiContexts, EguiSettings};
+use bevy_egui::{egui, EguiContext, EguiContexts, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
 
 use crate::anim::rig::{KiRevoluteJoint, KiSphericalJoint};
@@ -25,7 +25,7 @@ impl Plugin for SidePanelPlugin {
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
             .init_resource::<SidePanelState>()
             .add_startup_system(configure_egui)
-            .add_system(update_side_panel);
+            .add_systems((main_panel, inspector_panel));
     }
 }
 
@@ -33,16 +33,19 @@ fn configure_egui(mut _contexts: EguiContexts, mut egui_settings: ResMut<EguiSet
     egui_settings.scale_factor = 1.0;
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Reflect)]
 pub enum UiMode {
     Select,
     AddCube,
     ShootBalls,
 }
 
-#[derive(Resource)]
+#[derive(Resource, Reflect)]
 pub struct SidePanelState {
     pub mouse_over: bool,
+    pub show_resources: bool,
+    pub show_assets: bool,
+    pub show_world: bool,
     pub mode: UiMode,
     pub rapier_debug_enabled: bool,
     pub panel_width: f32,
@@ -53,6 +56,9 @@ impl Default for SidePanelState {
     fn default() -> Self {
         Self {
             mouse_over: false,
+            show_resources: false,
+            show_assets: false,
+            show_world: false,
             mode: UiMode::Select,
             rapier_debug_enabled: false,
             panel_width: 0.0,
@@ -61,7 +67,7 @@ impl Default for SidePanelState {
     }
 }
 
-fn update_side_panel(
+fn main_panel(
     mut egui_ctx: EguiContexts,
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
@@ -105,6 +111,14 @@ fn update_side_panel(
                 });
             });
 
+            egui::CollapsingHeader::new("Global settings")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.checkbox(&mut state.show_resources, "Show resources");
+                    ui.checkbox(&mut state.show_assets, "Show assets");
+                    ui.checkbox(&mut state.show_world, "Show world");
+                });
+
             selection_ui(ui, &mut sel_state, selected, cmd);
 
             egui::CollapsingHeader::new("Physics")
@@ -123,10 +137,8 @@ fn update_side_panel(
     state.mouse_over = true;
     if let Ok(window) = q_window.get_single() {
         if let Some(mouse_pos) = window.cursor_position() {
-            state.mouse_over = mouse_pos.x <= state.panel_width;
-            if !state.mouse_over && sel_state.show_inspector && !q_selected.is_empty() {
-                state.mouse_over = mouse_pos.x >= window.width() - state.inspector_width;
-            }
+            state.mouse_over = mouse_pos.x <= state.panel_width
+                || mouse_pos.x >= window.width() - state.inspector_width;
         }
     }
 }
@@ -140,4 +152,72 @@ pub fn ui_mode_toggle(ui: &mut egui::Ui, state: &mut SidePanelState, mode: UiMod
     } else if val1 {
         state.mode = UiMode::Select
     };
+}
+
+fn inspector_panel(world: &mut World) {
+    let (show_resources, show_assets, show_world) = {
+        let panel = world.resource_mut::<SidePanelState>();
+        (panel.show_resources, panel.show_assets, panel.show_world)
+    };
+
+    let selected = {
+        if world.resource::<SelectionUiState>().show_inspector {
+            let mut q_selected = world.query_filtered::<Entity, With<Selected>>();
+            q_selected.iter(&world).next()
+        } else {
+            None
+        }
+    };
+
+    if selected.is_none() && !show_resources && !show_assets && !show_world {
+        world.resource_mut::<SidePanelState>().inspector_width = 0.;
+        return;
+    }
+
+    let mut egui_ctx = world
+        .query_filtered::<&mut EguiContext, With<PrimaryWindow>>()
+        .single(world)
+        .clone();
+
+    world.resource_mut::<SidePanelState>().inspector_width = egui::SidePanel::right("inspector")
+        .show(egui_ctx.get_mut(), |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                if show_resources {
+                    egui::CollapsingHeader::new("Resources")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            bevy_inspector_egui::bevy_inspector::ui_for_resources(world, ui);
+                        });
+                }
+
+                if show_assets {
+                    egui::CollapsingHeader::new("Assets")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            bevy_inspector_egui::bevy_inspector::ui_for_all_assets(world, ui);
+                        });
+                }
+
+                if show_world {
+                    egui::CollapsingHeader::new("World")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            bevy_inspector_egui::bevy_inspector::ui_for_world_entities(world, ui);
+                        });
+                }
+
+                if let Some(entity) = selected {
+                    egui::CollapsingHeader::new("Selected")
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
+                                world, entity, ui,
+                            );
+                        });
+                }
+            });
+        })
+        .response
+        .rect
+        .width();
 }

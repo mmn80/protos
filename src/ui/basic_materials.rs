@@ -8,7 +8,7 @@ impl Plugin for BasicMaterialsPlugin {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Reflect)]
 pub struct BasicMaterials {
     pub ui_red: Handle<StandardMaterial>,
     pub ui_green: Handle<StandardMaterial>,

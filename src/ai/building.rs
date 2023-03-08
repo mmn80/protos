@@ -8,7 +8,7 @@ impl Plugin for BuildingPlugin {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Reflect)]
 pub struct BuildingsRes {}
 
 impl Default for BuildingsRes {

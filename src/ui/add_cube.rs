@@ -29,7 +29,7 @@ impl Plugin for AddCubePlugin {
     }
 }
 
-#[derive(Resource)]
+#[derive(Resource, Reflect)]
 pub struct AddCubeUiState {
     pub joint_type: KiJointType,
 }

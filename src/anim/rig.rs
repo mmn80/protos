@@ -37,7 +37,7 @@ impl KiBone {
 #[derive(Component, Reflect)]
 pub struct KiEffector;
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Reflect)]
 pub enum KiJointType {
     Revolute,
     Spherical,

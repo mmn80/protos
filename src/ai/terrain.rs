@@ -10,13 +10,14 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TerrainRes>()
+        app.register_type::<TerrainRes>()
+            .init_resource::<TerrainRes>()
             .add_startup_system(setup_terrain)
             .add_system(display_rapier_events);
     }
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Reflect, Clone, Debug)]
 pub struct TerrainRes {
     pub ground: Option<Entity>,
 }

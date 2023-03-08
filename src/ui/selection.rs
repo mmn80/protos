@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use bevy::{prelude::*, window::PrimaryWindow};
-use bevy_egui::EguiContext;
 use bevy_inspector_egui::egui;
 use bevy_rapier3d::prelude::*;
 
@@ -33,7 +32,7 @@ impl Plugin for SelectionPlugin {
                     .in_base_set(CoreSet::PreUpdate)
                     .after(crate::camera::update_screen_position),
             )
-            .add_systems((update_selected_names, update_select_ui_rect, inspector_ui));
+            .add_systems((update_selected_names, update_select_ui_rect));
     }
 }
 
@@ -85,7 +84,7 @@ pub struct Selected {
 #[derive(Clone, Component, Debug, Default)]
 pub struct SelectionRectUiNode;
 
-#[derive(Debug, Clone, Default, Resource)]
+#[derive(Debug, Clone, Default, Resource, Reflect)]
 pub struct SelectionRect {
     pub clear_previous: bool,
     pub begin: Option<Vec2>,
@@ -440,51 +439,4 @@ pub fn selection_ui(
                 }
             }
         });
-}
-
-fn inspector_ui(world: &mut World) {
-    let mut egui_ctx = world
-        .query_filtered::<&mut EguiContext, With<PrimaryWindow>>()
-        .single(world)
-        .clone();
-
-    {
-        let state = world.resource::<SelectionUiState>();
-        if !state.show_inspector {
-            return;
-        }
-    }
-
-    let selected = {
-        let mut q_selected = world.query_filtered::<(Entity, Option<&Name>), With<Selected>>();
-        q_selected.iter(&world).next().map(|(entity, name)| {
-            (
-                entity,
-                if let Some(name) = name {
-                    format!("Inspector: {}", name.as_str())
-                } else {
-                    format!("Inspector: {:?}", entity)
-                },
-            )
-        })
-    };
-
-    world.resource_mut::<SidePanelState>().inspector_width = {
-        if let Some((entity, name)) = selected {
-            egui::SidePanel::right("inspector")
-                .show(egui_ctx.get_mut(), |ui| {
-                    egui::ScrollArea::vertical().show(ui, |ui| {
-                        ui.heading(name);
-                        bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
-                            world, entity, ui,
-                        );
-                    });
-                })
-                .response
-                .rect
-                .width()
-        } else {
-            0.
-        }
-    };
 }
