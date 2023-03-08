@@ -56,12 +56,12 @@ impl FromWorld for BasicMaterials {
                 ..default()
             }),
             ui_transparent: materials.add(StandardMaterial {
-                base_color: Color::rgba(0.5, 0.9, 0.5, 0.4),
+                base_color: Color::rgba(0.5, 0.9, 0.5, 0.5),
                 emissive: Color::rgb(0.5, 0.9, 0.5),
                 metallic: 1.0,
                 perceptual_roughness: 0.8,
                 reflectance: 0.8,
-                alpha_mode: AlphaMode::Blend,
+                alpha_mode: AlphaMode::Add,
                 ..default()
             }),
             terrain: materials.add(StandardMaterial {

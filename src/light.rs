@@ -9,7 +9,7 @@ impl Plugin for MainLightsPlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(AmbientLight {
             color: Color::WHITE,
-            brightness: 0.1,
+            brightness: 0.05,
         })
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
         .add_startup_system(spawn_main_lights)

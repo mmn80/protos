@@ -1,5 +1,5 @@
 use bevy::{
-    core_pipeline::bloom::BloomSettings,
+    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     window::PrimaryWindow,
@@ -49,10 +49,15 @@ fn spawn_camera(mut commands: Commands) {
                 hdr: true,
                 ..default()
             },
+            tonemapping: Tonemapping::AcesFitted,
             ..default()
         },
         BloomSettings::default(),
         //bevy::core_pipeline::fxaa::Fxaa::default(),
+        // FogSettings {
+        //     falloff: FogFalloff::from_visibility(1000.0),
+        //     ..default()
+        // },
         MainCamera {
             radius,
             ..default()
