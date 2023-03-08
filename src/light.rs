@@ -1,21 +1,23 @@
-use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
+use bevy::{
+    pbr::{CascadeShadowConfigBuilder, DirectionalLightShadowMap},
+    prelude::*,
+};
 
 pub struct MainLightsPlugin;
 
 impl Plugin for MainLightsPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_main_lights)
-            .add_system(animate_light_direction);
+        app.insert_resource(AmbientLight {
+            color: Color::WHITE,
+            brightness: 0.1,
+        })
+        .insert_resource(DirectionalLightShadowMap { size: 4096 })
+        .add_startup_system(spawn_main_lights)
+        .add_system(animate_light_direction);
     }
 }
 
 fn spawn_main_lights(mut commands: Commands) {
-    // ambient light
-    commands.insert_resource(AmbientLight {
-        color: Color::WHITE,
-        brightness: 0.1,
-    });
-    // directional 'sun' light
     commands.spawn(DirectionalLightBundle {
         directional_light: DirectionalLight {
             illuminance: 20000.0,
@@ -24,9 +26,9 @@ fn spawn_main_lights(mut commands: Commands) {
         },
         cascade_shadow_config: CascadeShadowConfigBuilder {
             num_cascades: 4,
-            minimum_distance: 1.0,
+            minimum_distance: 0.1,
             maximum_distance: 1000.0,
-            first_cascade_far_bound: 100.0,
+            first_cascade_far_bound: 5.0,
             overlap_proportion: 0.2,
         }
         .build(),
