@@ -359,7 +359,7 @@ fn update_selected_names(
 
 pub fn selection_ui(
     ui: &mut egui::Ui,
-    mut state: ResMut<SelectionUiState>,
+    state: &mut SelectionUiState,
     selected: Vec<(
         Entity,
         Option<&Name>,
@@ -442,8 +442,6 @@ pub fn selection_ui(
         });
 }
 
-pub const INSPECTOR_WIDTH: f32 = 300.;
-
 fn inspector_ui(world: &mut World) {
     let mut egui_ctx = world
         .query_filtered::<&mut EguiContext, With<PrimaryWindow>>()
@@ -471,16 +469,22 @@ fn inspector_ui(world: &mut World) {
         })
     };
 
-    if let Some((entity, name)) = selected {
-        egui::SidePanel::right("inspector")
-            .exact_width(INSPECTOR_WIDTH)
-            .show(egui_ctx.get_mut(), |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    ui.heading(name);
-                    bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
-                        world, entity, ui,
-                    );
-                });
-            });
-    }
+    world.resource_mut::<SidePanelState>().inspector_width = {
+        if let Some((entity, name)) = selected {
+            egui::SidePanel::right("inspector")
+                .show(egui_ctx.get_mut(), |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.heading(name);
+                        bevy_inspector_egui::bevy_inspector::ui_for_entity_with_children(
+                            world, entity, ui,
+                        );
+                    });
+                })
+                .response
+                .rect
+                .width()
+        } else {
+            0.
+        }
+    };
 }

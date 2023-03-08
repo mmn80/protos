@@ -24,9 +24,9 @@ fn spawn_main_lights(mut commands: Commands) {
         },
         cascade_shadow_config: CascadeShadowConfigBuilder {
             num_cascades: 4,
-            minimum_distance: 0.1,
+            minimum_distance: 1.0,
             maximum_distance: 1000.0,
-            first_cascade_far_bound: 5.0,
+            first_cascade_far_bound: 100.0,
             overlap_proportion: 0.2,
         }
         .build(),
@@ -48,7 +48,7 @@ fn animate_light_direction(
     }
 }
 
-pub const INFINITE_TEMP_COLOR: Color = Color::rgb(
+pub const INFINITE_TEMP_COLOR: Color = Color::rgb_linear(
     148. / u8::MAX as f32,
     177. / u8::MAX as f32,
     255. / u8::MAX as f32,

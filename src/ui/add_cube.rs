@@ -337,10 +337,10 @@ fn clear_ui_state(state: &mut AddCubeLocal, cmd: &mut Commands) {
 
 pub fn add_cube_ui(
     ui: &mut egui::Ui,
-    mut ui_state: ResMut<SidePanelState>,
+    ui_state: &mut SidePanelState,
     mut state: ResMut<AddCubeUiState>,
 ) {
-    ui_mode_toggle(ui, &mut ui_state, UiMode::AddCube, "Add cube");
+    ui_mode_toggle(ui, ui_state, UiMode::AddCube, "Add cube");
 
     if ui_state.mode == UiMode::AddCube {
         ui.indent(10, |ui| {
@@ -352,7 +352,7 @@ pub fn add_cube_ui(
         });
     }
 
-    ui_mode_toggle(ui, &mut ui_state, UiMode::ShootBalls, "Shoot balls");
+    ui_mode_toggle(ui, ui_state, UiMode::ShootBalls, "Shoot balls");
 }
 
 #[derive(Component)]
