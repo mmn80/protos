@@ -10,20 +10,21 @@ pub struct TerrainPlugin;
 
 impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<TerrainRes>()
-            .init_resource::<TerrainRes>()
+        app.register_type::<Terrain>()
+            .init_resource::<Terrain>()
             .add_startup_system(setup_terrain)
             .add_system(display_rapier_events);
     }
 }
 
-#[derive(Resource, Default, Reflect, Clone, Debug)]
-pub struct TerrainRes {
+#[derive(Resource, Default, Reflect)]
+#[reflect(Resource)]
+pub struct Terrain {
     pub ground: Option<Entity>,
 }
 
 fn setup_terrain(
-    mut terrain: ResMut<TerrainRes>,
+    mut terrain: ResMut<Terrain>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut line_materials: ResMut<Assets<LineMaterial>>,
     materials: Res<BasicMaterials>,

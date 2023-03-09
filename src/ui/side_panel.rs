@@ -17,13 +17,14 @@ pub struct SidePanelPlugin;
 
 impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<SidePanelState>()
+        app.register_type::<SidePanel>()
+            .init_resource::<SidePanel>()
             .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
             //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
-            .init_resource::<SidePanelState>()
+            .init_resource::<SidePanel>()
             .add_startup_system(configure_egui)
             .add_systems((main_panel, inspector_panel));
     }
@@ -41,7 +42,8 @@ pub enum UiMode {
 }
 
 #[derive(Resource, Reflect)]
-pub struct SidePanelState {
+#[reflect(Resource)]
+pub struct SidePanel {
     pub mouse_over: bool,
     pub show_resources: bool,
     pub show_assets: bool,
@@ -52,7 +54,7 @@ pub struct SidePanelState {
     pub inspector_width: f32,
 }
 
-impl Default for SidePanelState {
+impl Default for SidePanel {
     fn default() -> Self {
         Self {
             mouse_over: false,
@@ -71,7 +73,7 @@ fn main_panel(
     mut egui_ctx: EguiContexts,
     keyboard: Res<Input<KeyCode>>,
     diagnostics: Res<Diagnostics>,
-    mut state: ResMut<SidePanelState>,
+    mut panel: ResMut<SidePanel>,
     mut sel_state: ResMut<SelectionUiState>,
     add_cube_state: ResMut<AddCubeUiState>,
     mut debug_render_ctx: ResMut<DebugRenderContext>,
@@ -88,12 +90,12 @@ fn main_panel(
     cmd: Commands,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
-        state.mode = UiMode::Select;
+        panel.mode = UiMode::Select;
     }
 
     let selected: Vec<_> = q_selected.iter().collect();
 
-    state.panel_width = egui::SidePanel::left("side_panel")
+    panel.panel_width = egui::SidePanel::left("side_panel")
         .show(egui_ctx.ctx_mut(), |ui| {
             let fps = diagnostics
                 .get_measurement(FrameTimeDiagnosticsPlugin::FPS)
@@ -114,9 +116,9 @@ fn main_panel(
             egui::CollapsingHeader::new("Global settings")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.show_resources, "Show resources");
-                    ui.checkbox(&mut state.show_assets, "Show assets");
-                    ui.checkbox(&mut state.show_world, "Show world");
+                    ui.checkbox(&mut panel.show_resources, "Show resources");
+                    ui.checkbox(&mut panel.show_assets, "Show assets");
+                    ui.checkbox(&mut panel.show_world, "Show world");
                 });
 
             selection_ui(ui, &mut sel_state, selected, cmd);
@@ -124,39 +126,39 @@ fn main_panel(
             egui::CollapsingHeader::new("Physics")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut state.rapier_debug_enabled, "Debug render");
-                    debug_render_ctx.enabled = state.rapier_debug_enabled;
+                    ui.checkbox(&mut panel.rapier_debug_enabled, "Debug render");
+                    debug_render_ctx.enabled = panel.rapier_debug_enabled;
 
-                    add_cube_ui(ui, &mut state, add_cube_state);
+                    add_cube_ui(ui, &mut panel, add_cube_state);
                 });
         })
         .response
         .rect
         .width();
 
-    state.mouse_over = true;
+    panel.mouse_over = true;
     if let Ok(window) = q_window.get_single() {
         if let Some(mouse_pos) = window.cursor_position() {
-            state.mouse_over = mouse_pos.x <= state.panel_width
-                || mouse_pos.x >= window.width() - state.inspector_width;
+            panel.mouse_over = mouse_pos.x <= panel.panel_width
+                || mouse_pos.x >= window.width() - panel.inspector_width;
         }
     }
 }
 
-pub fn ui_mode_toggle(ui: &mut egui::Ui, state: &mut SidePanelState, mode: UiMode, text: &str) {
-    let mut val = state.mode == mode;
+pub fn ui_mode_toggle(ui: &mut egui::Ui, panel: &mut SidePanel, mode: UiMode, text: &str) {
+    let mut val = panel.mode == mode;
     let val1 = val;
     ui.toggle_value(&mut val, text);
     if val {
-        state.mode = mode;
+        panel.mode = mode;
     } else if val1 {
-        state.mode = UiMode::Select
+        panel.mode = UiMode::Select
     };
 }
 
 fn inspector_panel(world: &mut World) {
     let (show_resources, show_assets, show_world) = {
-        let panel = world.resource_mut::<SidePanelState>();
+        let panel = world.resource_mut::<SidePanel>();
         (panel.show_resources, panel.show_assets, panel.show_world)
     };
 
@@ -170,7 +172,7 @@ fn inspector_panel(world: &mut World) {
     };
 
     if selected.is_none() && !show_resources && !show_assets && !show_world {
-        world.resource_mut::<SidePanelState>().inspector_width = 0.;
+        world.resource_mut::<SidePanel>().inspector_width = 0.;
         return;
     }
 
@@ -179,7 +181,7 @@ fn inspector_panel(world: &mut World) {
         .single(world)
         .clone();
 
-    world.resource_mut::<SidePanelState>().inspector_width = egui::SidePanel::right("inspector")
+    world.resource_mut::<SidePanel>().inspector_width = egui::SidePanel::right("inspector")
         .show(egui_ctx.get_mut(), |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 if show_resources {

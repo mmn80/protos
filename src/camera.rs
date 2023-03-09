@@ -5,7 +5,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 
-use crate::ui::{selection::Selected, side_panel::SidePanelState};
+use crate::ui::{selection::Selected, side_panel::SidePanel};
 
 pub struct MainCameraPlugin;
 
@@ -70,7 +70,7 @@ fn main_camera(
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
-    ui: Res<SidePanelState>,
+    ui: Res<SidePanel>,
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     mut ev_cursor: EventReader<CursorMoved>,

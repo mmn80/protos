@@ -14,7 +14,7 @@ use crate::{
 
 use super::{
     basic_materials::BasicMaterials,
-    side_panel::{SidePanelState, UiMode},
+    side_panel::{SidePanel, UiMode},
 };
 
 pub struct SelectionPlugin;
@@ -81,10 +81,11 @@ pub struct Selected {
     mesh: Option<Entity>,
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug, Default, Reflect)]
 pub struct SelectionRectUiNode;
 
 #[derive(Debug, Clone, Default, Resource, Reflect)]
+#[reflect(Resource)]
 pub struct SelectionRect {
     pub clear_previous: bool,
     pub begin: Option<Vec2>,
@@ -107,7 +108,7 @@ fn update_selected(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    ui: Res<SidePanelState>,
+    panel: Res<SidePanel>,
     materials: Res<BasicMaterials>,
     mut selection_rect: ResMut<SelectionRect>,
     q_window: Query<&Window, With<PrimaryWindow>>,
@@ -120,7 +121,7 @@ fn update_selected(
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if ui.mouse_over || ui.mode != UiMode::Select {
+    if panel.mouse_over || panel.mode != UiMode::Select {
         return;
     };
 
@@ -291,7 +292,7 @@ pub struct UnitNameUiNode;
 pub struct UnitNameUiNodeRef(Entity);
 
 fn update_selected_names(
-    ui: Res<SelectionUiState>,
+    panel: Res<SelectionUiState>,
     loaded_font: Res<LoadedFont>,
     added_q: Query<(Entity, &Name, &ScreenPosition), Added<Selected>>,
     moved_q: Query<(Entity, &ScreenPosition, &UnitNameUiNodeRef)>,
@@ -299,7 +300,7 @@ fn update_selected_names(
     mut ev_deselected: EventReader<DeselectedEvent>,
     mut cmd: Commands,
 ) {
-    if ui.show_names {
+    if panel.show_names {
         let text_alignment = TextAlignment::Center;
         let text_style = TextStyle {
             font: loaded_font.0.clone(),
@@ -335,7 +336,7 @@ fn update_selected_names(
     }
 
     for (entity, screen_pos, UnitNameUiNodeRef(ui_node)) in &moved_q {
-        if ui.show_names {
+        if panel.show_names {
             if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
                 let cam_fact = 1. / screen_pos.camera_dist;
                 style.position.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
@@ -358,7 +359,7 @@ fn update_selected_names(
 
 pub fn selection_ui(
     ui: &mut egui::Ui,
-    state: &mut SelectionUiState,
+    selection: &mut SelectionUiState,
     selected: Vec<(
         Entity,
         Option<&Name>,
@@ -370,9 +371,9 @@ pub fn selection_ui(
     egui::CollapsingHeader::new("Selection")
         .default_open(true)
         .show(ui, |ui| {
-            ui.checkbox(&mut state.show_names, "Show names");
-            ui.checkbox(&mut state.show_inspector, "Show inspector");
-            ui.checkbox(&mut state.show_move_gizmo, "Show move gizmo");
+            ui.checkbox(&mut selection.show_names, "Show names");
+            ui.checkbox(&mut selection.show_inspector, "Show inspector");
+            ui.checkbox(&mut selection.show_move_gizmo, "Show move gizmo");
 
             if !selected.is_empty() {
                 ui.add_space(10.);
@@ -398,15 +399,18 @@ pub fn selection_ui(
                     ui.group(|ui| {
                         ui.strong("Revolute joint");
                         ui.add(
-                            egui::Slider::new(&mut state.revolute_target_angle, -180..=180)
+                            egui::Slider::new(&mut selection.revolute_target_angle, -180..=180)
                                 .text("angle"),
                         );
-                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        ui.checkbox(
+                            &mut selection.joint_stop_at_collisions,
+                            "Stop at collisions",
+                        );
                         if ui.button("Add joint target").clicked() {
                             cmd.entity(*ent).insert(RevoluteJointCommand::new(
-                                state.revolute_target_angle as f32 * PI / 180.,
+                                selection.revolute_target_angle as f32 * PI / 180.,
                                 0.01,
-                                state.joint_stop_at_collisions,
+                                selection.joint_stop_at_collisions,
                             ));
                         }
                     });
@@ -414,25 +418,28 @@ pub fn selection_ui(
                     ui.group(|ui| {
                         ui.strong("Spherical joint");
                         ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_x, -180..=180)
+                            egui::Slider::new(&mut selection.spherical_target_angle_x, -180..=180)
                                 .text("angle x"),
                         );
                         ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_z, -180..=180)
+                            egui::Slider::new(&mut selection.spherical_target_angle_z, -180..=180)
                                 .text("angle z"),
                         );
                         ui.add(
-                            egui::Slider::new(&mut state.spherical_target_angle_y, -180..=180)
+                            egui::Slider::new(&mut selection.spherical_target_angle_y, -180..=180)
                                 .text("angle y"),
                         );
-                        ui.checkbox(&mut state.joint_stop_at_collisions, "Stop at collisions");
+                        ui.checkbox(
+                            &mut selection.joint_stop_at_collisions,
+                            "Stop at collisions",
+                        );
                         if ui.button("Add joint target").clicked() {
                             cmd.entity(*ent).insert(SphericalJointCommand::new_euler(
-                                state.spherical_target_angle_x as f32 * PI / 180.,
-                                state.spherical_target_angle_z as f32 * PI / 180.,
-                                state.spherical_target_angle_y as f32 * PI / 180.,
+                                selection.spherical_target_angle_x as f32 * PI / 180.,
+                                selection.spherical_target_angle_z as f32 * PI / 180.,
+                                selection.spherical_target_angle_y as f32 * PI / 180.,
                                 0.02,
-                                state.joint_stop_at_collisions,
+                                selection.joint_stop_at_collisions,
                             ));
                         }
                     });

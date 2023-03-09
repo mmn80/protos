@@ -4,7 +4,7 @@ use super::{
     basic_materials::BasicMaterials,
     handle_gizmo::{AddHandleGizmo, HandleGizmoAxis, HandleGizmoDragged, RemoveHandleGizmo},
     selection::{Selected, SelectionUiState},
-    side_panel::{SidePanelState, UiMode},
+    side_panel::{SidePanel, UiMode},
 };
 
 pub struct MoveGizmoPlugin;
@@ -19,7 +19,7 @@ impl Plugin for MoveGizmoPlugin {
 pub struct HasMoveGizmos;
 
 fn update_move_gizmos(
-    mut ui: ResMut<SidePanelState>,
+    mut ui: ResMut<SidePanel>,
     sel_ui: Res<SelectionUiState>,
     materials: Res<BasicMaterials>,
     mut ev_add: EventWriter<AddHandleGizmo>,

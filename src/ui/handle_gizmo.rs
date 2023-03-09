@@ -7,7 +7,7 @@ use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{camera::MainCamera, mesh::cone::Cone};
 
-use super::{basic_materials::BasicMaterials, side_panel::SidePanelState};
+use super::{basic_materials::BasicMaterials, side_panel::SidePanel};
 
 pub struct HandleGizmoPlugin;
 
@@ -68,7 +68,7 @@ pub struct HandleGizmo {
     pub material: Handle<StandardMaterial>,
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct HandleGizmoElement;
 
 #[derive(Default)]
@@ -243,7 +243,7 @@ fn update_handles(
     mut ev_drag: EventWriter<HandleGizmoDragged>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    ui: Res<SidePanelState>,
+    ui: Res<SidePanel>,
     materials: Res<BasicMaterials>,
     q_parent: Query<&Parent>,
     q_camera: Query<&MainCamera>,

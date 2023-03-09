@@ -4,14 +4,16 @@ pub struct BuildingPlugin;
 
 impl Plugin for BuildingPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<BuildingsRes>();
+        app.register_type::<Buildings>()
+            .init_resource::<Buildings>();
     }
 }
 
 #[derive(Resource, Reflect)]
-pub struct BuildingsRes {}
+#[reflect(Resource)]
+pub struct Buildings {}
 
-impl Default for BuildingsRes {
+impl Default for Buildings {
     fn default() -> Self {
         Self {}
     }

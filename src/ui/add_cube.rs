@@ -17,7 +17,7 @@ use crate::{
 use super::{
     basic_materials::BasicMaterials,
     selection::Selectable,
-    side_panel::{ui_mode_toggle, SidePanelState, UiMode},
+    side_panel::{ui_mode_toggle, SidePanel, UiMode},
 };
 
 pub struct AddCubePlugin;
@@ -29,7 +29,7 @@ impl Plugin for AddCubePlugin {
     }
 }
 
-#[derive(Resource, Reflect)]
+#[derive(Resource)]
 pub struct AddCubeUiState {
     pub joint_type: KiJointType,
 }
@@ -77,7 +77,7 @@ const CUBE_INIT_LEN: f32 = 0.1;
 fn update_add_cube(
     mut state: Local<AddCubeLocal>,
     mut meshes: ResMut<Assets<Mesh>>,
-    ui: Res<SidePanelState>,
+    panel: Res<SidePanel>,
     cube_ui: Res<AddCubeUiState>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
@@ -89,7 +89,7 @@ fn update_add_cube(
     q_parent: Query<&Parent>,
     mut cmd: Commands,
 ) {
-    if ui.mode != UiMode::AddCube {
+    if panel.mode != UiMode::AddCube {
         if state.state != AddCubeModeState::None {
             clear_ui_state(&mut state, &mut cmd);
         }
@@ -114,7 +114,7 @@ fn update_add_cube(
         }
     }
 
-    if ui.mouse_over {
+    if panel.mouse_over {
         return;
     }
 
@@ -335,31 +335,27 @@ fn clear_ui_state(state: &mut AddCubeLocal, cmd: &mut Commands) {
     state.height = None;
 }
 
-pub fn add_cube_ui(
-    ui: &mut egui::Ui,
-    ui_state: &mut SidePanelState,
-    mut state: ResMut<AddCubeUiState>,
-) {
-    ui_mode_toggle(ui, ui_state, UiMode::AddCube, "Add cube");
+pub fn add_cube_ui(ui: &mut egui::Ui, panel: &mut SidePanel, mut cube: ResMut<AddCubeUiState>) {
+    ui_mode_toggle(ui, panel, UiMode::AddCube, "Add cube");
 
-    if ui_state.mode == UiMode::AddCube {
+    if panel.mode == UiMode::AddCube {
         ui.indent(10, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Joint type:");
-                ui.selectable_value(&mut state.joint_type, KiJointType::Revolute, "Revolute");
-                ui.selectable_value(&mut state.joint_type, KiJointType::Spherical, "Spherical");
+                ui.selectable_value(&mut cube.joint_type, KiJointType::Revolute, "Revolute");
+                ui.selectable_value(&mut cube.joint_type, KiJointType::Spherical, "Spherical");
             });
         });
     }
 
-    ui_mode_toggle(ui, ui_state, UiMode::ShootBalls, "Shoot balls");
+    ui_mode_toggle(ui, panel, UiMode::ShootBalls, "Shoot balls");
 }
 
 #[derive(Component)]
 pub struct ShootyBall;
 
 fn shoot_balls(
-    ui: Res<SidePanelState>,
+    panel: Res<SidePanel>,
     materials: Res<BasicMaterials>,
     mouse: Res<Input<MouseButton>>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -373,7 +369,10 @@ fn shoot_balls(
         }
     }
 
-    if ui.mode != UiMode::ShootBalls || ui.mouse_over || !mouse.just_pressed(MouseButton::Left) {
+    if panel.mode != UiMode::ShootBalls
+        || panel.mouse_over
+        || !mouse.just_pressed(MouseButton::Left)
+    {
         return;
     };
 
