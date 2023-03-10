@@ -26,9 +26,6 @@ pub enum HandleGizmoAxis {
     X,
     Y,
     Z,
-    NegX,
-    NegY,
-    NegZ,
 }
 
 impl HandleGizmoAxis {
@@ -37,9 +34,6 @@ impl HandleGizmoAxis {
             HandleGizmoAxis::X => (trans.right(), trans.down()),
             HandleGizmoAxis::Y => (trans.up(), trans.right()),
             HandleGizmoAxis::Z => (trans.back(), trans.up()),
-            HandleGizmoAxis::NegX => (trans.left(), trans.up()),
-            HandleGizmoAxis::NegY => (trans.down(), trans.left()),
-            HandleGizmoAxis::NegZ => (trans.forward(), trans.down()),
         }
     }
 }
@@ -243,7 +237,7 @@ fn update_handles(
     mut ev_drag: EventWriter<HandleGizmoDragged>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
-    ui: Res<SidePanel>,
+    panel: Res<SidePanel>,
     materials: Res<BasicMaterials>,
     q_parent: Query<&Parent>,
     q_camera: Query<&MainCamera>,
@@ -267,7 +261,7 @@ fn update_handles(
         }
     }
 
-    if mouse.pressed(MouseButton::Left) && !ui.mouse_over {
+    if mouse.pressed(MouseButton::Left) && !panel.mouse_over {
         if let Some(active_gizmo) = local.active_gizmo {
             if let (Some(target), Ok((gizmo, gizmo_gtr))) = (
                 q_parent.iter_ancestors(active_gizmo).next(),
@@ -311,7 +305,7 @@ fn update_handles(
         }
     }
 
-    if !mouse.pressed(MouseButton::Left) || ui.mouse_over {
+    if !mouse.pressed(MouseButton::Left) || panel.mouse_over {
         local.active_gizmo = None;
         local.drag_last_y = None;
     }

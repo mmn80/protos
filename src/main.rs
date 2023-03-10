@@ -11,8 +11,8 @@ use protos::{
     mesh::lines::LinesPlugin,
     ui::{
         add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin,
-        handle_gizmo::HandleGizmoPlugin, move_gizmo::MoveGizmoPlugin, selection::SelectionPlugin,
-        side_panel::SidePanelPlugin,
+        handle_gizmo::HandleGizmoPlugin, selection::SelectionPlugin, side_panel::SidePanelPlugin,
+        transform_gizmo::TransformGizmoPlugin,
     },
 };
 
@@ -39,7 +39,7 @@ fn main() {
         .add_plugin(BasicMaterialsPlugin)
         .add_plugin(LinesPlugin)
         .add_plugin(HandleGizmoPlugin)
-        .add_plugin(MoveGizmoPlugin)
+        .add_plugin(TransformGizmoPlugin)
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
         .add_plugin(RigPlugin)

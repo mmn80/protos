@@ -6,6 +6,7 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     anim::{
+        auto_collider::{AutoCollider, AutoColliderMesh},
         joint::{RevoluteJointCommand, SphericalJointCommand},
         rig::{KiRevoluteJoint, KiSphericalJoint},
     },
@@ -15,6 +16,7 @@ use crate::{
 use super::{
     basic_materials::BasicMaterials,
     side_panel::{SidePanel, UiMode},
+    transform_gizmo::{AddTransformGizmo, HasTransformGizmo, RemoveTransformGizmo},
 };
 
 pub struct SelectionPlugin;
@@ -32,7 +34,11 @@ impl Plugin for SelectionPlugin {
                     .in_base_set(CoreSet::PreUpdate)
                     .after(crate::camera::update_screen_position),
             )
-            .add_systems((update_selected_names, update_select_ui_rect));
+            .add_systems((
+                update_selected_names,
+                update_select_ui_rect,
+                update_move_gizmo,
+            ));
     }
 }
 
@@ -446,4 +452,34 @@ pub fn selection_ui(
                 }
             }
         });
+}
+
+fn update_move_gizmo(
+    selection: Res<SelectionUiState>,
+    mut ev_add: EventWriter<AddTransformGizmo>,
+    mut ev_del: EventWriter<RemoveTransformGizmo>,
+    q_selected: Query<(Entity, Option<&AutoCollider>, Option<&HasTransformGizmo>), With<Selected>>,
+    q_ac_mesh: Query<With<HasTransformGizmo>, With<AutoColliderMesh>>,
+) {
+    if !selection.show_move_gizmo {
+        for (entity, maybe_ac, maybe_gizmo) in &q_selected {
+            if let Some(ac) = maybe_ac {
+                if q_ac_mesh.contains(ac.mesh) {
+                    ev_del.send(RemoveTransformGizmo { entity: ac.mesh })
+                }
+            } else if maybe_gizmo.is_some() {
+                ev_del.send(RemoveTransformGizmo { entity })
+            }
+        }
+    } else {
+        for (entity, maybe_ac, maybe_gizmo) in &q_selected {
+            if let Some(ac) = maybe_ac {
+                if !q_ac_mesh.contains(ac.mesh) {
+                    ev_add.send(AddTransformGizmo { entity: ac.mesh })
+                }
+            } else if maybe_gizmo.is_none() {
+                ev_add.send(AddTransformGizmo { entity })
+            }
+        }
+    }
 }
