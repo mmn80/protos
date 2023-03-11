@@ -1,7 +1,10 @@
 use bevy::{
-    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    core_pipeline::{
+        bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
+    },
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
+    render::view::RenderLayers,
     window::PrimaryWindow,
 };
 
@@ -38,11 +41,16 @@ impl Default for MainCamera {
     }
 }
 
-fn spawn_camera(mut commands: Commands) {
+pub const UI_CAMERA_LAYER: u8 = 1;
+
+#[derive(Component)]
+pub struct UiCamera;
+
+fn spawn_camera(mut cmd: Commands) {
     let translation = Vec3::new(-START_DIST, START_DIST, START_DIST);
     let radius = translation.length();
 
-    commands.spawn((
+    cmd.spawn((
         Camera3dBundle {
             transform: Transform::from_translation(translation).looking_at(Vec3::ZERO, Vec3::Y),
             camera: Camera {
@@ -62,7 +70,26 @@ fn spawn_camera(mut commands: Commands) {
             radius,
             ..default()
         },
-    ));
+    ))
+    .with_children(|parent| {
+        parent.spawn((
+            Camera3dBundle {
+                transform: Transform::IDENTITY,
+                camera_3d: Camera3d {
+                    clear_color: ClearColorConfig::None,
+                    ..default()
+                },
+                camera: Camera {
+                    hdr: true,
+                    order: 1,
+                    ..default()
+                },
+                ..default()
+            },
+            RenderLayers::layer(UI_CAMERA_LAYER),
+            UiCamera,
+        ));
+    });
 }
 
 /// Move with WASD, zoom with scroll wheel, orbit with right mouse click.

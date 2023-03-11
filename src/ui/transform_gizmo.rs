@@ -1,12 +1,16 @@
 use bevy::{
     pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
+    render::view::RenderLayers,
     transform::TransformSystem,
 };
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
-use crate::{camera::MainCamera, mesh::cone::Cone};
+use crate::{
+    camera::{MainCamera, UI_CAMERA_LAYER},
+    mesh::cone::Cone,
+};
 
 use super::basic_materials::BasicMaterials;
 
@@ -220,6 +224,7 @@ fn process_gizmo_events(
                     },
                     NotShadowCaster,
                     NotShadowReceiver,
+                    RenderLayers::layer(UI_CAMERA_LAYER),
                     Collider::ball(BALL_R),
                     Sensor,
                     TransformGizmoPart {
@@ -280,6 +285,7 @@ fn add_axis_gizmo(
         },
         NotShadowCaster,
         NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cylinder(BAR_H / 2., BAR_W),
         Sensor,
         TransformGizmoPart {
@@ -299,6 +305,7 @@ fn add_axis_gizmo(
         },
         NotShadowCaster,
         NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cone(CONE_H / 2., CONE_W),
         Sensor,
         TransformGizmoPart {
@@ -329,6 +336,7 @@ fn add_plane_gizmo(
         },
         NotShadowCaster,
         NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cuboid(SQUARE_H / 2., 0.05, SQUARE_H / 2.),
         Sensor,
         TransformGizmoPart {
