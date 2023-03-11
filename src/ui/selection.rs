@@ -456,30 +456,43 @@ pub fn selection_ui(
 
 fn update_move_gizmo(
     selection: Res<SelectionUiState>,
+    mut ev_deselected: EventReader<DeselectedEvent>,
     mut ev_add: EventWriter<AddTransformGizmo>,
     mut ev_del: EventWriter<RemoveTransformGizmo>,
-    q_selected: Query<(Entity, Option<&AutoCollider>, Option<&HasTransformGizmo>), With<Selected>>,
+    q_selected_gizmo: Query<
+        (Entity, Option<&AutoCollider>),
+        (With<Selected>, With<HasTransformGizmo>),
+    >,
+    q_selected_no_gizmo: Query<
+        (Entity, Option<&AutoCollider>),
+        (With<Selected>, Without<HasTransformGizmo>),
+    >,
     q_ac_mesh: Query<With<HasTransformGizmo>, With<AutoColliderMesh>>,
 ) {
-    if !selection.show_move_gizmo {
-        for (entity, maybe_ac, maybe_gizmo) in &q_selected {
+    if selection.show_move_gizmo {
+        for (entity, maybe_ac) in &q_selected_no_gizmo {
+            let mut selected = entity;
             if let Some(ac) = maybe_ac {
                 if q_ac_mesh.contains(ac.mesh) {
-                    ev_del.send(RemoveTransformGizmo { entity: ac.mesh })
+                    selected = ac.mesh;
                 }
-            } else if maybe_gizmo.is_some() {
-                ev_del.send(RemoveTransformGizmo { entity })
             }
+            ev_add.send(AddTransformGizmo { entity: selected })
+        }
+        for DeselectedEvent(deselected) in ev_deselected.iter() {
+            ev_del.send(RemoveTransformGizmo {
+                entity: *deselected,
+            });
         }
     } else {
-        for (entity, maybe_ac, maybe_gizmo) in &q_selected {
+        for (entity, maybe_ac) in &q_selected_gizmo {
+            let mut selected = entity;
             if let Some(ac) = maybe_ac {
-                if !q_ac_mesh.contains(ac.mesh) {
-                    ev_add.send(AddTransformGizmo { entity: ac.mesh })
+                if q_ac_mesh.contains(ac.mesh) {
+                    selected = ac.mesh;
                 }
-            } else if maybe_gizmo.is_none() {
-                ev_add.send(AddTransformGizmo { entity })
             }
+            ev_del.send(RemoveTransformGizmo { entity: selected });
         }
     }
 }
