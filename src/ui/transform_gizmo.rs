@@ -1,4 +1,5 @@
 use bevy::{
+    ecs::system::EntityCommand,
     pbr::{NotShadowCaster, NotShadowReceiver},
     prelude::*,
     render::view::RenderLayers,
@@ -21,9 +22,7 @@ impl Plugin for TransformGizmoPlugin {
         app.init_resource::<TransformGizmoMeshes>()
             .add_event::<AddTransformGizmo>()
             .add_event::<RemoveTransformGizmo>()
-            .add_systems(
-                (process_gizmo_events, clean_orphan_gizmos).in_base_set(CoreSet::PreUpdate),
-            )
+            .add_system(clean_orphan_gizmos.in_base_set(CoreSet::PreUpdate))
             .add_systems((
                 update_gizmo_state,
                 sync_parent_to_gizmo.after(update_gizmo_state),
@@ -36,12 +35,180 @@ impl Plugin for TransformGizmoPlugin {
     }
 }
 
-pub struct AddTransformGizmo {
-    pub entity: Entity,
+pub struct AddTransformGizmo;
+
+impl EntityCommand for AddTransformGizmo {
+    fn write(self, id: Entity, world: &mut World) {
+        let no_gizmo = {
+            let mut q_gizmos = world.query::<(Entity, &TransformGizmo)>();
+            q_gizmos.iter(world).all(|(_, gizmo)| gizmo.entity != id)
+        };
+        if no_gizmo {
+            let (ball, bar, cone, square) = {
+                let meshes = world.resource::<TransformGizmoMeshes>();
+                (
+                    meshes.ball.clone(),
+                    meshes.bar.clone(),
+                    meshes.cone.clone(),
+                    meshes.square.clone(),
+                )
+            };
+            let (ui_default, ui_red, ui_green, ui_blue) = {
+                let materials = world.resource::<BasicMaterials>();
+                (
+                    materials.ui_default.clone(),
+                    materials.ui_red.clone(),
+                    materials.ui_green.clone(),
+                    materials.ui_blue.clone(),
+                )
+            };
+            world
+                .spawn((
+                    SpatialBundle::default(),
+                    TransformGizmo {
+                        entity: id,
+                        active_state: None,
+                    },
+                ))
+                .with_children(|parent| {
+                    parent.spawn((
+                        PbrBundle {
+                            transform: Transform::IDENTITY,
+                            mesh: ball.clone(),
+                            material: ui_default.clone(),
+                            ..default()
+                        },
+                        NotShadowCaster,
+                        NotShadowReceiver,
+                        RenderLayers::layer(UI_CAMERA_LAYER),
+                        Collider::ball(BALL_R),
+                        Sensor,
+                        TransformGizmoPart {
+                            material: ui_default.clone(),
+                            highlighted: false,
+                            constraint: GizmoConstraint::Plane(GizmoPlane::Camera),
+                        },
+                    ));
+                    for (axis, material) in [
+                        (GizmoAxis::X, ui_red.clone()),
+                        (GizmoAxis::Y, ui_green.clone()),
+                        (GizmoAxis::Z, ui_blue.clone()),
+                    ] {
+                        add_axis_gizmo(parent, bar.clone(), cone.clone(), material, axis);
+                    }
+                    for (plane, material) in [
+                        (GizmoPlane::YZ, ui_red.clone()),
+                        (GizmoPlane::ZX, ui_green.clone()),
+                        (GizmoPlane::XY, ui_blue.clone()),
+                    ] {
+                        add_plane_gizmo(parent, square.clone(), material, plane);
+                    }
+                });
+
+            world.entity_mut(id).insert(HasTransformGizmo);
+        }
+    }
 }
 
-pub struct RemoveTransformGizmo {
-    pub entity: Entity,
+fn add_axis_gizmo(
+    parent: &mut WorldChildBuilder,
+    bar: Handle<Mesh>,
+    cone: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+    axis: GizmoAxis,
+) {
+    let (dir_y, dir_x) = axis.to_yx_axes();
+    let rot = Quat::from_mat3(&Mat3::from_cols(
+        dir_x,
+        dir_y,
+        dir_x.cross(dir_y).normalize(),
+    ));
+
+    let d = 2. * BALL_R;
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation((d + BAR_H / 2.) * dir_y).with_rotation(rot),
+            mesh: bar,
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
+        Collider::cylinder(BAR_H / 2., BAR_W),
+        Sensor,
+        TransformGizmoPart {
+            material: material.clone(),
+            highlighted: false,
+            constraint: GizmoConstraint::Axis(axis),
+        },
+    ));
+
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation((d + BAR_H + CONE_H / 2.) * dir_y)
+                .with_rotation(rot),
+            mesh: cone,
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
+        Collider::cone(CONE_H / 2., CONE_W),
+        Sensor,
+        TransformGizmoPart {
+            material,
+            highlighted: false,
+            constraint: GizmoConstraint::Axis(axis),
+        },
+    ));
+}
+
+fn add_plane_gizmo(
+    parent: &mut WorldChildBuilder,
+    square: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+    plane: GizmoPlane,
+) {
+    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
+    let dir_z = dir_x.cross(dir_y).normalize();
+    let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
+
+    let d = 2. * BALL_R + SQUARE_H / 2.;
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),
+            mesh: square,
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
+        Collider::cuboid(SQUARE_H / 2., 0.05, SQUARE_H / 2.),
+        Sensor,
+        TransformGizmoPart {
+            material: material.clone(),
+            highlighted: false,
+            constraint: GizmoConstraint::Plane(plane),
+        },
+    ));
+}
+
+pub struct RemoveTransformGizmo;
+
+impl EntityCommand for RemoveTransformGizmo {
+    fn write(self, id: Entity, world: &mut World) {
+        let gizmo = {
+            let mut q_gizmos = world.query::<(Entity, &TransformGizmo)>();
+            q_gizmos.iter(world).find(|(_, gizmo)| gizmo.entity == id)
+        };
+        if let Some((gizmo_ent, gizmo)) = gizmo {
+            world.entity_mut(gizmo.entity).remove::<HasTransformGizmo>();
+            world.entity_mut(gizmo_ent).despawn_recursive();
+        }
+    }
 }
 
 #[derive(Component)]
@@ -195,156 +362,6 @@ impl FromWorld for TransformGizmoMeshes {
             square: meshes.add(Mesh::try_from(shape::Plane::from_size(SQUARE_H)).unwrap()),
         }
     }
-}
-
-fn process_gizmo_events(
-    meshes: Res<TransformGizmoMeshes>,
-    materials: Res<BasicMaterials>,
-    mut ev_add: EventReader<AddTransformGizmo>,
-    mut ev_del: EventReader<RemoveTransformGizmo>,
-    q_gizmos: Query<(Entity, &TransformGizmo)>,
-    mut cmd: Commands,
-) {
-    for AddTransformGizmo { entity } in ev_add.iter() {
-        if q_gizmos.iter().all(|(_, gizmo)| gizmo.entity != *entity) {
-            cmd.spawn((
-                SpatialBundle::default(),
-                TransformGizmo {
-                    entity: *entity,
-                    active_state: None,
-                },
-            ))
-            .with_children(|parent| {
-                parent.spawn((
-                    PbrBundle {
-                        transform: Transform::IDENTITY,
-                        mesh: meshes.ball.clone(),
-                        material: materials.ui_default.clone(),
-                        ..default()
-                    },
-                    NotShadowCaster,
-                    NotShadowReceiver,
-                    RenderLayers::layer(UI_CAMERA_LAYER),
-                    Collider::ball(BALL_R),
-                    Sensor,
-                    TransformGizmoPart {
-                        material: materials.ui_default.clone(),
-                        highlighted: false,
-                        constraint: GizmoConstraint::Plane(GizmoPlane::Camera),
-                    },
-                ));
-                for (axis, material) in [
-                    (GizmoAxis::X, materials.ui_red.clone()),
-                    (GizmoAxis::Y, materials.ui_green.clone()),
-                    (GizmoAxis::Z, materials.ui_blue.clone()),
-                ] {
-                    add_axis_gizmo(parent, &meshes, material, axis);
-                }
-                for (plane, material) in [
-                    (GizmoPlane::YZ, materials.ui_red.clone()),
-                    (GizmoPlane::ZX, materials.ui_green.clone()),
-                    (GizmoPlane::XY, materials.ui_blue.clone()),
-                ] {
-                    add_plane_gizmo(parent, &meshes, material, plane);
-                }
-            });
-
-            cmd.entity(*entity).insert(HasTransformGizmo);
-        }
-    }
-
-    for RemoveTransformGizmo { entity } in ev_del.iter() {
-        if let Some((gizmo_ent, gizmo)) = q_gizmos.iter().find(|(_, gizmo)| gizmo.entity == *entity)
-        {
-            cmd.entity(gizmo.entity).remove::<HasTransformGizmo>();
-            cmd.entity(gizmo_ent).despawn_recursive();
-        }
-    }
-}
-
-fn add_axis_gizmo(
-    parent: &mut ChildBuilder,
-    meshes: &TransformGizmoMeshes,
-    material: Handle<StandardMaterial>,
-    axis: GizmoAxis,
-) {
-    let (dir_y, dir_x) = axis.to_yx_axes();
-    let rot = Quat::from_mat3(&Mat3::from_cols(
-        dir_x,
-        dir_y,
-        dir_x.cross(dir_y).normalize(),
-    ));
-
-    let d = 2. * BALL_R;
-    parent.spawn((
-        PbrBundle {
-            transform: Transform::from_translation((d + BAR_H / 2.) * dir_y).with_rotation(rot),
-            mesh: meshes.bar.clone(),
-            material: material.clone(),
-            ..default()
-        },
-        NotShadowCaster,
-        NotShadowReceiver,
-        RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cylinder(BAR_H / 2., BAR_W),
-        Sensor,
-        TransformGizmoPart {
-            material: material.clone(),
-            highlighted: false,
-            constraint: GizmoConstraint::Axis(axis),
-        },
-    ));
-
-    parent.spawn((
-        PbrBundle {
-            transform: Transform::from_translation((d + BAR_H + CONE_H / 2.) * dir_y)
-                .with_rotation(rot),
-            mesh: meshes.cone.clone(),
-            material: material.clone(),
-            ..default()
-        },
-        NotShadowCaster,
-        NotShadowReceiver,
-        RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cone(CONE_H / 2., CONE_W),
-        Sensor,
-        TransformGizmoPart {
-            material,
-            highlighted: false,
-            constraint: GizmoConstraint::Axis(axis),
-        },
-    ));
-}
-
-fn add_plane_gizmo(
-    parent: &mut ChildBuilder,
-    meshes: &TransformGizmoMeshes,
-    material: Handle<StandardMaterial>,
-    plane: GizmoPlane,
-) {
-    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
-    let dir_z = dir_x.cross(dir_y).normalize();
-    let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
-
-    let d = 2. * BALL_R + SQUARE_H / 2.;
-    parent.spawn((
-        PbrBundle {
-            transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),
-            mesh: meshes.square.clone(),
-            material: material.clone(),
-            ..default()
-        },
-        NotShadowCaster,
-        NotShadowReceiver,
-        RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cuboid(SQUARE_H / 2., 0.05, SQUARE_H / 2.),
-        Sensor,
-        TransformGizmoPart {
-            material: material.clone(),
-            highlighted: false,
-            constraint: GizmoConstraint::Plane(plane),
-        },
-    ));
 }
 
 fn update_gizmo_state(
