@@ -70,7 +70,7 @@ impl EntityCommand for AddTransformGizmo {
                         entity: id,
                         active_state: None,
                     },
-                    Name::new(format!("Gizmo ({id:?})")),
+                    Name::new(format!("Gizmo (@{id:?})")),
                 ))
                 .with_children(|parent| {
                     parent.spawn((

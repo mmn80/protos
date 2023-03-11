@@ -30,7 +30,7 @@ impl FromWorld for BasicMaterials {
         BasicMaterials {
             ui_default: materials.add(StandardMaterial {
                 base_color: Color::rgb(0.5, 0.5, 0.5),
-                emissive: Color::rgb(0.9, 0.5, 0.5),
+                emissive: Color::rgb(0.5, 0.5, 0.5),
                 metallic: 0.0,
                 perceptual_roughness: 0.5,
                 double_sided: true,

@@ -258,6 +258,8 @@ fn update_add_cube(
                             Selectable::new(bone_ent, Some(mesh_ent)),
                         ))
                         .id();
+                    cmd.entity(coll_ent)
+                        .insert(Name::new(format!("Collider ({coll_ent:?})")));
                     cmd.entity(colp_p.get()).add_child(coll_ent);
 
                     (coll_ent, mesh_ent, false)
@@ -295,6 +297,8 @@ fn update_add_cube(
                             Selectable::new(new_obj, Some(mesh_ent)),
                         ))
                         .id();
+                    cmd.entity(coll_ent)
+                        .insert(Name::new(format!("Collider ({coll_ent:?})")));
                     cmd.entity(new_obj).add_child(coll_ent);
 
                     (coll_ent, mesh_ent, true)
