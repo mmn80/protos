@@ -21,7 +21,11 @@ impl Plugin for TransformGizmoPlugin {
                     .in_base_set(CoreSet::PostUpdate)
                     .after(TransformSystem::TransformPropagate),
             )
-            .add_systems((process_gizmo_events, update_gizmo_state));
+            .add_systems((
+                process_gizmo_events,
+                update_gizmo_state,
+                clean_orphan_gizmos,
+            ));
     }
 }
 
@@ -215,6 +219,14 @@ fn update_gizmo_state(
             gizmo.active = false;
             gizmo_part.highlighted = false;
             *material = gizmo_part.material.clone();
+        }
+    }
+}
+
+fn clean_orphan_gizmos(q_gizmo: Query<(Entity, &TransformGizmo)>, mut cmd: Commands) {
+    for (gizmo_ent, gizmo) in &q_gizmo {
+        if cmd.get_entity(gizmo.entity).is_none() {
+            cmd.entity(gizmo_ent).despawn_recursive();
         }
     }
 }
