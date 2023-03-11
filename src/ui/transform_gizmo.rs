@@ -137,12 +137,30 @@ fn process_gizmo_events(
 
 fn sync_gizmo_to_parent(
     mut q_gizmos: Query<(&TransformGizmo, &mut Transform, &mut GlobalTransform), Without<Parent>>,
-    q_attach: Query<&GlobalTransform, Without<TransformGizmo>>,
+    mut q_gizmo_parts: Query<
+        (&Transform, &mut GlobalTransform, &Parent),
+        (With<TransformGizmoPart>, Without<TransformGizmo>),
+    >,
+    q_attach: Query<
+        &GlobalTransform,
+        (
+            With<HasTransformGizmo>,
+            Without<TransformGizmo>,
+            Without<TransformGizmoPart>,
+        ),
+    >,
 ) {
-    for (gizmo, mut tr, mut gtr) in &mut q_gizmos {
+    for (gizmo, mut gizmo_tr, mut gizmo_gtr) in &mut q_gizmos {
         if let Ok(parent_gtr) = q_attach.get(gizmo.entity) {
-            *gtr = *parent_gtr;
-            *tr = gtr.compute_transform();
+            if *gizmo_gtr != *parent_gtr {
+                *gizmo_gtr = *parent_gtr;
+                *gizmo_tr = gizmo_gtr.compute_transform();
+            }
+        }
+    }
+    for (part_tr, mut part_gtr, parent) in &mut q_gizmo_parts {
+        if let Ok((_, _, gizmo_gtr)) = q_gizmos.get(parent.get()) {
+            *part_gtr = gizmo_gtr.mul_transform(*part_tr);
         }
     }
 }
