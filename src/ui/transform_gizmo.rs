@@ -4,6 +4,7 @@ use bevy::{
     transform::TransformSystem,
 };
 use bevy_rapier3d::prelude::*;
+use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{camera::MainCamera, mesh::cone::Cone};
 
@@ -16,16 +17,15 @@ impl Plugin for TransformGizmoPlugin {
         app.init_resource::<TransformGizmoMeshes>()
             .add_event::<AddTransformGizmo>()
             .add_event::<RemoveTransformGizmo>()
+            .add_systems(
+                (process_gizmo_events, clean_orphan_gizmos).in_base_set(CoreSet::PreUpdate),
+            )
+            .add_systems((update_gizmo_state,))
             .add_system(
                 sync_gizmo_to_parent
                     .in_base_set(CoreSet::PostUpdate)
                     .after(TransformSystem::TransformPropagate),
-            )
-            .add_systems((
-                process_gizmo_events,
-                update_gizmo_state,
-                clean_orphan_gizmos,
-            ));
+            );
     }
 }
 
@@ -40,16 +40,96 @@ pub struct RemoveTransformGizmo {
 #[derive(Component)]
 pub struct HasTransformGizmo;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GizmoAxis {
+    X,
+    Y,
+    Z,
+}
+
+impl GizmoAxis {
+    pub fn ray_cast_planes(&self, gtr: &GlobalTransform) -> (Vec3, Vec3) {
+        match self {
+            GizmoAxis::X => (gtr.up(), gtr.forward()),
+            GizmoAxis::Y => (gtr.right(), gtr.forward()),
+            GizmoAxis::Z => (gtr.right(), gtr.up()),
+        }
+    }
+
+    pub fn axis(&self, gtr: &GlobalTransform) -> Vec3 {
+        match self {
+            GizmoAxis::X => gtr.right(),
+            GizmoAxis::Y => gtr.up(),
+            GizmoAxis::Z => gtr.back(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GizmoPlane {
+    XY,
+    YZ,
+    ZX,
+    Camera,
+}
+
+impl GizmoPlane {
+    pub fn ray_cast_plane(&self, gtr: &GlobalTransform, ray: &Ray) -> Vec3 {
+        match self {
+            GizmoPlane::XY => gtr.back(),
+            GizmoPlane::YZ => gtr.right(),
+            GizmoPlane::ZX => gtr.up(),
+            GizmoPlane::Camera => ray.direction,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GizmoConstraint {
+    Axis(GizmoAxis),
+    Plane(GizmoPlane),
+}
+
+impl GizmoConstraint {
+    fn ray_cast(&self, ray: &Ray, gtr: &GlobalTransform, rapier: &RapierContext) -> Option<Vec3> {
+        let origin = ray.origin;
+        let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
+        match self {
+            GizmoConstraint::Axis(axis) => {
+                let (plane1, plane2) = axis.ray_cast_planes(gtr);
+                let toi0 = ray_toi_with_halfspace(&origin.into(), &plane1.into(), &ray_p)?;
+                let toi1 = ray_toi_with_halfspace(&origin.into(), &plane2.into(), &ray_p)?;
+                let dir = axis.axis(gtr);
+                let y0 = dir.dot(origin + toi0 * ray.direction);
+                let y1 = dir.dot(origin + toi1 * ray.direction);
+                let drag_y = (y0 + y1) / 2.;
+                Some(drag_y * dir)
+            }
+            GizmoConstraint::Plane(plane) => {
+                let ray_plane = plane.ray_cast_plane(gtr, ray);
+                let toi = ray_toi_with_halfspace(&origin.into(), &ray_plane.into(), &ray_p)?;
+                Some(toi * ray_plane)
+            }
+        }
+    }
+}
+
+struct GizmoActiveState {
+    start_drag: Vec3,
+    constraint: GizmoConstraint,
+}
+
 #[derive(Component)]
 struct TransformGizmo {
     entity: Entity,
-    active: bool,
+    active: Option<GizmoActiveState>,
 }
 
 #[derive(Component)]
 struct TransformGizmoPart {
     material: Handle<StandardMaterial>,
     highlighted: bool,
+    constraint: GizmoConstraint,
 }
 
 #[derive(Resource, Reflect)]
@@ -104,7 +184,7 @@ fn process_gizmo_events(
                 SpatialBundle::default(),
                 TransformGizmo {
                     entity: *entity,
-                    active: false,
+                    active: None,
                 },
             ))
             .with_children(|parent| {
@@ -122,6 +202,7 @@ fn process_gizmo_events(
                     TransformGizmoPart {
                         material: materials.salmon.clone(),
                         highlighted: false,
+                        constraint: GizmoConstraint::Plane(GizmoPlane::Camera),
                     },
                 ));
             });
@@ -182,7 +263,7 @@ fn update_gizmo_state(
     rapier: Res<RapierContext>,
     materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
-    mut q_gizmo: Query<&mut TransformGizmo>,
+    mut q_gizmo: Query<(&mut TransformGizmo, &GlobalTransform)>,
     mut q_gizmo_part: Query<(
         Entity,
         &Parent,
@@ -194,8 +275,8 @@ fn update_gizmo_state(
     let mut mouse_ray_ent = None;
     let mut mouse_ray_casted = false;
     for (gizmo_part_ent, parent, mut material, mut gizmo_part) in &mut q_gizmo_part {
-        let Ok(mut gizmo) = q_gizmo.get_mut(parent.get()) else { continue };
-        if !gizmo.active {
+        let Ok((mut gizmo, gizmo_gtr)) = q_gizmo.get_mut(parent.get()) else { continue };
+        if gizmo.active.is_none() {
             if mouse_ray_casted == false && mouse_ray_ent.is_none() {
                 if let Some((hit_ent, _)) = rapier.cast_ray(
                     mouse_ray.origin,
@@ -220,10 +301,18 @@ fn update_gizmo_state(
                 }
             }
             if gizmo_part.highlighted && mouse.just_pressed(MouseButton::Left) {
-                gizmo.active = true;
+                if let Some(start_drag) = gizmo_part
+                    .constraint
+                    .ray_cast(&mouse_ray, gizmo_gtr, &rapier)
+                {
+                    gizmo.active = Some(GizmoActiveState {
+                        start_drag,
+                        constraint: gizmo_part.constraint,
+                    });
+                }
             }
         } else if !mouse.pressed(MouseButton::Left) {
-            gizmo.active = false;
+            gizmo.active = None;
             gizmo_part.highlighted = false;
             *material = gizmo_part.material.clone();
         }
