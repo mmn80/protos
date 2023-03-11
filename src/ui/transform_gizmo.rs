@@ -20,7 +20,10 @@ impl Plugin for TransformGizmoPlugin {
             .add_systems(
                 (process_gizmo_events, clean_orphan_gizmos).in_base_set(CoreSet::PreUpdate),
             )
-            .add_systems((update_gizmo_state,))
+            .add_systems((
+                update_gizmo_state,
+                sync_parent_to_gizmo.after(update_gizmo_state),
+            ))
             .add_system(
                 sync_gizmo_to_parent
                     .in_base_set(CoreSet::PostUpdate)
@@ -91,19 +94,18 @@ enum GizmoConstraint {
 }
 
 impl GizmoConstraint {
-    fn ray_cast(&self, ray: &Ray, gtr: &GlobalTransform, rapier: &RapierContext) -> Option<Vec3> {
-        let origin = ray.origin;
+    fn ray_cast(&self, origin: Vec3, ray: &Ray, gtr: &GlobalTransform) -> Option<Vec3> {
         let ray_p = parry3d::query::Ray::new(ray.origin.into(), ray.direction.into());
         match self {
             GizmoConstraint::Axis(axis) => {
-                let (plane1, plane2) = axis.ray_cast_planes(gtr);
-                let toi0 = ray_toi_with_halfspace(&origin.into(), &plane1.into(), &ray_p)?;
-                let toi1 = ray_toi_with_halfspace(&origin.into(), &plane2.into(), &ray_p)?;
+                let (plane0, plane1) = axis.ray_cast_planes(gtr);
+                let toi0 = ray_toi_with_halfspace(&origin.into(), &plane0.into(), &ray_p)?;
+                let toi1 = ray_toi_with_halfspace(&origin.into(), &plane1.into(), &ray_p)?;
                 let dir = axis.axis(gtr);
-                let y0 = dir.dot(origin + toi0 * ray.direction);
-                let y1 = dir.dot(origin + toi1 * ray.direction);
-                let drag_y = (y0 + y1) / 2.;
-                Some(drag_y * dir)
+                let d0 = dir.dot(origin + toi0 * ray.direction);
+                let d1 = dir.dot(origin + toi1 * ray.direction);
+                let d = (d0 + d1) / 2.;
+                Some(d * dir)
             }
             GizmoConstraint::Plane(plane) => {
                 let ray_plane = plane.ray_cast_plane(gtr, ray);
@@ -115,14 +117,15 @@ impl GizmoConstraint {
 }
 
 struct GizmoActiveState {
-    start_drag: Vec3,
+    origin: Vec3,
+    delta: Vec3,
     constraint: GizmoConstraint,
 }
 
 #[derive(Component)]
 struct TransformGizmo {
     entity: Entity,
-    active: Option<GizmoActiveState>,
+    active_state: Option<GizmoActiveState>,
 }
 
 #[derive(Component)]
@@ -184,7 +187,7 @@ fn process_gizmo_events(
                 SpatialBundle::default(),
                 TransformGizmo {
                     entity: *entity,
-                    active: None,
+                    active_state: None,
                 },
             ))
             .with_children(|parent| {
@@ -216,6 +219,93 @@ fn process_gizmo_events(
         {
             cmd.entity(gizmo.entity).remove::<HasTransformGizmo>();
             cmd.entity(gizmo_ent).despawn_recursive();
+        }
+    }
+}
+
+fn update_gizmo_state(
+    mouse: Res<Input<MouseButton>>,
+    rapier: Res<RapierContext>,
+    materials: Res<BasicMaterials>,
+    q_camera: Query<&MainCamera>,
+    mut q_gizmo: Query<(&mut TransformGizmo, &GlobalTransform)>,
+    mut q_gizmo_part: Query<(
+        Entity,
+        &Parent,
+        &mut Handle<StandardMaterial>,
+        &mut TransformGizmoPart,
+    )>,
+) {
+    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let mut mouse_ray_ent = None;
+    let mut mouse_ray_casted = false;
+    for (gizmo_part_ent, parent, mut material, mut gizmo_part) in &mut q_gizmo_part {
+        let Ok((mut gizmo, gizmo_gtr)) = q_gizmo.get_mut(parent.get()) else { continue };
+        if gizmo.active_state.is_none() {
+            if mouse_ray_casted == false && mouse_ray_ent.is_none() {
+                if let Some((hit_ent, _)) = rapier.cast_ray(
+                    mouse_ray.origin,
+                    mouse_ray.direction,
+                    1000.,
+                    false,
+                    QueryFilter::new().exclude_solids(),
+                ) {
+                    mouse_ray_ent = Some(hit_ent);
+                }
+                mouse_ray_casted = true;
+            }
+            if Some(gizmo_part_ent) == mouse_ray_ent {
+                if !gizmo_part.highlighted {
+                    gizmo_part.highlighted = true;
+                    *material = materials.ui_selected.clone();
+                }
+            } else {
+                if gizmo_part.highlighted {
+                    gizmo_part.highlighted = false;
+                    *material = gizmo_part.material.clone();
+                }
+            }
+            if gizmo_part.highlighted && mouse.just_pressed(MouseButton::Left) {
+                let origin = gizmo_gtr.translation();
+                if let Some(start_drag) = gizmo_part
+                    .constraint
+                    .ray_cast(origin, &mouse_ray, gizmo_gtr)
+                {
+                    gizmo.active_state = Some(GizmoActiveState {
+                        origin,
+                        delta: origin - start_drag,
+                        constraint: gizmo_part.constraint,
+                    });
+                }
+            }
+        } else if !mouse.pressed(MouseButton::Left) {
+            gizmo.active_state = None;
+            gizmo_part.highlighted = false;
+            *material = gizmo_part.material.clone();
+        }
+    }
+}
+
+fn sync_parent_to_gizmo(
+    q_camera: Query<&MainCamera>,
+    mut q_parent: Query<(&mut Transform, Option<&Parent>), With<HasTransformGizmo>>,
+    q_parent_parent: Query<&GlobalTransform, Without<TransformGizmo>>,
+    q_gizmo: Query<(&TransformGizmo, &GlobalTransform)>,
+) {
+    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    for (gizmo, gizmo_gtr) in &q_gizmo {
+        let Some(ref state) = gizmo.active_state else { continue };
+        let Some(current) = state.constraint.ray_cast(state.origin, &mouse_ray, gizmo_gtr) else { continue };
+
+        let Ok((mut parent_tr, parent_ent)) = q_parent.get_mut(gizmo.entity) else { continue };
+        if let Some(parent_ent) = parent_ent {
+            let Ok(parent_gtr) = q_parent_parent.get(parent_ent.get()) else { continue };
+            parent_tr.translation = parent_gtr
+                .affine()
+                .inverse()
+                .transform_point3(current + state.delta);
+        } else {
+            parent_tr.translation = current + state.delta;
         }
     }
 }
@@ -254,67 +344,6 @@ fn clean_orphan_gizmos(q_gizmo: Query<(Entity, &TransformGizmo)>, mut cmd: Comma
     for (gizmo_ent, gizmo) in &q_gizmo {
         if cmd.get_entity(gizmo.entity).is_none() {
             cmd.entity(gizmo_ent).despawn_recursive();
-        }
-    }
-}
-
-fn update_gizmo_state(
-    mouse: Res<Input<MouseButton>>,
-    rapier: Res<RapierContext>,
-    materials: Res<BasicMaterials>,
-    q_camera: Query<&MainCamera>,
-    mut q_gizmo: Query<(&mut TransformGizmo, &GlobalTransform)>,
-    mut q_gizmo_part: Query<(
-        Entity,
-        &Parent,
-        &mut Handle<StandardMaterial>,
-        &mut TransformGizmoPart,
-    )>,
-) {
-    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
-    let mut mouse_ray_ent = None;
-    let mut mouse_ray_casted = false;
-    for (gizmo_part_ent, parent, mut material, mut gizmo_part) in &mut q_gizmo_part {
-        let Ok((mut gizmo, gizmo_gtr)) = q_gizmo.get_mut(parent.get()) else { continue };
-        if gizmo.active.is_none() {
-            if mouse_ray_casted == false && mouse_ray_ent.is_none() {
-                if let Some((hit_ent, _)) = rapier.cast_ray(
-                    mouse_ray.origin,
-                    mouse_ray.direction,
-                    1000.,
-                    false,
-                    QueryFilter::new().exclude_solids(),
-                ) {
-                    mouse_ray_ent = Some(hit_ent);
-                }
-                mouse_ray_casted = true;
-            }
-            if Some(gizmo_part_ent) == mouse_ray_ent {
-                if !gizmo_part.highlighted {
-                    gizmo_part.highlighted = true;
-                    *material = materials.ui_selected.clone();
-                }
-            } else {
-                if gizmo_part.highlighted {
-                    gizmo_part.highlighted = false;
-                    *material = gizmo_part.material.clone();
-                }
-            }
-            if gizmo_part.highlighted && mouse.just_pressed(MouseButton::Left) {
-                if let Some(start_drag) = gizmo_part
-                    .constraint
-                    .ray_cast(&mouse_ray, gizmo_gtr, &rapier)
-                {
-                    gizmo.active = Some(GizmoActiveState {
-                        start_drag,
-                        constraint: gizmo_part.constraint,
-                    });
-                }
-            }
-        } else if !mouse.pressed(MouseButton::Left) {
-            gizmo.active = None;
-            gizmo_part.highlighted = false;
-            *material = gizmo_part.material.clone();
         }
     }
 }
