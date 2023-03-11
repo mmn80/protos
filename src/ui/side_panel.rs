@@ -21,9 +21,10 @@ impl Plugin for SidePanelPlugin {
             .init_resource::<SidePanel>()
             .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
             //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
-            //.add_plugin(bevy::wgpu::diagnostic::WgpuResourceDiagnosticsPlugin::default())
-            //.add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
-            //.add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
+            //.add_plugin(wgpu::WgpuResourceDiagnosticsPlugin::default())
+            .add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
+            .add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
+            //.add_plugin(bevy::diagnostic::SystemInformationDiagnosticsPlugin::default())
             .init_resource::<SidePanel>()
             .add_startup_system(configure_egui)
             .add_systems((main_panel, inspector_panel));
@@ -98,18 +99,25 @@ fn main_panel(
     panel.panel_width = egui::SidePanel::left("side_panel")
         .show(egui_ctx.ctx_mut(), |ui| {
             let fps = diagnostics
-                .get_measurement(FrameTimeDiagnosticsPlugin::FPS)
-                .map(|d| d.value.round() as u32)
+                .get(FrameTimeDiagnosticsPlugin::FPS)
+                .map(|d| d.smoothed().unwrap_or(0.) as u32)
                 .unwrap_or(0);
-            let frame = diagnostics
-                .get_measurement(FrameTimeDiagnosticsPlugin::FRAME_COUNT)
+            let entities = diagnostics
+                .get_measurement(bevy::diagnostic::EntityCountDiagnosticsPlugin::ENTITY_COUNT)
+                .map(|d| d.value as u32)
+                .unwrap_or(0);
+            let meshes = diagnostics
+                .get_measurement(
+                    bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::diagnostic_id(),
+                )
                 .map(|d| d.value as u32)
                 .unwrap_or(0);
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.label(format!("Frame: {}", frame));
+                    ui.label(format!("FPS: {fps}"));
                     ui.separator();
-                    ui.label(format!("FPS: {}", fps));
+                    ui.label(format!("mesh: {meshes}"));
+                    ui.label(format!("entity: {entities}"));
                 });
             });
 
