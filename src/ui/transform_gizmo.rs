@@ -169,6 +169,14 @@ fn sync_gizmo_to_parent(
     }
 }
 
+fn clean_orphan_gizmos(q_gizmo: Query<(Entity, &TransformGizmo)>, mut cmd: Commands) {
+    for (gizmo_ent, gizmo) in &q_gizmo {
+        if cmd.get_entity(gizmo.entity).is_none() {
+            cmd.entity(gizmo_ent).despawn_recursive();
+        }
+    }
+}
+
 fn update_gizmo_state(
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
@@ -204,10 +212,6 @@ fn update_gizmo_state(
                 if !gizmo_part.highlighted {
                     gizmo_part.highlighted = true;
                     *material = materials.ui_selected.clone();
-
-                    if mouse.just_pressed(MouseButton::Left) {
-                        gizmo.active = true;
-                    }
                 }
             } else {
                 if gizmo_part.highlighted {
@@ -215,18 +219,13 @@ fn update_gizmo_state(
                     *material = gizmo_part.material.clone();
                 }
             }
+            if gizmo_part.highlighted && mouse.just_pressed(MouseButton::Left) {
+                gizmo.active = true;
+            }
         } else if !mouse.pressed(MouseButton::Left) {
             gizmo.active = false;
             gizmo_part.highlighted = false;
             *material = gizmo_part.material.clone();
-        }
-    }
-}
-
-fn clean_orphan_gizmos(q_gizmo: Query<(Entity, &TransformGizmo)>, mut cmd: Commands) {
-    for (gizmo_ent, gizmo) in &q_gizmo {
-        if cmd.get_entity(gizmo.entity).is_none() {
-            cmd.entity(gizmo_ent).despawn_recursive();
         }
     }
 }
