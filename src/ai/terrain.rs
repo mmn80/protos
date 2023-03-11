@@ -32,23 +32,27 @@ fn setup_terrain(
 ) {
     let ground_size = Vec3::new(200.0, 1.0, 200.0);
 
-    terrain.ground = Some(
-        cmd.spawn((
-            PbrBundle {
-                transform: Transform::from_xyz(0.0, 0.0, 0.0),
-                mesh: meshes.add(Mesh::from(shape::Box::new(
-                    ground_size.x,
-                    ground_size.y,
-                    ground_size.z,
-                ))),
-                material: materials.terrain.clone(),
-                ..default()
-            },
-            RigidBody::Fixed,
-            Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
-        ))
-        .id(),
-    );
+    terrain.ground = Some({
+        let id = cmd
+            .spawn((
+                PbrBundle {
+                    transform: Transform::from_xyz(0.0, 0.0, 0.0),
+                    mesh: meshes.add(Mesh::from(shape::Box::new(
+                        ground_size.x,
+                        ground_size.y,
+                        ground_size.z,
+                    ))),
+                    material: materials.terrain.clone(),
+                    ..default()
+                },
+                RigidBody::Fixed,
+                Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
+            ))
+            .id();
+        cmd.entity(id)
+            .insert(Name::new(format!("Terrain ({id:?})")));
+        id
+    });
 
     let mut lines = vec![
         (

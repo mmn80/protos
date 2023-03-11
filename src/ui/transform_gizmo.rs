@@ -4,6 +4,7 @@ use bevy::{
     prelude::*,
     render::view::RenderLayers,
     transform::TransformSystem,
+    window::PrimaryWindow,
 };
 use bevy_rapier3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
@@ -69,6 +70,7 @@ impl EntityCommand for AddTransformGizmo {
                         entity: id,
                         active_state: None,
                     },
+                    Name::new(format!("Gizmo ({id:?})")),
                 ))
                 .with_children(|parent| {
                     parent.spawn((
@@ -369,6 +371,7 @@ fn update_gizmo_state(
     rapier: Res<RapierContext>,
     materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
+    mut q_window: Query<&mut Window, With<PrimaryWindow>>,
     mut q_gizmo: Query<(&mut TransformGizmo, &GlobalTransform)>,
     mut q_gizmo_part: Query<(
         Entity,
@@ -417,12 +420,18 @@ fn update_gizmo_state(
                         delta: origin - start_drag,
                         constraint: gizmo_part.constraint,
                     });
+                    if let Ok(mut window) = q_window.get_single_mut() {
+                        window.cursor.icon = CursorIcon::Move;
+                    }
                 }
             }
         } else if !mouse.pressed(MouseButton::Left) {
             gizmo.active_state = None;
             gizmo_part.highlighted = false;
             *material = gizmo_part.material.clone();
+            if let Ok(mut window) = q_window.get_single_mut() {
+                window.cursor.icon = CursorIcon::Default;
+            }
         }
     }
 }

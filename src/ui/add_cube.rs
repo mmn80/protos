@@ -219,6 +219,8 @@ fn update_add_cube(
                             KiBone::new(sz.y),
                         ))
                         .id();
+                    cmd.entity(bone_ent)
+                        .insert(Name::new(format!("Bone ({bone_ent:?})")));
                     cmd.entity(parent_ent).add_child(bone_ent);
 
                     let mesh_ent = cmd
@@ -272,6 +274,8 @@ fn update_add_cube(
                             AutoColliderRoot,
                         ))
                         .id();
+                    cmd.entity(new_obj)
+                        .insert(Name::new(format!("Cube ({new_obj:?})")));
                     let sz = cube_tr.scale;
 
                     let mesh_ent = cmd
@@ -414,5 +418,8 @@ fn shoot_balls(
             },
         ))
         .id();
-    cmd.entity(ball).insert(Selectable::new(ball, Some(ball)));
+    cmd.entity(ball).insert((
+        Selectable::new(ball, Some(ball)),
+        Name::new(format!("Ball ({ball:?})")),
+    ));
 }

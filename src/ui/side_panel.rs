@@ -61,7 +61,7 @@ impl Default for SidePanel {
             mouse_over: false,
             show_resources: false,
             show_assets: false,
-            show_world: false,
+            show_world: true,
             mode: UiMode::Select,
             rapier_debug_enabled: false,
             panel_width: 0.0,
