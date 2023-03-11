@@ -33,6 +33,8 @@ impl FromWorld for BasicMaterials {
                 emissive: Color::rgb(0.9, 0.5, 0.5),
                 metallic: 0.0,
                 perceptual_roughness: 0.5,
+                double_sided: true,
+                cull_mode: None,
                 ..default()
             }),
             ui_red: materials.add(StandardMaterial {
@@ -40,6 +42,8 @@ impl FromWorld for BasicMaterials {
                 emissive: Color::rgb(0.9, 0.5, 0.5),
                 metallic: 0.0,
                 perceptual_roughness: 0.5,
+                double_sided: true,
+                cull_mode: None,
                 ..default()
             }),
             ui_green: materials.add(StandardMaterial {
@@ -47,6 +51,8 @@ impl FromWorld for BasicMaterials {
                 emissive: Color::rgb(0.5, 0.9, 0.5),
                 metallic: 0.0,
                 perceptual_roughness: 0.5,
+                double_sided: true,
+                cull_mode: None,
                 ..default()
             }),
             ui_blue: materials.add(StandardMaterial {
@@ -54,6 +60,8 @@ impl FromWorld for BasicMaterials {
                 emissive: Color::rgb(0.5, 0.5, 0.9),
                 metallic: 0.0,
                 perceptual_roughness: 0.5,
+                double_sided: true,
+                cull_mode: None,
                 ..default()
             }),
             ui_selected: materials.add(StandardMaterial {
@@ -61,6 +69,8 @@ impl FromWorld for BasicMaterials {
                 emissive: Color::rgb(1.0, 1.0, 1.0),
                 metallic: 1.0,
                 perceptual_roughness: 0.5,
+                double_sided: true,
+                cull_mode: None,
                 ..default()
             }),
             ui_transparent: materials.add(StandardMaterial {

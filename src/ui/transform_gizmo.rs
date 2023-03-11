@@ -93,6 +93,15 @@ impl GizmoPlane {
             GizmoPlane::Camera => ray.direction,
         }
     }
+
+    pub fn to_yx_axes(&self) -> Option<(Vec3, Vec3)> {
+        match self {
+            GizmoPlane::XY => Some((Vec3::Z, Vec3::Y)),
+            GizmoPlane::YZ => Some((Vec3::X, Vec3::Z)),
+            GizmoPlane::ZX => Some((Vec3::Y, Vec3::X)),
+            GizmoPlane::Camera => None,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -110,15 +119,15 @@ impl GizmoConstraint {
                 let toi0 = ray_toi_with_halfspace(&origin.into(), &plane0.into(), &ray_p)?;
                 let toi1 = ray_toi_with_halfspace(&origin.into(), &plane1.into(), &ray_p)?;
                 let dir = axis.axis(gtr);
-                let d0 = dir.dot(origin + toi0 * ray.direction);
-                let d1 = dir.dot(origin + toi1 * ray.direction);
+                let d0 = dir.dot(ray.origin + toi0 * ray.direction);
+                let d1 = dir.dot(ray.origin + toi1 * ray.direction);
                 let d = (d0 + d1) / 2.;
                 Some(d * dir)
             }
             GizmoConstraint::Plane(plane) => {
                 let ray_plane = plane.ray_cast_plane(gtr, ray);
                 let toi = ray_toi_with_halfspace(&origin.into(), &ray_plane.into(), &ray_p)?;
-                Some(toi * ray_plane)
+                Some(ray.origin + toi * ray.direction)
             }
         }
     }
@@ -148,6 +157,7 @@ struct TransformGizmoMeshes {
     pub bar: Handle<Mesh>,
     pub cone: Handle<Mesh>,
     pub ball: Handle<Mesh>,
+    pub square: Handle<Mesh>,
 }
 
 const BAR_H: f32 = 4.0;
@@ -155,6 +165,7 @@ const BAR_W: f32 = 0.1;
 const CONE_W: f32 = 0.8;
 const CONE_H: f32 = 1.0;
 const BALL_R: f32 = 0.5;
+const SQUARE_H: f32 = 1.0;
 
 impl FromWorld for TransformGizmoMeshes {
     fn from_world(world: &mut World) -> Self {
@@ -177,6 +188,7 @@ impl FromWorld for TransformGizmoMeshes {
                 })
                 .unwrap(),
             ),
+            square: meshes.add(Mesh::try_from(shape::Plane::from_size(SQUARE_H)).unwrap()),
         }
     }
 }
@@ -223,6 +235,13 @@ fn process_gizmo_events(
                 ] {
                     add_axis_gizmo(parent, &meshes, material, axis);
                 }
+                for (plane, material) in [
+                    (GizmoPlane::YZ, materials.ui_red.clone()),
+                    (GizmoPlane::ZX, materials.ui_green.clone()),
+                    (GizmoPlane::XY, materials.ui_blue.clone()),
+                ] {
+                    add_plane_gizmo(parent, &meshes, material, plane);
+                }
             });
 
             cmd.entity(*entity).insert(HasTransformGizmo);
@@ -251,9 +270,10 @@ fn add_axis_gizmo(
         dir_x.cross(dir_y).normalize(),
     ));
 
+    let d = 2. * BALL_R;
     parent.spawn((
         PbrBundle {
-            transform: Transform::from_translation((BAR_H / 2.) * dir_y).with_rotation(rot),
+            transform: Transform::from_translation((d + BAR_H / 2.) * dir_y).with_rotation(rot),
             mesh: meshes.bar.clone(),
             material: material.clone(),
             ..default()
@@ -271,7 +291,7 @@ fn add_axis_gizmo(
 
     parent.spawn((
         PbrBundle {
-            transform: Transform::from_translation((BAR_H + CONE_H / 2.) * dir_y)
+            transform: Transform::from_translation((d + BAR_H + CONE_H / 2.) * dir_y)
                 .with_rotation(rot),
             mesh: meshes.cone.clone(),
             material: material.clone(),
@@ -285,6 +305,36 @@ fn add_axis_gizmo(
             material,
             highlighted: false,
             constraint: GizmoConstraint::Axis(axis),
+        },
+    ));
+}
+
+fn add_plane_gizmo(
+    parent: &mut ChildBuilder,
+    meshes: &TransformGizmoMeshes,
+    material: Handle<StandardMaterial>,
+    plane: GizmoPlane,
+) {
+    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
+    let dir_z = dir_x.cross(dir_y).normalize();
+    let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
+
+    let d = 2. * BALL_R + SQUARE_H / 2.;
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),
+            mesh: meshes.square.clone(),
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        Collider::cuboid(SQUARE_H / 2., 0.05, SQUARE_H / 2.),
+        Sensor,
+        TransformGizmoPart {
+            material: material.clone(),
+            highlighted: false,
+            constraint: GizmoConstraint::Plane(plane),
         },
     ));
 }
