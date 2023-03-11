@@ -10,9 +10,8 @@ use protos::{
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     mesh::lines::LinesPlugin,
     ui::{
-        add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin,
-        handle_gizmo::HandleGizmoPlugin, selection::SelectionPlugin, side_panel::SidePanelPlugin,
-        transform_gizmo::TransformGizmoPlugin,
+        add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin, selection::SelectionPlugin,
+        side_panel::SidePanelPlugin, transform_gizmo::TransformGizmoPlugin,
     },
 };
 
@@ -38,7 +37,6 @@ fn main() {
         .add_plugin(SelectionPlugin)
         .add_plugin(BasicMaterialsPlugin)
         .add_plugin(LinesPlugin)
-        .add_plugin(HandleGizmoPlugin)
         .add_plugin(TransformGizmoPlugin)
         .add_plugin(MainLightsPlugin)
         .add_plugin(MainCameraPlugin)
