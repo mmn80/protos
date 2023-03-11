@@ -10,6 +10,7 @@ impl Plugin for BasicMaterialsPlugin {
 
 #[derive(Resource, Reflect)]
 pub struct BasicMaterials {
+    pub ui_default: Handle<StandardMaterial>,
     pub ui_red: Handle<StandardMaterial>,
     pub ui_green: Handle<StandardMaterial>,
     pub ui_blue: Handle<StandardMaterial>,
@@ -27,6 +28,13 @@ impl FromWorld for BasicMaterials {
             .unwrap();
 
         BasicMaterials {
+            ui_default: materials.add(StandardMaterial {
+                base_color: Color::rgb(0.5, 0.5, 0.5),
+                emissive: Color::rgb(0.9, 0.5, 0.5),
+                metallic: 0.0,
+                perceptual_roughness: 0.5,
+                ..default()
+            }),
             ui_red: materials.add(StandardMaterial {
                 base_color: Color::rgb(0.9, 0.5, 0.5),
                 emissive: Color::rgb(0.9, 0.5, 0.5),

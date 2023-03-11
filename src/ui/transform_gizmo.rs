@@ -66,6 +66,14 @@ impl GizmoAxis {
             GizmoAxis::Z => gtr.back(),
         }
     }
+
+    pub fn to_yx_axes(&self) -> (Vec3, Vec3) {
+        match self {
+            GizmoAxis::X => (Vec3::X, Vec3::NEG_Y),
+            GizmoAxis::Y => (Vec3::Y, Vec3::X),
+            GizmoAxis::Z => (Vec3::Z, Vec3::Y),
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -142,7 +150,7 @@ struct TransformGizmoMeshes {
     pub ball: Handle<Mesh>,
 }
 
-const BAR_H: f32 = 2.0;
+const BAR_H: f32 = 4.0;
 const BAR_W: f32 = 0.1;
 const CONE_W: f32 = 0.8;
 const CONE_H: f32 = 1.0;
@@ -195,7 +203,7 @@ fn process_gizmo_events(
                     PbrBundle {
                         transform: Transform::IDENTITY,
                         mesh: meshes.ball.clone(),
-                        material: materials.salmon.clone(),
+                        material: materials.ui_default.clone(),
                         ..default()
                     },
                     NotShadowCaster,
@@ -203,11 +211,18 @@ fn process_gizmo_events(
                     Collider::ball(BALL_R),
                     Sensor,
                     TransformGizmoPart {
-                        material: materials.salmon.clone(),
+                        material: materials.ui_default.clone(),
                         highlighted: false,
                         constraint: GizmoConstraint::Plane(GizmoPlane::Camera),
                     },
                 ));
+                for (axis, material) in [
+                    (GizmoAxis::X, materials.ui_red.clone()),
+                    (GizmoAxis::Y, materials.ui_green.clone()),
+                    (GizmoAxis::Z, materials.ui_blue.clone()),
+                ] {
+                    add_axis_gizmo(parent, &meshes, material, axis);
+                }
             });
 
             cmd.entity(*entity).insert(HasTransformGizmo);
@@ -221,6 +236,57 @@ fn process_gizmo_events(
             cmd.entity(gizmo_ent).despawn_recursive();
         }
     }
+}
+
+fn add_axis_gizmo(
+    parent: &mut ChildBuilder,
+    meshes: &TransformGizmoMeshes,
+    material: Handle<StandardMaterial>,
+    axis: GizmoAxis,
+) {
+    let (dir_y, dir_x) = axis.to_yx_axes();
+    let rot = Quat::from_mat3(&Mat3::from_cols(
+        dir_x,
+        dir_y,
+        dir_x.cross(dir_y).normalize(),
+    ));
+
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation((BAR_H / 2.) * dir_y).with_rotation(rot),
+            mesh: meshes.bar.clone(),
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        Collider::cylinder(BAR_H / 2., BAR_W),
+        Sensor,
+        TransformGizmoPart {
+            material: material.clone(),
+            highlighted: false,
+            constraint: GizmoConstraint::Axis(axis),
+        },
+    ));
+
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation((BAR_H + CONE_H / 2.) * dir_y)
+                .with_rotation(rot),
+            mesh: meshes.cone.clone(),
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        Collider::cone(CONE_H / 2., CONE_W),
+        Sensor,
+        TransformGizmoPart {
+            material,
+            highlighted: false,
+            constraint: GizmoConstraint::Axis(axis),
+        },
+    ));
 }
 
 fn update_gizmo_state(

@@ -278,7 +278,7 @@ impl Default for SelectionUiState {
         Self {
             show_inspector: true,
             show_names: true,
-            show_move_gizmo: false,
+            show_move_gizmo: true,
             revolute_target_angle: 0,
             spherical_target_angle_x: 0,
             spherical_target_angle_y: 0,
