@@ -43,13 +43,14 @@ impl EntityCommand for AddTransformGizmo {
             q_gizmos.iter(world).all(|(_, gizmo)| gizmo.entity != id)
         };
         if no_gizmo {
-            let (ball, bar, cone, square) = {
+            let (ball, bar, cone, square, cylinder) = {
                 let meshes = world.resource::<TransformGizmoMeshes>();
                 (
                     meshes.ball.clone(),
                     meshes.bar.clone(),
                     meshes.cone.clone(),
                     meshes.square.clone(),
+                    meshes.cylinder.clone(),
                 )
             };
             let (ui_default, ui_red, ui_green, ui_blue) = {
@@ -86,7 +87,10 @@ impl EntityCommand for AddTransformGizmo {
                         TransformGizmoPart {
                             material: ui_default.clone(),
                             highlighted: false,
-                            constraint: GizmoConstraint::Plane(GizmoPlane::Camera),
+                            constraint: GizmoConstraint::Plane {
+                                plane: GizmoPlane::Camera,
+                                is_rotation: false,
+                            },
                         },
                     ));
                     for (axis, material) in [
@@ -101,7 +105,8 @@ impl EntityCommand for AddTransformGizmo {
                         (GizmoPlane::ZX, ui_green.clone()),
                         (GizmoPlane::XY, ui_blue.clone()),
                     ] {
-                        add_plane_gizmo(parent, square.clone(), material, plane);
+                        add_plane_gizmo(parent, square.clone(), material.clone(), plane);
+                        add_rotation_gizmo(parent, cylinder.clone(), material, plane);
                     }
                 });
 
@@ -155,7 +160,7 @@ fn add_axis_gizmo(
         NotShadowCaster,
         NotShadowReceiver,
         RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cone(CONE_H / 2., CONE_W),
+        Collider::cone(CONE_H / 2., CONE_R),
         Sensor,
         TransformGizmoPart {
             material,
@@ -191,7 +196,44 @@ fn add_plane_gizmo(
         TransformGizmoPart {
             material: material.clone(),
             highlighted: false,
-            constraint: GizmoConstraint::Plane(plane),
+            constraint: GizmoConstraint::Plane {
+                plane,
+                is_rotation: false,
+            },
+        },
+    ));
+}
+
+fn add_rotation_gizmo(
+    parent: &mut WorldChildBuilder,
+    cylinder: Handle<Mesh>,
+    material: Handle<StandardMaterial>,
+    plane: GizmoPlane,
+) {
+    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
+    let dir_z = dir_x.cross(dir_y).normalize();
+    let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
+
+    let d = 2. * BALL_R + SQUARE_H + CYLINDER_R + 1.;
+    parent.spawn((
+        PbrBundle {
+            transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),
+            mesh: cylinder,
+            material: material.clone(),
+            ..default()
+        },
+        NotShadowCaster,
+        NotShadowReceiver,
+        RenderLayers::layer(UI_CAMERA_LAYER),
+        Collider::cylinder(0.01, CYLINDER_R),
+        Sensor,
+        TransformGizmoPart {
+            material: material.clone(),
+            highlighted: false,
+            constraint: GizmoConstraint::Plane {
+                plane,
+                is_rotation: true,
+            },
         },
     ));
 }
@@ -256,7 +298,7 @@ enum GizmoPlane {
 }
 
 impl GizmoPlane {
-    pub fn ray_cast_plane(&self, gtr: &GlobalTransform, ray: &Ray) -> Vec3 {
+    pub fn plane_normal(&self, gtr: &GlobalTransform, ray: &Ray) -> Vec3 {
         match self {
             GizmoPlane::XY => gtr.back(),
             GizmoPlane::YZ => gtr.right(),
@@ -278,7 +320,10 @@ impl GizmoPlane {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum GizmoConstraint {
     Axis(GizmoAxis),
-    Plane(GizmoPlane),
+    Plane {
+        plane: GizmoPlane,
+        is_rotation: bool,
+    },
 }
 
 impl GizmoConstraint {
@@ -295,11 +340,26 @@ impl GizmoConstraint {
                 let d = (d0 + d1) / 2.;
                 Some(d * dir)
             }
-            GizmoConstraint::Plane(plane) => {
-                let ray_plane = plane.ray_cast_plane(gtr, ray);
-                let toi = ray_toi_with_halfspace(&origin.into(), &ray_plane.into(), &ray_p)?;
+            GizmoConstraint::Plane {
+                plane,
+                is_rotation: _,
+            } => {
+                let plane_normal = plane.plane_normal(gtr, ray);
+                let toi = ray_toi_with_halfspace(&origin.into(), &plane_normal.into(), &ray_p)?;
                 Some(ray.origin + toi * ray.direction)
             }
+        }
+    }
+
+    fn is_rotation(&self) -> bool {
+        if let GizmoConstraint::Plane {
+            plane: _,
+            is_rotation,
+        } = self
+        {
+            *is_rotation
+        } else {
+            false
         }
     }
 }
@@ -329,14 +389,16 @@ struct TransformGizmoMeshes {
     pub cone: Handle<Mesh>,
     pub ball: Handle<Mesh>,
     pub square: Handle<Mesh>,
+    pub cylinder: Handle<Mesh>,
 }
 
 const BAR_H: f32 = 4.0;
 const BAR_W: f32 = 0.1;
-const CONE_W: f32 = 0.8;
+const CONE_R: f32 = 0.4;
 const CONE_H: f32 = 1.0;
 const BALL_R: f32 = 0.5;
 const SQUARE_H: f32 = 1.0;
+const CYLINDER_R: f32 = 0.5;
 
 impl FromWorld for TransformGizmoMeshes {
     fn from_world(world: &mut World) -> Self {
@@ -351,7 +413,7 @@ impl FromWorld for TransformGizmoMeshes {
                 })
                 .unwrap(),
             ),
-            cone: meshes.add(Mesh::from(Cone::new(CONE_W / 2., CONE_H, 10))),
+            cone: meshes.add(Mesh::from(Cone::new(CONE_R, CONE_H, 10))),
             ball: meshes.add(
                 Mesh::try_from(shape::Icosphere {
                     radius: BALL_R,
@@ -360,6 +422,14 @@ impl FromWorld for TransformGizmoMeshes {
                 .unwrap(),
             ),
             square: meshes.add(Mesh::try_from(shape::Plane::from_size(SQUARE_H)).unwrap()),
+            cylinder: meshes.add(
+                Mesh::try_from(shape::Cylinder {
+                    radius: CYLINDER_R,
+                    height: 0.01,
+                    ..Default::default()
+                })
+                .unwrap(),
+            ),
         }
     }
 }
@@ -444,16 +514,18 @@ fn sync_parent_to_gizmo(
     for (gizmo, gizmo_gtr) in &q_gizmo {
         let Some(ref state) = gizmo.active_state else { continue };
         let Some(current) = state.constraint.ray_cast(state.origin, &mouse_ray, gizmo_gtr) else { continue };
+        let current = current + state.delta;
 
         let Ok((mut parent_tr, parent_ent)) = q_parent.get_mut(gizmo.entity) else { continue };
         if let Some(parent_ent) = parent_ent {
             let Ok(parent_gtr) = q_parent_parent.get(parent_ent.get()) else { continue };
-            parent_tr.translation = parent_gtr
-                .affine()
-                .inverse()
-                .transform_point3(current + state.delta);
+            if state.constraint.is_rotation() {
+            } else {
+                parent_tr.translation = parent_gtr.affine().inverse().transform_point3(current);
+            }
+        } else if state.constraint.is_rotation() {
         } else {
-            parent_tr.translation = current + state.delta;
+            parent_tr.translation = current;
         }
     }
 }
