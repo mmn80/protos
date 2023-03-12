@@ -40,6 +40,7 @@ pub enum UiMode {
     Select,
     AddCube,
     ShootBalls,
+    AddBot,
 }
 
 #[derive(Resource, Reflect)]
@@ -138,6 +139,12 @@ fn main_panel(
                     debug_render_ctx.enabled = panel.rapier_debug_enabled;
 
                     add_cube_ui(ui, &mut panel, add_cube_state);
+                });
+
+            egui::CollapsingHeader::new("World")
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui_mode_toggle(ui, &mut panel, UiMode::AddBot, "Add fox");
                 });
         })
         .response

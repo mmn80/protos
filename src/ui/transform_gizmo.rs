@@ -548,8 +548,10 @@ fn sync_gizmo_to_parent(
     for (gizmo, mut gizmo_tr, mut gizmo_gtr) in &mut q_gizmos {
         if let Ok(parent_gtr) = q_attach.get(gizmo.entity) {
             if *gizmo_gtr != *parent_gtr {
-                *gizmo_gtr = *parent_gtr;
-                *gizmo_tr = gizmo_gtr.compute_transform();
+                let (_, rot, pos) = parent_gtr.to_scale_rotation_translation();
+                let tr = Transform::from_translation(pos).with_rotation(rot);
+                *gizmo_gtr = GlobalTransform::from(tr);
+                *gizmo_tr = tr;
             }
         }
     }

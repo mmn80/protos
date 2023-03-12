@@ -5,7 +5,7 @@ use bevy_rapier3d::prelude::*;
 
 use protos::{
     ai::{building::BuildingPlugin, terrain::TerrainPlugin},
-    anim::{auto_collider::AutoColliderPlugin, joint::JointPlugin, rig::RigPlugin},
+    anim::{auto_collider::AutoColliderPlugin, fox::FoxPlugin, joint::JointPlugin, rig::RigPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     mesh::lines::LinesPlugin,
@@ -45,6 +45,7 @@ fn main() {
         .add_plugin(AutoColliderPlugin)
         .add_plugin(TerrainPlugin)
         .add_plugin(AddCubePlugin)
+        .add_plugin(FoxPlugin)
         .add_plugin(BuildingPlugin)
         .add_system(exit_system)
         .run();
