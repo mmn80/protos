@@ -14,17 +14,20 @@ pub struct MainCameraPlugin;
 
 impl Plugin for MainCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_camera)
+        app.register_type::<MainCamera>()
+            .register_type::<ScreenPosition>()
+            .add_startup_system(spawn_camera)
             .add_system(update_screen_position.in_base_set(CoreSet::PreUpdate))
             .add_system(main_camera);
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Reflect)]
 pub struct MainCamera {
     pub focus: Vec3,
     pub radius: f32,
     pub upside_down: bool,
+    #[reflect(ignore)]
     pub mouse_ray: Option<Ray>,
 }
 
@@ -214,7 +217,7 @@ fn main_camera(
     }
 }
 
-#[derive(Clone, Component, Debug, Default)]
+#[derive(Clone, Component, Debug, Default, Reflect)]
 pub struct ScreenPosition {
     pub position: Vec2,
     pub camera_dist: f32,
@@ -222,13 +225,12 @@ pub struct ScreenPosition {
 
 pub fn update_screen_position(
     q_camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
-    mut q_selectable: Query<(&GlobalTransform, &mut ScreenPosition)>,
+    mut q_screen_pos: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
-    let Some((camera_transform, camera)) = q_camera.iter().next() else { return };
-    for (transform, mut screen_position) in &mut q_selectable {
-        let Some(pos) = camera.world_to_viewport(camera_transform, transform.translation()) else { continue };
-        screen_position.position = pos;
-        screen_position.camera_dist =
-            (transform.translation() - camera_transform.translation()).length();
+    let Some((camera_gtr, camera)) = q_camera.iter().next() else { return };
+    for (gtr, mut screen_pos) in &mut q_screen_pos {
+        let Some(pos) = camera.world_to_viewport(camera_gtr, gtr.translation()) else { continue };
+        screen_pos.position = pos;
+        screen_pos.camera_dist = (gtr.translation() - camera_gtr.translation()).length();
     }
 }

@@ -6,7 +6,6 @@ use bevy_rapier3d::prelude::*;
 
 use crate::{
     anim::{
-        auto_collider::{AutoCollider, AutoColliderMesh},
         joint::{RevoluteJointCommand, SphericalJointCommand},
         rig::{KiRevoluteJoint, KiSphericalJoint},
     },
@@ -29,15 +28,15 @@ impl Plugin for SelectionPlugin {
             .init_resource::<SelectionRect>()
             .add_event::<DeselectedEvent>()
             .add_startup_system(setup)
-            .add_system(
-                update_selected
+            .add_systems(
+                (update_selected_from_click, update_selected_from_rect)
                     .in_base_set(CoreSet::PreUpdate)
                     .after(crate::camera::update_screen_position),
             )
             .add_systems((
                 update_selected_names,
                 update_select_ui_rect,
-                update_move_gizmo,
+                update_selected_move_gizmos,
             ));
     }
 }
@@ -92,34 +91,93 @@ pub struct SelectionRectUiNode;
 #[derive(Debug, Clone, Default, Resource, Reflect)]
 #[reflect(Resource)]
 pub struct SelectionRect {
-    pub clear_previous: bool,
-    pub begin: Option<Vec2>,
-    pub end: Option<Vec2>,
+    pub rect: Option<Rect>,
 }
 
 impl SelectionRect {
-    pub fn get_rect(&self) -> Option<Rect> {
-        if let (Some(begin), Some(end)) = (self.begin, self.end) {
-            Some(Rect::from_corners(begin, end))
-        } else {
-            None
+    fn get_fixed_rect(rect: Rect) -> Rect {
+        Rect {
+            min: rect.min.min(rect.max),
+            max: rect.min.max(rect.max),
         }
     }
 }
 
 struct DeselectedEvent(Entity);
 
-fn update_selected(
+fn update_selected_from_click(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     rapier: Res<RapierContext>,
     panel: Res<SidePanel>,
     materials: Res<BasicMaterials>,
+    q_camera: Query<&MainCamera>,
+    q_selectable: Query<&Selectable>,
+    q_selected: Query<(Entity, &Selected)>,
+    q_sensor: Query<&Sensor>,
+    mut ev_deselected: EventWriter<DeselectedEvent>,
+    mut cmd: Commands,
+) {
+    if panel.mouse_over || panel.mode != UiMode::Select || !mouse.just_pressed(MouseButton::Left) {
+        return;
+    };
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let Some((hit_ent, _)) =
+        rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new()) else { return };
+    if q_sensor.contains(hit_ent) {
+        return;
+    }
+
+    let shift = keyboard.pressed(KeyCode::LShift);
+    let mut sel_ent = None;
+    let mut to_deselect = vec![];
+    if let Ok(selectable) = q_selectable.get(hit_ent) {
+        sel_ent = Some(selectable.selected);
+        if !q_selected.contains(selectable.selected) {
+            cmd.entity(selectable.selected).insert(Selected {
+                mesh: selectable.mesh,
+            });
+
+            let mesh = selectable.mesh.unwrap_or(selectable.selected);
+            cmd.entity(mesh)
+                .insert(FlipMaterial::new(&materials.ui_transparent));
+        } else if shift {
+            to_deselect.push(selectable.selected);
+        }
+    }
+    if !shift {
+        for (selected, _) in &q_selected {
+            let mut remove = true;
+            if let Some(sel_ent) = sel_ent {
+                remove = sel_ent != selected;
+            }
+            if remove {
+                to_deselect.push(selected);
+            }
+        }
+    }
+    for deselected in to_deselect {
+        if let Ok((selected_ent, selected)) = q_selected.get(deselected) {
+            let mesh = selected.mesh.unwrap_or(selected_ent);
+            cmd.entity(mesh).insert(RevertFlipMaterial);
+
+            cmd.entity(deselected).remove::<Selected>();
+            ev_deselected.send(DeselectedEvent(deselected));
+        }
+    }
+}
+
+fn update_selected_from_rect(
+    panel: Res<SidePanel>,
+    keyboard: Res<Input<KeyCode>>,
+    mouse: Res<Input<MouseButton>>,
+    materials: Res<BasicMaterials>,
+    rapier: Res<RapierContext>,
     mut selection_rect: ResMut<SelectionRect>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<&MainCamera>,
     q_selectable: Query<&Selectable>,
-    q_selected: Query<(Entity, &Selected)>,
+    q_selected: Query<&Selected>,
     q_screen_pos: Query<&ScreenPosition>,
     q_sensor: Query<&Sensor>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
@@ -128,96 +186,37 @@ fn update_selected(
     if panel.mouse_over || panel.mode != UiMode::Select {
         return;
     };
-
-    let mut processed_single = false;
-
     if mouse.just_pressed(MouseButton::Left) {
-        if let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) {
-            if let Some((hit_ent, _)) =
-                rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
-            {
-                if !q_sensor.contains(hit_ent) {
-                    let shift = keyboard.pressed(KeyCode::LShift);
-                    let mut sel_ent = None;
-                    let mut to_remove = vec![];
-                    if let Ok(selectable) = q_selectable.get(hit_ent) {
-                        processed_single = true;
-                        sel_ent = Some(selectable.selected);
-                        if !q_selected.contains(selectable.selected) {
-                            cmd.entity(selectable.selected).insert(Selected {
-                                mesh: selectable.mesh,
-                            });
-
-                            let mesh = selectable.mesh.unwrap_or(selectable.selected);
-                            cmd.entity(mesh)
-                                .insert(FlipMaterial::new(&materials.ui_transparent));
-                        } else if shift {
-                            to_remove.push(selectable.selected);
-                        }
-                    }
-                    if !shift {
-                        for (selected, _) in &q_selected {
-                            let mut remove = true;
-                            if let Some(sel_ent) = sel_ent {
-                                remove = sel_ent != selected;
-                            }
-                            if remove {
-                                to_remove.push(selected);
-                            }
-                        }
-                    }
-                    for deselected in to_remove {
-                        if let Ok((selected_ent, selected)) = q_selected.get(deselected) {
-                            processed_single = true;
-
-                            let mesh = selected.mesh.unwrap_or(selected_ent);
-                            cmd.entity(mesh).insert(RevertFlipMaterial);
-
-                            cmd.entity(deselected).remove::<Selected>();
-                            ev_deselected.send(DeselectedEvent(deselected));
-                        }
-                    }
-                } else {
-                    processed_single = true;
-                }
+        let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+        if let Some((entity, _)) =
+            rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
+        {
+            if q_selectable.contains(entity) || q_sensor.contains(entity) {
+                return;
             }
         }
     }
+    let Ok(window) = q_window.get_single() else { return };
+    let Some(mouse_pos) = window.cursor_position() else { return };
+    if mouse.just_pressed(MouseButton::Left) {
+        selection_rect.rect = Some(Rect::from_corners(mouse_pos, mouse_pos));
+        return;
+    }
+    let Some(mut sel_rect) = selection_rect.rect else { return };
+    if mouse.pressed(MouseButton::Left) {
+        sel_rect.max = mouse_pos;
+        selection_rect.rect = Some(sel_rect);
+        return;
+    }
+    let sel_rect = SelectionRect::get_fixed_rect(sel_rect);
 
-    if !processed_single {
-        let do_select_rect = {
-            selection_rect.clear_previous = !keyboard.pressed(KeyCode::LShift);
-            let Ok(window) = q_window.get_single() else { return };
-            let mouse_pos = window.cursor_position();
-            if mouse.just_pressed(MouseButton::Left) {
-                selection_rect.begin = mouse_pos.clone();
-                selection_rect.end = selection_rect.begin;
-            } else if selection_rect.begin.is_some() {
-                if mouse.pressed(MouseButton::Left) && mouse_pos.is_some() {
-                    selection_rect.end = Some(mouse_pos.unwrap());
-                } else if !mouse.just_released(MouseButton::Left) || mouse_pos.is_none() {
-                    selection_rect.begin = None;
-                    selection_rect.end = None;
-                }
-            }
-            if mouse.just_released(MouseButton::Left) {
-                selection_rect.get_rect()
-            } else {
-                None
-            }
-        };
-
-        let Some(rect) = do_select_rect else { return };
-        for selectable in &q_selectable {
-            let Ok(ScreenPosition {
+    for selectable in &q_selectable {
+        let Ok(ScreenPosition {
                 position,
                 camera_dist: _,
             }) = q_screen_pos.get(selectable.selected) else { continue };
-            if position.x > rect.min.x
-                && position.x < rect.max.x
-                && position.y < rect.max.y
-                && position.y > rect.min.y
-            {
+        if sel_rect.contains(*position) {
+            if !q_selected.contains(selectable.selected) {
                 cmd.entity(selectable.selected).insert(Selected {
                     mesh: selectable.mesh,
                 });
@@ -225,7 +224,9 @@ fn update_selected(
                 let mesh = selectable.mesh.unwrap_or(selectable.selected);
                 cmd.entity(mesh)
                     .insert(FlipMaterial::new(&materials.ui_transparent));
-            } else if selection_rect.clear_previous {
+            }
+        } else if !keyboard.pressed(KeyCode::LShift) {
+            if q_selected.contains(selectable.selected) {
                 let mesh = selectable.mesh.unwrap_or(selectable.selected);
                 cmd.entity(mesh).insert(RevertFlipMaterial);
 
@@ -233,9 +234,8 @@ fn update_selected(
                 ev_deselected.send(DeselectedEvent(selectable.selected));
             }
         }
-        selection_rect.begin = None;
-        selection_rect.end = None;
     }
+    selection_rect.rect = None;
 }
 
 fn update_select_ui_rect(
@@ -245,8 +245,11 @@ fn update_select_ui_rect(
 ) {
     let Ok(window) = q_window.get_single() else { return };
     let window_height = window.height();
+    let rect = selection_rect
+        .rect
+        .map(|r| SelectionRect::get_fixed_rect(r));
     for (mut style, mut visibility) in &mut q_style {
-        if let Some(rect) = selection_rect.get_rect() {
+        if let Some(rect) = rect {
             style.size.width = Val::Px(rect.width());
             style.size.height = Val::Px(rect.height());
             style.position.left = Val::Px(rect.min.x);
@@ -453,41 +456,22 @@ pub fn selection_ui(
         });
 }
 
-fn update_move_gizmo(
+fn update_selected_move_gizmos(
     selection: Res<SelectionUiState>,
     mut ev_deselected: EventReader<DeselectedEvent>,
-    q_selected_gizmo: Query<
-        (Entity, Option<&AutoCollider>),
-        (With<Selected>, With<HasTransformGizmo>),
-    >,
-    q_selected_no_gizmo: Query<
-        (Entity, Option<&AutoCollider>),
-        (With<Selected>, Without<HasTransformGizmo>),
-    >,
-    q_ac_mesh: Query<With<HasTransformGizmo>, With<AutoColliderMesh>>,
+    q_selected_gizmo: Query<Entity, (With<HasTransformGizmo>, With<Selected>)>,
+    q_selected_no_gizmo: Query<Entity, (Without<HasTransformGizmo>, With<Selected>)>,
     mut cmd: Commands,
 ) {
     if selection.show_move_gizmo {
-        for (entity, maybe_ac) in &q_selected_no_gizmo {
-            let mut selected = entity;
-            if let Some(ac) = maybe_ac {
-                if q_ac_mesh.contains(ac.mesh) {
-                    selected = ac.mesh;
-                }
-            }
+        for selected in &q_selected_no_gizmo {
             cmd.entity(selected).add(AddTransformGizmo);
         }
         for DeselectedEvent(deselected) in ev_deselected.iter() {
             cmd.entity(*deselected).add(RemoveTransformGizmo);
         }
     } else {
-        for (entity, maybe_ac) in &q_selected_gizmo {
-            let mut selected = entity;
-            if let Some(ac) = maybe_ac {
-                if q_ac_mesh.contains(ac.mesh) {
-                    selected = ac.mesh;
-                }
-            }
+        for selected in &q_selected_gizmo {
             cmd.entity(selected).add(RemoveTransformGizmo);
         }
     }

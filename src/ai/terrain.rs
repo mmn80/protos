@@ -76,17 +76,19 @@ fn setup_terrain(
         lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
     }
 
-    cmd.spawn((
-        MaterialMeshBundle {
-            mesh: meshes.add(Mesh::from(LineList { lines })),
-            transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
-            material: line_materials.add(LineMaterial {
-                color: Color::WHITE,
-            }),
-            ..default()
-        },
-        NotShadowCaster,
-    ));
+    cmd.entity(terrain.ground.unwrap()).with_children(|parent| {
+        parent.spawn((
+            MaterialMeshBundle {
+                mesh: meshes.add(Mesh::from(LineList { lines })),
+                transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
+                material: line_materials.add(LineMaterial {
+                    color: Color::WHITE,
+                }),
+                ..default()
+            },
+            NotShadowCaster,
+        ));
+    });
 }
 
 fn display_rapier_events(
