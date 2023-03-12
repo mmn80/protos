@@ -14,7 +14,7 @@ pub struct FoxPlugin;
 
 impl Plugin for FoxPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_bot)
+        app.add_startup_system(setup_fox)
             .add_systems((add_fox, play_animation));
     }
 }
@@ -25,7 +25,7 @@ struct Animations(Vec<Handle<AnimationClip>>);
 #[derive(Component, Reflect)]
 struct Fox;
 
-fn setup_bot(asset_server: Res<AssetServer>, mut cmd: Commands) {
+fn setup_fox(asset_server: Res<AssetServer>, mut cmd: Commands) {
     cmd.insert_resource(Animations(vec![
         asset_server.load("models/Fox.glb#Animation0"),
         asset_server.load("models/Fox.glb#Animation1"),

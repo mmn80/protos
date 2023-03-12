@@ -34,7 +34,15 @@ impl Plugin for TransformGizmoPlugin {
     }
 }
 
-pub struct AddTransformGizmo;
+pub struct AddTransformGizmo {
+    pub mesh: Option<Entity>,
+}
+
+impl AddTransformGizmo {
+    pub fn new(mesh: Option<Entity>) -> Self {
+        Self { mesh }
+    }
+}
 
 impl EntityCommand for AddTransformGizmo {
     fn write(self, id: Entity, world: &mut World) {
@@ -43,6 +51,17 @@ impl EntityCommand for AddTransformGizmo {
             q_gizmos.iter(world).all(|(_, gizmo)| gizmo.entity != id)
         };
         if no_gizmo {
+            let mut scale = 1.;
+            if let Some(mesh) = self.mesh {
+                let mut q_mesh =
+                    world.query::<(&bevy::render::primitives::Aabb, &GlobalTransform)>();
+                if let Ok((aabb, gtr)) = q_mesh.get(world, mesh) {
+                    let aabb = 2. * gtr.affine().transform_vector3a(aabb.half_extents);
+                    scale = aabb.x.max(aabb.y).max(aabb.z).min(4.);
+                }
+            }
+            let scale = scale * Vec3::ONE;
+
             let (ball, bar, cone, square, cylinder) = {
                 let meshes = world.resource::<TransformGizmoMeshes>();
                 (
@@ -64,7 +83,7 @@ impl EntityCommand for AddTransformGizmo {
             };
             world
                 .spawn((
-                    SpatialBundle::default(),
+                    SpatialBundle::from_transform(Transform::from_scale(scale)),
                     TransformGizmo {
                         entity: id,
                         active_state: None,
@@ -191,7 +210,7 @@ fn add_plane_gizmo(
         NotShadowCaster,
         NotShadowReceiver,
         RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cuboid(SQUARE_H / 2., 0.05, SQUARE_H / 2.),
+        Collider::cuboid(SQUARE_H / 2., BAR_W / 2., SQUARE_H / 2.),
         Sensor,
         TransformGizmoPart {
             material: material.clone(),
@@ -214,7 +233,7 @@ fn add_rotation_gizmo(
     let dir_z = dir_x.cross(dir_y).normalize();
     let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
 
-    let d = 2. * BALL_R + SQUARE_H + CYLINDER_R + 1.;
+    let d = 2. * BALL_R + SQUARE_H + 2. * CYLINDER_R;
     parent.spawn((
         PbrBundle {
             transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),
@@ -225,7 +244,7 @@ fn add_rotation_gizmo(
         NotShadowCaster,
         NotShadowReceiver,
         RenderLayers::layer(UI_CAMERA_LAYER),
-        Collider::cylinder(0.01, CYLINDER_R),
+        Collider::cylinder(BAR_W / 4., CYLINDER_R),
         Sensor,
         TransformGizmoPart {
             material: material.clone(),
@@ -392,13 +411,13 @@ struct TransformGizmoMeshes {
     pub cylinder: Handle<Mesh>,
 }
 
-const BAR_H: f32 = 4.0;
-const BAR_W: f32 = 0.1;
-const CONE_R: f32 = 0.4;
-const CONE_H: f32 = 1.0;
-const BALL_R: f32 = 0.5;
-const SQUARE_H: f32 = 1.0;
-const CYLINDER_R: f32 = 0.5;
+const BAR_H: f32 = 1.0;
+const BAR_W: f32 = 0.025;
+const CONE_R: f32 = 0.1;
+const CONE_H: f32 = 0.25;
+const BALL_R: f32 = 0.1;
+const SQUARE_H: f32 = 0.25;
+const CYLINDER_R: f32 = 0.1;
 
 impl FromWorld for TransformGizmoMeshes {
     fn from_world(world: &mut World) -> Self {
@@ -425,7 +444,7 @@ impl FromWorld for TransformGizmoMeshes {
             cylinder: meshes.add(
                 Mesh::try_from(shape::Cylinder {
                     radius: CYLINDER_R,
-                    height: 0.01,
+                    height: BAR_W / 2.,
                     ..Default::default()
                 })
                 .unwrap(),
@@ -547,12 +566,13 @@ fn sync_gizmo_to_parent(
 ) {
     for (gizmo, mut gizmo_tr, mut gizmo_gtr) in &mut q_gizmos {
         if let Ok(parent_gtr) = q_attach.get(gizmo.entity) {
-            if *gizmo_gtr != *parent_gtr {
-                let (_, rot, pos) = parent_gtr.to_scale_rotation_translation();
-                let tr = Transform::from_translation(pos).with_rotation(rot);
-                *gizmo_gtr = GlobalTransform::from(tr);
-                *gizmo_tr = tr;
-            }
+            let (_, rot, pos) = parent_gtr.to_scale_rotation_translation();
+            let (scale, _, _) = gizmo_gtr.to_scale_rotation_translation();
+            let tr = Transform::from_translation(pos)
+                .with_rotation(rot)
+                .with_scale(scale);
+            *gizmo_gtr = GlobalTransform::from(tr);
+            *gizmo_tr = tr;
         }
     }
     for (part_tr, mut part_gtr, parent) in &mut q_gizmo_parts {

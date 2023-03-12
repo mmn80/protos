@@ -460,12 +460,13 @@ fn update_selected_move_gizmos(
     selection: Res<SelectionUiState>,
     mut ev_deselected: EventReader<DeselectedEvent>,
     q_selected_gizmo: Query<Entity, (With<HasTransformGizmo>, With<Selected>)>,
-    q_selected_no_gizmo: Query<Entity, (Without<HasTransformGizmo>, With<Selected>)>,
+    q_selected_no_gizmo: Query<(Entity, &Selected), Without<HasTransformGizmo>>,
     mut cmd: Commands,
 ) {
     if selection.show_move_gizmo {
-        for selected in &q_selected_no_gizmo {
-            cmd.entity(selected).add(AddTransformGizmo);
+        for (selected_ent, selected) in &q_selected_no_gizmo {
+            cmd.entity(selected_ent)
+                .add(AddTransformGizmo::new(selected.mesh));
         }
         for DeselectedEvent(deselected) in ev_deselected.iter() {
             cmd.entity(*deselected).add(RemoveTransformGizmo);
