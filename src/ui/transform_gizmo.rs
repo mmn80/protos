@@ -21,8 +21,6 @@ pub struct TransformGizmoPlugin;
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TransformGizmoMeshes>()
-            .add_event::<AddTransformGizmo>()
-            .add_event::<RemoveTransformGizmo>()
             .add_system(clean_orphan_gizmos.in_base_set(CoreSet::PreUpdate))
             .add_systems((
                 update_gizmo_state,
