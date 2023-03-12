@@ -4,7 +4,8 @@ pub struct BasicMaterialsPlugin;
 
 impl Plugin for BasicMaterialsPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<BasicMaterials>();
+        app.init_resource::<BasicMaterials>()
+            .add_system(flip_materials);
     }
 }
 
@@ -102,5 +103,51 @@ impl FromWorld for BasicMaterials {
                 ..default()
             }),
         }
+    }
+}
+
+#[derive(Component)]
+pub struct FlipMaterial {
+    material: Option<Handle<StandardMaterial>>,
+    original_material: Option<Handle<StandardMaterial>>,
+}
+
+impl FlipMaterial {
+    pub fn new(material: &Handle<StandardMaterial>) -> Self {
+        Self {
+            material: Some(material.clone()),
+            original_material: None,
+        }
+    }
+}
+
+#[derive(Component)]
+pub struct RevertFlipMaterial;
+
+fn flip_materials(
+    mut q_material: Query<(
+        Entity,
+        &mut Handle<StandardMaterial>,
+        &mut FlipMaterial,
+        Option<&RevertFlipMaterial>,
+    )>,
+    q_bogus_reverts: Query<Entity, (With<RevertFlipMaterial>, Without<FlipMaterial>)>,
+    mut cmd: Commands,
+) {
+    for (entity, mut material, mut flip, revert) in &mut q_material {
+        if revert.is_some() {
+            if let Some(original_material) = flip.original_material.take() {
+                *material = original_material;
+
+                cmd.entity(entity).remove::<FlipMaterial>();
+                cmd.entity(entity).remove::<RevertFlipMaterial>();
+            }
+        } else if let Some(flip_material) = flip.material.take() {
+            flip.original_material = Some(material.clone());
+            *material = flip_material;
+        }
+    }
+    for entity in &q_bogus_reverts {
+        cmd.entity(entity).remove::<RevertFlipMaterial>();
     }
 }

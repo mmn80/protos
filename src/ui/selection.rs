@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    basic_materials::BasicMaterials,
+    basic_materials::{BasicMaterials, FlipMaterial, RevertFlipMaterial},
     side_panel::{SidePanel, UiMode},
     transform_gizmo::{AddTransformGizmo, HasTransformGizmo, RemoveTransformGizmo},
 };
@@ -83,7 +83,6 @@ impl Selectable {
 
 #[derive(Clone, Component, Debug, Default, Reflect)]
 pub struct Selected {
-    material: Option<Handle<StandardMaterial>>,
     mesh: Option<Entity>,
 }
 
@@ -123,7 +122,6 @@ fn update_selected(
     q_selected: Query<(Entity, &Selected)>,
     q_screen_pos: Query<&ScreenPosition>,
     q_sensor: Query<&Sensor>,
-    mut q_material: Query<&mut Handle<StandardMaterial>>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
@@ -146,17 +144,13 @@ fn update_selected(
                         processed_single = true;
                         sel_ent = Some(selectable.selected);
                         if !q_selected.contains(selectable.selected) {
-                            let mut material = None;
-                            if let Some(mesh_ent) = selectable.mesh {
-                                if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
-                                    material = Some(mat.clone());
-                                    *mat = materials.ui_transparent.clone();
-                                }
-                            }
                             cmd.entity(selectable.selected).insert(Selected {
-                                material,
                                 mesh: selectable.mesh,
                             });
+
+                            let mesh = selectable.mesh.unwrap_or(selectable.selected);
+                            cmd.entity(mesh)
+                                .insert(FlipMaterial::new(&materials.ui_transparent));
                         } else if shift {
                             to_remove.push(selectable.selected);
                         }
@@ -173,16 +167,15 @@ fn update_selected(
                         }
                     }
                     for deselected in to_remove {
-                        let Ok((_, selected)) = q_selected.get(deselected) else { continue };
-                        if let Some(material) = selected.material.clone() {
-                            if let Some(mesh_ent) = selected.mesh {
-                                if let Ok(mut mat) = q_material.get_mut(mesh_ent) {
-                                    *mat = material;
-                                }
-                            }
+                        if let Ok((selected_ent, selected)) = q_selected.get(deselected) {
+                            processed_single = true;
+
+                            let mesh = selected.mesh.unwrap_or(selected_ent);
+                            cmd.entity(mesh).insert(RevertFlipMaterial);
+
+                            cmd.entity(deselected).remove::<Selected>();
+                            ev_deselected.send(DeselectedEvent(deselected));
                         }
-                        cmd.entity(deselected).remove::<Selected>();
-                        ev_deselected.send(DeselectedEvent(deselected));
                     }
                 } else {
                     processed_single = true;
@@ -226,10 +219,16 @@ fn update_selected(
                 && position.y > rect.min.y
             {
                 cmd.entity(selectable.selected).insert(Selected {
-                    material: None,
-                    mesh: None,
+                    mesh: selectable.mesh,
                 });
+
+                let mesh = selectable.mesh.unwrap_or(selectable.selected);
+                cmd.entity(mesh)
+                    .insert(FlipMaterial::new(&materials.ui_transparent));
             } else if selection_rect.clear_previous {
+                let mesh = selectable.mesh.unwrap_or(selectable.selected);
+                cmd.entity(mesh).insert(RevertFlipMaterial);
+
                 cmd.entity(selectable.selected).remove::<Selected>();
                 ev_deselected.send(DeselectedEvent(selectable.selected));
             }
@@ -355,10 +354,10 @@ fn update_selected_names(
         }
     }
 
-    for DeselectedEvent(unit_ent) in ev_deselected.iter() {
-        if let Ok((_, _, UnitNameUiNodeRef(ui_node))) = moved_q.get(*unit_ent) {
+    for DeselectedEvent(deselected) in ev_deselected.iter() {
+        if let Ok((_, _, UnitNameUiNodeRef(ui_node))) = moved_q.get(*deselected) {
             cmd.entity(*ui_node).despawn_recursive();
-            cmd.entity(*unit_ent).remove::<UnitNameUiNodeRef>();
+            cmd.entity(*deselected).remove::<UnitNameUiNodeRef>();
         }
     }
 }
