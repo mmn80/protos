@@ -40,7 +40,7 @@ pub enum UiMode {
     Select,
     AddCube,
     ShootBalls,
-    AddBot,
+    AddFox,
 }
 
 #[derive(Resource, Reflect)]
@@ -144,7 +144,7 @@ fn main_panel(
             egui::CollapsingHeader::new("World")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui_mode_toggle(ui, &mut panel, UiMode::AddBot, "Add fox");
+                    ui_mode_toggle(ui, &mut panel, UiMode::AddFox, "Add fox");
                 });
         })
         .response
