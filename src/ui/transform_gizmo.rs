@@ -233,7 +233,7 @@ fn add_rotation_gizmo(
     let dir_z = dir_x.cross(dir_y).normalize();
     let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
 
-    let d = 2. * BALL_R + SQUARE_H + 2. * CYLINDER_R;
+    let d = 2. * BALL_R + SQUARE_H + 4. * CYLINDER_R;
     parent.spawn((
         PbrBundle {
             transform: Transform::from_translation(d * dir_x + d * dir_z).with_rotation(rot),

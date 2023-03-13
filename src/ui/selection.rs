@@ -105,6 +105,30 @@ impl SelectionRect {
 
 struct DeselectedEvent(Entity);
 
+fn ray_cast_no_sensors(rapier: &RapierContext, ray: &Ray) -> Option<Entity> {
+    if rapier
+        .cast_ray(
+            ray.origin,
+            ray.direction,
+            1000.,
+            false,
+            QueryFilter::new().exclude_solids(),
+        )
+        .is_some()
+    {
+        return None;
+    }
+    rapier
+        .cast_ray(
+            ray.origin,
+            ray.direction,
+            1000.,
+            false,
+            QueryFilter::new().exclude_sensors(),
+        )
+        .map(|(entity, _)| entity)
+}
+
 fn update_selected_from_click(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
@@ -114,7 +138,6 @@ fn update_selected_from_click(
     q_camera: Query<&MainCamera>,
     q_selectable: Query<&Selectable>,
     q_selected: Query<(Entity, &Selected)>,
-    q_sensor: Query<&Sensor>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
@@ -122,11 +145,7 @@ fn update_selected_from_click(
         return;
     };
     let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
-    let Some((hit_ent, _)) =
-        rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new()) else { return };
-    if q_sensor.contains(hit_ent) {
-        return;
-    }
+    let Some(hit_ent) = ray_cast_no_sensors(&rapier, &ray) else { return };
 
     let shift = keyboard.pressed(KeyCode::LShift);
     let mut sel_ent = None;
@@ -179,7 +198,6 @@ fn update_selected_from_rect(
     q_selectable: Query<&Selectable>,
     q_selected: Query<&Selected>,
     q_screen_pos: Query<&ScreenPosition>,
-    q_sensor: Query<&Sensor>,
     mut ev_deselected: EventWriter<DeselectedEvent>,
     mut cmd: Commands,
 ) {
@@ -188,12 +206,9 @@ fn update_selected_from_rect(
     };
     if mouse.just_pressed(MouseButton::Left) {
         let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
-        if let Some((entity, _)) =
-            rapier.cast_ray(ray.origin, ray.direction, 1000., false, QueryFilter::new())
-        {
-            if q_selectable.contains(entity) || q_sensor.contains(entity) {
-                return;
-            }
+        let Some(hit_ent) = ray_cast_no_sensors(&rapier, &ray) else { return };
+        if q_selectable.contains(hit_ent) {
+            return;
         }
     }
     let Ok(window) = q_window.get_single() else { return };
