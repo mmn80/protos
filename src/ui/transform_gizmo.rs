@@ -384,9 +384,19 @@ impl GizmoConstraint {
 }
 
 struct GizmoActiveState {
-    origin: Vec3,
-    delta: Vec3,
+    start_trans: Vec3,
+    start_ray_delta: Vec3,
+    start_rot: Quat,
     constraint: GizmoConstraint,
+}
+
+impl GizmoActiveState {
+    fn get_rotation(&self, hit: Vec3) -> Quat {
+        Quat::from_rotation_arc(
+            self.start_ray_delta.normalize(),
+            (self.start_trans - hit).normalize(),
+        ) * self.start_rot
+    }
 }
 
 #[derive(Component)]
@@ -497,18 +507,24 @@ fn update_gizmo_state(
                 }
             }
             if gizmo_part.highlighted && mouse.just_pressed(MouseButton::Left) {
-                let origin = gizmo_gtr.translation();
-                if let Some(start_drag) = gizmo_part
-                    .constraint
-                    .ray_cast(origin, &mouse_ray, gizmo_gtr)
+                let (_, start_rot, start_trans) = gizmo_gtr.to_scale_rotation_translation();
+                if let Some(start_ray_hit) =
+                    gizmo_part
+                        .constraint
+                        .ray_cast(start_trans, &mouse_ray, gizmo_gtr)
                 {
                     gizmo.active_state = Some(GizmoActiveState {
-                        origin,
-                        delta: origin - start_drag,
+                        start_trans,
+                        start_ray_delta: start_trans - start_ray_hit,
+                        start_rot,
                         constraint: gizmo_part.constraint,
                     });
                     if let Ok(mut window) = q_window.get_single_mut() {
-                        window.cursor.icon = CursorIcon::Move;
+                        window.cursor.icon = if gizmo_part.constraint.is_rotation() {
+                            CursorIcon::EResize
+                        } else {
+                            CursorIcon::Move
+                        };
                     }
                 }
             }
@@ -532,19 +548,22 @@ fn sync_parent_to_gizmo(
     let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
     for (gizmo, gizmo_gtr) in &q_gizmo {
         let Some(ref state) = gizmo.active_state else { continue };
-        let Some(current) = state.constraint.ray_cast(state.origin, &mouse_ray, gizmo_gtr) else { continue };
-        let current = current + state.delta;
+        let Some(hit) = state.constraint.ray_cast(state.start_trans, &mouse_ray, gizmo_gtr) else { continue };
 
         let Ok((mut parent_tr, parent_ent)) = q_parent.get_mut(gizmo.entity) else { continue };
         if let Some(parent_ent) = parent_ent {
             let Ok(parent_gtr) = q_parent_parent.get(parent_ent.get()) else { continue };
+            let inverse = parent_gtr.affine().inverse();
             if state.constraint.is_rotation() {
+                parent_tr.rotation =
+                    inverse.to_scale_rotation_translation().1 * state.get_rotation(hit);
             } else {
-                parent_tr.translation = parent_gtr.affine().inverse().transform_point3(current);
+                parent_tr.translation = inverse.transform_point3(hit + state.start_ray_delta);
             }
         } else if state.constraint.is_rotation() {
+            parent_tr.rotation = state.get_rotation(hit);
         } else {
-            parent_tr.translation = current;
+            parent_tr.translation = hit + state.start_ray_delta;
         }
     }
 }
