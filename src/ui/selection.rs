@@ -260,11 +260,8 @@ fn update_selected_from_rect(
 
 fn update_select_ui_rect(
     selection_rect: Res<SelectionRect>,
-    q_window: Query<&Window, With<PrimaryWindow>>,
     mut q_style: Query<(&mut Style, &mut Visibility), With<SelectionRectUiNode>>,
 ) {
-    let Ok(window) = q_window.get_single() else { return };
-    let window_height = window.height();
     let rect = selection_rect
         .rect
         .map(|r| SelectionRect::get_fixed_rect(r));
@@ -274,8 +271,8 @@ fn update_select_ui_rect(
             style.height = Val::Px(rect.height());
             style.left = Val::Px(rect.min.x);
             style.right = Val::Px(rect.max.x);
-            style.bottom = Val::Px(window_height - rect.min.y);
-            style.top = Val::Px(window_height - rect.max.y);
+            style.top = Val::Px(rect.min.y);
+            style.bottom = Val::Px(rect.max.y);
             *visibility = Visibility::Inherited;
         } else {
             *visibility = Visibility::Hidden;
@@ -345,8 +342,8 @@ fn update_selected_names(
                             position_type: PositionType::Absolute,
                             left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
                             right: Val::Auto,
-                            top: Val::Auto,
-                            bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
+                            top: Val::Px(screen_pos.position.y + 3000. * cam_fact),
+                            bottom: Val::Auto,
                             ..default()
                         },
                         text: Text::from_section(name.to_string(), text_style.clone())
@@ -366,7 +363,7 @@ fn update_selected_names(
             if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
                 let cam_fact = 1. / screen_pos.camera_dist;
                 style.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
-                style.bottom = Val::Px(screen_pos.position.y - 3000. * cam_fact);
+                style.top = Val::Px(screen_pos.position.y + 3000. * cam_fact);
                 transform.scale = Vec3::ONE * (50. * cam_fact);
             }
         } else {

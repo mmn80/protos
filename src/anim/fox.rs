@@ -87,6 +87,7 @@ fn add_fox(
                 parent.spawn((
                     SpatialBundle::from_transform(Transform::from_translation(0.5 * Vec3::Y)),
                     Collider::ball(50.),
+                    ColliderDisabled,
                     Selectable::new(fox, None),
                 ));
             });
@@ -103,6 +104,7 @@ fn init_fox(
     mut q_selectable: Query<&mut Selectable>,
     q_mesh: Query<Entity, With<SkinnedMesh>>,
     mut started: Local<Vec<Entity>>,
+    mut cmd: Commands,
 ) {
     if anims.0.is_empty() {
         return;
@@ -120,6 +122,7 @@ fn init_fox(
                         if q_selectable.contains(*c) {
                             selectable = Some(*c);
                             fox_ent = Some(parent);
+                            cmd.entity(*c).remove::<ColliderDisabled>();
                             break;
                         }
                     }
