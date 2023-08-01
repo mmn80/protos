@@ -8,7 +8,6 @@ use protos::{
     anim::{auto_collider::AutoColliderPlugin, fox::FoxPlugin, joint::JointPlugin, rig::RigPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
-    mesh::lines::LinesPlugin,
     ui::{
         add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin, selection::SelectionPlugin,
         side_panel::SidePanelPlugin, transform_gizmo::TransformGizmoPlugin,
@@ -26,27 +25,30 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugins(RapierDebugRenderPlugin {
-            enabled: false,
-            ..Default::default()
-        })
-        .add_plugins(EguiPlugin)
-        .add_plugins(DefaultInspectorConfigPlugin)
-        .add_plugins(SidePanelPlugin)
-        .add_plugins(SelectionPlugin)
-        .add_plugins(BasicMaterialsPlugin)
-        .add_plugins(LinesPlugin)
-        .add_plugins(TransformGizmoPlugin)
-        .add_plugins(MainLightsPlugin)
-        .add_plugins(MainCameraPlugin)
-        .add_plugins(RigPlugin)
-        .add_plugins(JointPlugin)
-        .add_plugins(AutoColliderPlugin)
-        .add_plugins(TerrainPlugin)
-        .add_plugins(AddCubePlugin)
-        .add_plugins(FoxPlugin)
-        .add_plugins(BuildingPlugin)
+        .add_plugins((
+            RapierPhysicsPlugin::<NoUserData>::default(),
+            RapierDebugRenderPlugin {
+                enabled: false,
+                ..Default::default()
+            },
+            EguiPlugin,
+            DefaultInspectorConfigPlugin,
+        ))
+        .add_plugins((
+            SidePanelPlugin,
+            SelectionPlugin,
+            BasicMaterialsPlugin,
+            TransformGizmoPlugin,
+            MainLightsPlugin,
+            MainCameraPlugin,
+            RigPlugin,
+            JointPlugin,
+            AutoColliderPlugin,
+            TerrainPlugin,
+            AddCubePlugin,
+            FoxPlugin,
+            BuildingPlugin,
+        ))
         .add_systems(Update, exit_system)
         .run();
 }

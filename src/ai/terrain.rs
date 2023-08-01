@@ -1,10 +1,7 @@
-use bevy::{pbr::NotShadowCaster, prelude::*};
+use bevy::prelude::*;
 use bevy_rapier3d::prelude::*;
 
-use crate::{
-    mesh::lines::{LineList, LineMaterial},
-    ui::basic_materials::BasicMaterials,
-};
+use crate::ui::basic_materials::BasicMaterials;
 
 pub struct TerrainPlugin;
 
@@ -13,7 +10,7 @@ impl Plugin for TerrainPlugin {
         app.register_type::<Terrain>()
             .init_resource::<Terrain>()
             .add_systems(Startup, setup_terrain)
-            .add_systems(Update, display_rapier_events);
+            .add_systems(Update, (draw_terrain_lines, display_rapier_events));
     }
 }
 
@@ -26,7 +23,6 @@ pub struct Terrain {
 fn setup_terrain(
     mut terrain: ResMut<Terrain>,
     mut meshes: ResMut<Assets<Mesh>>,
-    mut line_materials: ResMut<Assets<LineMaterial>>,
     materials: Res<BasicMaterials>,
     mut cmd: Commands,
 ) {
@@ -53,42 +49,42 @@ fn setup_terrain(
             .insert(Name::new(format!("Terrain ({id:?})")));
         id
     });
+}
 
-    let mut lines = vec![
-        (
-            Vec3::new(-ground_size.x / 2., 0., 0.),
-            Vec3::new(ground_size.x / 2., 0., 0.),
-        ),
-        (
-            Vec3::new(0., 0., -ground_size.z / 2.),
-            Vec3::new(0., 0., ground_size.z / 2.),
-        ),
-        (Vec3::new(0., 0., 1.), Vec3::new(1., 0., 0.)),
-    ];
+fn draw_terrain_lines(mut gizmos: Gizmos) {
+    let col = Color::WHITE;
+    let ground_size = Vec3::new(200.0, 1.0, 200.0);
+    let h = 0.5;
+
+    gizmos.line(
+        Vec3::new(-ground_size.x / 2., h, 0.),
+        Vec3::new(ground_size.x / 2., h, 0.),
+        col,
+    );
+    gizmos.line(
+        Vec3::new(0., h, -ground_size.z / 2.),
+        Vec3::new(0., h, ground_size.z / 2.),
+        col,
+    );
+    gizmos.line(Vec3::new(0., h, 1.), Vec3::new(1., h, 0.), col);
 
     let half_x = ground_size.x as i32 / 2 - 10;
     for x in (-half_x..half_x + 1).step_by(10) {
-        lines.push((Vec3::new(x as f32, 0., -0.5), Vec3::new(x as f32, 0., 0.5)));
+        gizmos.line(
+            Vec3::new(x as f32, h, -0.5),
+            Vec3::new(x as f32, h, 0.5),
+            col,
+        );
     }
 
     let half_z = ground_size.z as i32 / 2 - 10;
     for z in (-half_z..half_z + 1).step_by(10) {
-        lines.push((Vec3::new(-0.5, 0., z as f32), Vec3::new(0.5, 0., z as f32)));
+        gizmos.line(
+            Vec3::new(-0.5, h, z as f32),
+            Vec3::new(0.5, h, z as f32),
+            col,
+        );
     }
-
-    cmd.entity(terrain.ground.unwrap()).with_children(|parent| {
-        parent.spawn((
-            MaterialMeshBundle {
-                mesh: meshes.add(Mesh::from(LineList { lines })),
-                transform: Transform::from_xyz(0., ground_size.y / 2. + 0.01, 0.),
-                material: line_materials.add(LineMaterial {
-                    color: Color::WHITE,
-                }),
-                ..default()
-            },
-            NotShadowCaster,
-        ));
-    });
 }
 
 fn display_rapier_events(
