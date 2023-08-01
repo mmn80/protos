@@ -27,24 +27,28 @@ impl Plugin for SelectionPlugin {
             .init_resource::<SelectionUiState>()
             .init_resource::<SelectionRect>()
             .add_event::<DeselectedEvent>()
-            .add_startup_system(setup)
+            .add_systems(Startup, setup)
             .add_systems(
+                PreUpdate,
                 (update_selected_from_click, update_selected_from_rect)
-                    .in_base_set(CoreSet::PreUpdate)
                     .after(crate::camera::update_screen_position),
             )
-            .add_systems((
-                update_selected_names,
-                update_select_ui_rect,
-                update_selected_move_gizmos,
-            ));
+            .add_systems(
+                Update,
+                (
+                    update_selected_names,
+                    update_select_ui_rect,
+                    update_selected_move_gizmos,
+                ),
+            );
     }
 }
 
 fn setup(mut cmd: Commands, asset_server: Res<AssetServer>) {
     cmd.spawn(NodeBundle {
         style: Style {
-            size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+            width: Val::Percent(100.0),
+            height: Val::Percent(100.0),
             justify_content: JustifyContent::SpaceBetween,
             ..default()
         },
@@ -103,6 +107,7 @@ impl SelectionRect {
     }
 }
 
+#[derive(Event)]
 struct DeselectedEvent(Entity);
 
 fn ray_cast_no_sensors(rapier: &RapierContext, ray: &Ray) -> Option<Entity> {
@@ -147,7 +152,7 @@ fn update_selected_from_click(
     let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
     let Some(hit_ent) = ray_cast_no_sensors(&rapier, &ray) else { return };
 
-    let shift = keyboard.pressed(KeyCode::LShift);
+    let shift = keyboard.pressed(KeyCode::ShiftLeft);
     let mut sel_ent = None;
     let mut to_deselect = vec![];
     if let Ok(selectable) = q_selectable.get(hit_ent) {
@@ -240,7 +245,7 @@ fn update_selected_from_rect(
                 cmd.entity(mesh)
                     .insert(FlipMaterial::new(&materials.ui_transparent));
             }
-        } else if !keyboard.pressed(KeyCode::LShift) {
+        } else if !keyboard.pressed(KeyCode::ShiftLeft) {
             if q_selected.contains(selectable.selected) {
                 let mesh = selectable.mesh.unwrap_or(selectable.selected);
                 cmd.entity(mesh).insert(RevertFlipMaterial);
@@ -265,12 +270,12 @@ fn update_select_ui_rect(
         .map(|r| SelectionRect::get_fixed_rect(r));
     for (mut style, mut visibility) in &mut q_style {
         if let Some(rect) = rect {
-            style.size.width = Val::Px(rect.width());
-            style.size.height = Val::Px(rect.height());
-            style.position.left = Val::Px(rect.min.x);
-            style.position.right = Val::Px(rect.max.x);
-            style.position.bottom = Val::Px(window_height - rect.min.y);
-            style.position.top = Val::Px(window_height - rect.max.y);
+            style.width = Val::Px(rect.width());
+            style.height = Val::Px(rect.height());
+            style.left = Val::Px(rect.min.x);
+            style.right = Val::Px(rect.max.x);
+            style.bottom = Val::Px(window_height - rect.min.y);
+            style.top = Val::Px(window_height - rect.max.y);
             *visibility = Visibility::Inherited;
         } else {
             *visibility = Visibility::Hidden;
@@ -338,12 +343,10 @@ fn update_selected_names(
                     TextBundle {
                         style: Style {
                             position_type: PositionType::Absolute,
-                            position: UiRect {
-                                left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
-                                right: Val::Auto,
-                                top: Val::Auto,
-                                bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
-                            },
+                            left: Val::Px(screen_pos.position.x - 50. - 200. * cam_fact),
+                            right: Val::Auto,
+                            top: Val::Auto,
+                            bottom: Val::Px(screen_pos.position.y - 3000. * cam_fact),
                             ..default()
                         },
                         text: Text::from_section(name.to_string(), text_style.clone())
@@ -362,8 +365,8 @@ fn update_selected_names(
         if panel.show_names {
             if let Ok((mut transform, mut style)) = nodes_q.get_mut(*ui_node) {
                 let cam_fact = 1. / screen_pos.camera_dist;
-                style.position.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
-                style.position.bottom = Val::Px(screen_pos.position.y - 3000. * cam_fact);
+                style.left = Val::Px(screen_pos.position.x - 50. - 200. * cam_fact);
+                style.bottom = Val::Px(screen_pos.position.y - 3000. * cam_fact);
                 transform.scale = Vec3::ONE * (50. * cam_fact);
             }
         } else {

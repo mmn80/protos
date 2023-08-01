@@ -13,11 +13,14 @@ impl Plugin for JointPlugin {
         app.register_type::<RevoluteJointCommand>()
             .register_type::<SphericalJointCommand>()
             .add_systems(
+                PostUpdate,
                 (update_revolute_joints, update_spherical_joints)
-                    .in_base_set(CoreSet::PostUpdate)
                     .before(TransformSystem::TransformPropagate),
             )
-            .add_systems((update_revolute_joint_mesh, update_spherical_joint_mesh));
+            .add_systems(
+                Update,
+                (update_revolute_joint_mesh, update_spherical_joint_mesh),
+            );
     }
 }
 

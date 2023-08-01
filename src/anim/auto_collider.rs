@@ -8,7 +8,7 @@ impl Plugin for AutoColliderPlugin {
         app.register_type::<AutoCollider>()
             .register_type::<AutoColliderMesh>()
             .register_type::<AutoColliderRoot>()
-            .add_system(update_auto_colliders);
+            .add_systems(Update, update_auto_colliders);
     }
 }
 

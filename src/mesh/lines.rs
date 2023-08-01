@@ -1,7 +1,7 @@
 use bevy::{
     pbr::{MaterialPipeline, MaterialPipelineKey},
     prelude::*,
-    reflect::TypeUuid,
+    reflect::{TypePath, TypeUuid},
     render::{
         mesh::{MeshVertexBufferLayout, PrimitiveTopology},
         render_resource::{
@@ -15,11 +15,11 @@ pub struct LinesPlugin;
 
 impl Plugin for LinesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_plugin(MaterialPlugin::<LineMaterial>::default());
+        app.add_plugins(MaterialPlugin::<LineMaterial>::default());
     }
 }
 
-#[derive(Default, AsBindGroup, TypeUuid, Debug, Clone)]
+#[derive(Default, AsBindGroup, TypeUuid, TypePath, Debug, Clone)]
 #[uuid = "050ce6ac-080a-4d8c-b6b5-b5bab7560d8f"]
 pub struct LineMaterial {
     #[uniform(0)]

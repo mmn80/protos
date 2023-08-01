@@ -14,12 +14,8 @@ pub struct FoxPlugin;
 
 impl Plugin for FoxPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup_fox).add_systems((
-            add_fox,
-            init_fox,
-            start_move_fox,
-            move_fox,
-        ));
+        app.add_systems(Startup, setup_fox)
+            .add_systems(Update, (add_fox, init_fox, start_move_fox, move_fox));
     }
 }
 
@@ -181,7 +177,7 @@ fn start_move_fox(
         for (fox_ent, fox) in &q_fox {
             if let Some(animator) = fox.animator {
                 if let Ok(mut player) = q_player.get_mut(animator) {
-                    let run = keyboard.pressed(KeyCode::LShift);
+                    let run = keyboard.pressed(KeyCode::ShiftLeft);
                     cmd.entity(fox_ent).insert(MoveFox {
                         destination,
                         speed: if run { 2. } else { 1. },

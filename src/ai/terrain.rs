@@ -12,8 +12,8 @@ impl Plugin for TerrainPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Terrain>()
             .init_resource::<Terrain>()
-            .add_startup_system(setup_terrain)
-            .add_system(display_rapier_events);
+            .add_systems(Startup, setup_terrain)
+            .add_systems(Update, display_rapier_events);
     }
 }
 

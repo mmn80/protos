@@ -26,33 +26,33 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
-        .add_plugin(RapierDebugRenderPlugin {
+        .add_plugins(RapierPhysicsPlugin::<NoUserData>::default())
+        .add_plugins(RapierDebugRenderPlugin {
             enabled: false,
             ..Default::default()
         })
-        .add_plugin(EguiPlugin)
-        .add_plugin(DefaultInspectorConfigPlugin)
-        .add_plugin(SidePanelPlugin)
-        .add_plugin(SelectionPlugin)
-        .add_plugin(BasicMaterialsPlugin)
-        .add_plugin(LinesPlugin)
-        .add_plugin(TransformGizmoPlugin)
-        .add_plugin(MainLightsPlugin)
-        .add_plugin(MainCameraPlugin)
-        .add_plugin(RigPlugin)
-        .add_plugin(JointPlugin)
-        .add_plugin(AutoColliderPlugin)
-        .add_plugin(TerrainPlugin)
-        .add_plugin(AddCubePlugin)
-        .add_plugin(FoxPlugin)
-        .add_plugin(BuildingPlugin)
-        .add_system(exit_system)
+        .add_plugins(EguiPlugin)
+        .add_plugins(DefaultInspectorConfigPlugin)
+        .add_plugins(SidePanelPlugin)
+        .add_plugins(SelectionPlugin)
+        .add_plugins(BasicMaterialsPlugin)
+        .add_plugins(LinesPlugin)
+        .add_plugins(TransformGizmoPlugin)
+        .add_plugins(MainLightsPlugin)
+        .add_plugins(MainCameraPlugin)
+        .add_plugins(RigPlugin)
+        .add_plugins(JointPlugin)
+        .add_plugins(AutoColliderPlugin)
+        .add_plugins(TerrainPlugin)
+        .add_plugins(AddCubePlugin)
+        .add_plugins(FoxPlugin)
+        .add_plugins(BuildingPlugin)
+        .add_systems(Update, exit_system)
         .run();
 }
 
 fn exit_system(keyboard: Res<Input<KeyCode>>, mut exit: EventWriter<AppExit>) {
-    if keyboard.just_released(KeyCode::Q) && keyboard.pressed(KeyCode::LControl) {
+    if keyboard.just_released(KeyCode::Q) && keyboard.pressed(KeyCode::ControlLeft) {
         exit.send(AppExit);
     }
 }

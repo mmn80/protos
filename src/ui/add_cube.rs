@@ -25,7 +25,7 @@ pub struct AddCubePlugin;
 impl Plugin for AddCubePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AddCubeUiState>()
-            .add_systems((update_add_cube, shoot_balls));
+            .add_systems(Update, (update_add_cube, shoot_balls));
     }
 }
 

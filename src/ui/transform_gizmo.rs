@@ -21,15 +21,17 @@ pub struct TransformGizmoPlugin;
 impl Plugin for TransformGizmoPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TransformGizmoMeshes>()
-            .add_system(clean_orphan_gizmos.in_base_set(CoreSet::PreUpdate))
-            .add_systems((
-                update_gizmo_state,
-                sync_parent_to_gizmo.after(update_gizmo_state),
-            ))
-            .add_system(
-                sync_gizmo_to_parent
-                    .in_base_set(CoreSet::PostUpdate)
-                    .after(TransformSystem::TransformPropagate),
+            .add_systems(PreUpdate, clean_orphan_gizmos)
+            .add_systems(
+                Update,
+                (
+                    update_gizmo_state,
+                    sync_parent_to_gizmo.after(update_gizmo_state),
+                ),
+            )
+            .add_systems(
+                PostUpdate,
+                sync_gizmo_to_parent.after(TransformSystem::TransformPropagate),
             );
     }
 }
@@ -45,7 +47,7 @@ impl AddTransformGizmo {
 }
 
 impl EntityCommand for AddTransformGizmo {
-    fn write(self, id: Entity, world: &mut World) {
+    fn apply(self, id: Entity, world: &mut World) {
         let no_gizmo = {
             let mut q_gizmos = world.query::<(Entity, &TransformGizmo)>();
             q_gizmos.iter(world).all(|(_, gizmo)| gizmo.entity != id)
@@ -260,7 +262,7 @@ fn add_rotation_gizmo(
 pub struct RemoveTransformGizmo;
 
 impl EntityCommand for RemoveTransformGizmo {
-    fn write(self, id: Entity, world: &mut World) {
+    fn apply(self, id: Entity, world: &mut World) {
         let gizmo = {
             let mut q_gizmos = world.query::<(Entity, &TransformGizmo)>();
             q_gizmos.iter(world).find(|(_, gizmo)| gizmo.entity == id)

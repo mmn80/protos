@@ -5,7 +5,7 @@ pub struct BasicMaterialsPlugin;
 impl Plugin for BasicMaterialsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<BasicMaterials>()
-            .add_system(flip_materials);
+            .add_systems(Update, flip_materials);
     }
 }
 

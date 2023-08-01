@@ -12,8 +12,8 @@ impl Plugin for MainLightsPlugin {
             brightness: 0.05,
         })
         .insert_resource(DirectionalLightShadowMap { size: 4096 })
-        .add_startup_system(spawn_main_lights)
-        .add_system(animate_light_direction);
+        .add_systems(Startup, spawn_main_lights)
+        .add_systems(Update, animate_light_direction);
     }
 }
 

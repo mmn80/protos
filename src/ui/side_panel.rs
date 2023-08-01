@@ -1,5 +1,5 @@
 use bevy::{
-    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
     window::PrimaryWindow,
 };
@@ -19,15 +19,15 @@ impl Plugin for SidePanelPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<SidePanel>()
             .init_resource::<SidePanel>()
-            .add_plugin(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
-            //.add_plugin(bevy::diagnostic::LogDiagnosticsPlugin::default())
-            //.add_plugin(wgpu::WgpuResourceDiagnosticsPlugin::default())
-            .add_plugin(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
-            .add_plugin(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
-            //.add_plugin(bevy::diagnostic::SystemInformationDiagnosticsPlugin::default())
+            .add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default())
+            //.add_plugins(bevy::diagnostic::LogDiagnosticsPlugin::default())
+            //.add_plugins(wgpu::WgpuResourceDiagnosticsPlugin::default())
+            .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
+            .add_plugins(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
+            //.add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin::default())
             .init_resource::<SidePanel>()
-            .add_startup_system(configure_egui)
-            .add_systems((main_panel, inspector_panel));
+            .add_systems(Startup, configure_egui)
+            .add_systems(Update, (main_panel, inspector_panel));
     }
 }
 
@@ -74,7 +74,7 @@ impl Default for SidePanel {
 fn main_panel(
     mut egui_ctx: EguiContexts,
     keyboard: Res<Input<KeyCode>>,
-    diagnostics: Res<Diagnostics>,
+    diagnostics: Res<DiagnosticsStore>,
     mut panel: ResMut<SidePanel>,
     mut sel_state: ResMut<SelectionUiState>,
     add_cube_state: ResMut<AddCubeUiState>,

@@ -16,9 +16,9 @@ impl Plugin for MainCameraPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<MainCamera>()
             .register_type::<ScreenPosition>()
-            .add_startup_system(spawn_camera)
-            .add_system(update_screen_position.in_base_set(CoreSet::PreUpdate))
-            .add_system(main_camera);
+            .add_systems(Startup, spawn_camera)
+            .add_systems(PreUpdate, update_screen_position)
+            .add_systems(Update, main_camera);
     }
 }
 
@@ -137,7 +137,7 @@ fn main_camera(
 
         if keyboard.any_pressed([KeyCode::W, KeyCode::S, KeyCode::A, KeyCode::D]) {
             let mut ds = time.delta_seconds() * 10.;
-            if keyboard.pressed(KeyCode::LShift) {
+            if keyboard.pressed(KeyCode::ShiftLeft) {
                 ds *= 4.;
             }
             let mut forward = camera_tr.forward();
