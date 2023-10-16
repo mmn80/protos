@@ -1,7 +1,5 @@
 use bevy::{
-    core_pipeline::{
-        bloom::BloomSettings, clear_color::ClearColorConfig, tonemapping::Tonemapping,
-    },
+    core_pipeline::{bloom::BloomSettings, clear_color::ClearColorConfig},
     input::mouse::{MouseMotion, MouseWheel},
     prelude::*,
     render::view::RenderLayers,
@@ -60,7 +58,6 @@ fn spawn_camera(mut cmd: Commands) {
                 hdr: true,
                 ..default()
             },
-            tonemapping: Tonemapping::AcesFitted,
             ..default()
         },
         BloomSettings::default(),
