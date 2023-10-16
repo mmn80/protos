@@ -11,7 +11,7 @@ use bevy_inspector_egui::DefaultInspectorConfigPlugin;
 use bevy_rapier3d::prelude::*;
 
 use protos::{
-    ai::{building::BuildingPlugin, terrain::TerrainPlugin},
+    ai::{building::BuildingPlugin, swarm::SwarmPlugin, terrain::TerrainPlugin},
     anim::{auto_collider::AutoColliderPlugin, fox::FoxPlugin, joint::JointPlugin, rig::RigPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
@@ -64,6 +64,7 @@ fn main() {
             AddCubePlugin,
             FoxPlugin,
             BuildingPlugin,
+            SwarmPlugin,
         ))
         .add_systems(Update, exit_system)
         .run();

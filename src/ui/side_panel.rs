@@ -6,7 +6,10 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiContexts, EguiSettings};
 use bevy_rapier3d::render::DebugRenderContext;
 
-use crate::anim::rig::{KiRevoluteJoint, KiSphericalJoint};
+use crate::{
+    ai::swarm::InitSwarmEvent,
+    anim::rig::{KiRevoluteJoint, KiSphericalJoint},
+};
 
 use super::{
     add_cube::{add_cube_ui, AddCubeUiState},
@@ -89,6 +92,7 @@ fn main_panel(
         ),
         With<Selected>,
     >,
+    mut ev_init_swarm: EventWriter<InitSwarmEvent>,
     cmd: Commands,
 ) {
     if keyboard.just_pressed(KeyCode::Escape) {
@@ -139,6 +143,10 @@ fn main_panel(
                     debug_render_ctx.enabled = panel.rapier_debug_enabled;
 
                     add_cube_ui(ui, &mut panel, add_cube_state);
+
+                    if ui.button("Toggle swarm").clicked() {
+                        ev_init_swarm.send(InitSwarmEvent);
+                    }
                 });
 
             egui::CollapsingHeader::new("World")
