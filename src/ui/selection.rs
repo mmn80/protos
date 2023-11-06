@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 
 use bevy::{prelude::*, window::PrimaryWindow};
 use bevy_inspector_egui::egui;
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 
 use crate::{
     anim::{
@@ -72,6 +72,12 @@ fn setup(mut cmd: Commands, asset_server: Res<AssetServer>) {
     cmd.insert_resource(LoadedFont(asset_server.load("fonts/FiraMono-Medium.ttf")));
 }
 
+#[derive(PhysicsLayer)]
+pub enum Layer {
+    Sensor,
+    Object,
+}
+
 #[derive(Clone, Component, Debug, Reflect)]
 pub struct Selectable {
     pub selected: Entity,
@@ -110,34 +116,34 @@ impl SelectionRect {
 #[derive(Event)]
 struct DeselectedEvent(Entity);
 
-fn ray_cast_no_sensors(rapier: &RapierContext, ray: &Ray) -> Option<Entity> {
-    if rapier
+fn ray_cast_no_sensors(spatial_query: &SpatialQuery, ray: &Ray) -> Option<Entity> {
+    if spatial_query
         .cast_ray(
             ray.origin,
             ray.direction,
             1000.,
             false,
-            QueryFilter::new().exclude_solids(),
+            SpatialQueryFilter::new().with_masks([Layer::Sensor]),
         )
         .is_some()
     {
         return None;
     }
-    rapier
+    spatial_query
         .cast_ray(
             ray.origin,
             ray.direction,
             1000.,
             false,
-            QueryFilter::new().exclude_sensors(),
+            SpatialQueryFilter::new().with_masks([Layer::Object]),
         )
-        .map(|(entity, _)| entity)
+        .map(|RayHitData { entity, .. }| entity)
 }
 
 fn update_selected_from_click(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
-    rapier: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     panel: Res<SidePanel>,
     materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
@@ -149,8 +155,12 @@ fn update_selected_from_click(
     if panel.mouse_over || panel.mode != UiMode::Select || !mouse.just_pressed(MouseButton::Left) {
         return;
     };
-    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
-    let Some(hit_ent) = ray_cast_no_sensors(&rapier, &ray) else { return };
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
+    let Some(hit_ent) = ray_cast_no_sensors(&spatial_query, &ray) else {
+        return;
+    };
 
     let shift = keyboard.pressed(KeyCode::ShiftLeft);
     let mut sel_ent = None;
@@ -196,7 +206,7 @@ fn update_selected_from_rect(
     keyboard: Res<Input<KeyCode>>,
     mouse: Res<Input<MouseButton>>,
     materials: Res<BasicMaterials>,
-    rapier: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     mut selection_rect: ResMut<SelectionRect>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_camera: Query<&MainCamera>,
@@ -210,19 +220,29 @@ fn update_selected_from_rect(
         return;
     };
     if mouse.just_pressed(MouseButton::Left) {
-        let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
-        let Some(hit_ent) = ray_cast_no_sensors(&rapier, &ray) else { return };
+        let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+            return;
+        };
+        let Some(hit_ent) = ray_cast_no_sensors(&spatial_query, &ray) else {
+            return;
+        };
         if q_selectable.contains(hit_ent) {
             return;
         }
     }
-    let Ok(window) = q_window.get_single() else { return };
-    let Some(mouse_pos) = window.cursor_position() else { return };
+    let Ok(window) = q_window.get_single() else {
+        return;
+    };
+    let Some(mouse_pos) = window.cursor_position() else {
+        return;
+    };
     if mouse.just_pressed(MouseButton::Left) {
         selection_rect.rect = Some(Rect::from_corners(mouse_pos, mouse_pos));
         return;
     }
-    let Some(mut sel_rect) = selection_rect.rect else { return };
+    let Some(mut sel_rect) = selection_rect.rect else {
+        return;
+    };
     if mouse.pressed(MouseButton::Left) {
         sel_rect.max = mouse_pos;
         selection_rect.rect = Some(sel_rect);
@@ -232,9 +252,12 @@ fn update_selected_from_rect(
 
     for selectable in &q_selectable {
         let Ok(ScreenPosition {
-                position,
-                camera_dist: _,
-            }) = q_screen_pos.get(selectable.selected) else { continue };
+            position,
+            camera_dist: _,
+        }) = q_screen_pos.get(selectable.selected)
+        else {
+            continue;
+        };
         if sel_rect.contains(*position) {
             if !q_selected.contains(selectable.selected) {
                 cmd.entity(selectable.selected).insert(Selected {
@@ -372,7 +395,7 @@ fn update_selected_names(
         }
     }
 
-    for DeselectedEvent(deselected) in ev_deselected.iter() {
+    for DeselectedEvent(deselected) in ev_deselected.read() {
         if let Ok((_, _, UnitNameUiNodeRef(ui_node))) = moved_q.get(*deselected) {
             cmd.entity(*ui_node).despawn_recursive();
             cmd.entity(*deselected).remove::<UnitNameUiNodeRef>();
@@ -483,7 +506,7 @@ fn update_selected_move_gizmos(
             cmd.entity(selected_ent)
                 .add(AddTransformGizmo::new(selected.mesh));
         }
-        for DeselectedEvent(deselected) in ev_deselected.iter() {
+        for DeselectedEvent(deselected) in ev_deselected.read() {
             cmd.entity(*deselected).add(RemoveTransformGizmo);
         }
     } else {

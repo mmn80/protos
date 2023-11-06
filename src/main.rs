@@ -2,21 +2,21 @@ use bevy::{
     app::AppExit,
     prelude::*,
     render::{
-        settings::{Backends, WgpuSettings},
+        settings::{Backends, RenderCreation, WgpuSettings},
         RenderPlugin,
     },
 };
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::DefaultInspectorConfigPlugin;
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 
 use protos::{
     ai::{building::BuildingPlugin, swarm::SwarmPlugin, terrain::TerrainPlugin},
-    anim::{auto_collider::AutoColliderPlugin, fox::FoxPlugin, joint::JointPlugin, rig::RigPlugin},
+    anim::{fox::FoxPlugin, joint::JointPlugin, rig::RigPlugin},
     camera::MainCameraPlugin,
     light::{MainLightsPlugin, INFINITE_TEMP_COLOR},
     ui::{
-        add_cube::AddCubePlugin, basic_materials::BasicMaterialsPlugin, selection::SelectionPlugin,
+        basic_materials::BasicMaterialsPlugin, selection::SelectionPlugin,
         side_panel::SidePanelPlugin, transform_gizmo::TransformGizmoPlugin,
     },
 };
@@ -35,18 +35,15 @@ fn main() {
                     ..default()
                 })
                 .set(RenderPlugin {
-                    wgpu_settings: WgpuSettings {
+                    render_creation: RenderCreation::Automatic(WgpuSettings {
                         backends: Some(Backends::VULKAN),
                         ..Default::default()
-                    },
+                    }),
                 }),
         )
         .add_plugins((
-            RapierPhysicsPlugin::<NoUserData>::default(),
-            RapierDebugRenderPlugin {
-                enabled: false,
-                ..Default::default()
-            },
+            PhysicsPlugins::default(),
+            PhysicsDebugPlugin::default(),
             EguiPlugin,
             DefaultInspectorConfigPlugin,
         ))
@@ -59,9 +56,7 @@ fn main() {
             MainCameraPlugin,
             RigPlugin,
             JointPlugin,
-            AutoColliderPlugin,
             TerrainPlugin,
-            AddCubePlugin,
             FoxPlugin,
             BuildingPlugin,
             SwarmPlugin,

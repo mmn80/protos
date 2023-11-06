@@ -6,7 +6,7 @@ use bevy::{
     transform::TransformSystem,
     window::PrimaryWindow,
 };
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 use parry3d::query::details::ray_toi_with_halfspace;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
     mesh::cone::Cone,
 };
 
-use super::basic_materials::BasicMaterials;
+use super::{basic_materials::BasicMaterials, selection::Layer};
 
 pub struct TransformGizmoPlugin;
 
@@ -105,6 +105,7 @@ impl EntityCommand for AddTransformGizmo {
                         RenderLayers::layer(UI_CAMERA_LAYER),
                         Collider::ball(BALL_R),
                         Sensor,
+                        CollisionLayers::new([Layer::Sensor], []),
                         TransformGizmoPart {
                             material: ui_default.clone(),
                             highlighted: false,
@@ -163,6 +164,7 @@ fn add_axis_gizmo(
         RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cylinder(BAR_H / 2., BAR_W),
         Sensor,
+        CollisionLayers::new([Layer::Sensor], []),
         TransformGizmoPart {
             material: material.clone(),
             highlighted: false,
@@ -183,6 +185,7 @@ fn add_axis_gizmo(
         RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cone(CONE_H / 2., CONE_R),
         Sensor,
+        CollisionLayers::new([Layer::Sensor], []),
         TransformGizmoPart {
             material,
             highlighted: false,
@@ -197,7 +200,9 @@ fn add_plane_gizmo(
     material: Handle<StandardMaterial>,
     plane: GizmoPlane,
 ) {
-    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
+    let Some((dir_y, dir_x)) = plane.to_yx_axes() else {
+        return;
+    };
     let dir_z = dir_x.cross(dir_y).normalize();
     let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
 
@@ -214,6 +219,7 @@ fn add_plane_gizmo(
         RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cuboid(SQUARE_H / 2., BAR_W / 2., SQUARE_H / 2.),
         Sensor,
+        CollisionLayers::new([Layer::Sensor], []),
         TransformGizmoPart {
             material: material.clone(),
             highlighted: false,
@@ -231,7 +237,9 @@ fn add_rotation_gizmo(
     material: Handle<StandardMaterial>,
     plane: GizmoPlane,
 ) {
-    let Some((dir_y, dir_x)) = plane.to_yx_axes() else { return };
+    let Some((dir_y, dir_x)) = plane.to_yx_axes() else {
+        return;
+    };
     let dir_z = dir_x.cross(dir_y).normalize();
     let rot = Quat::from_mat3(&Mat3::from_cols(dir_x, dir_y, dir_z));
 
@@ -248,6 +256,7 @@ fn add_rotation_gizmo(
         RenderLayers::layer(UI_CAMERA_LAYER),
         Collider::cylinder(BAR_W / 4., CYLINDER_R),
         Sensor,
+        CollisionLayers::new([Layer::Sensor], []),
         TransformGizmoPart {
             material: material.clone(),
             highlighted: false,
@@ -467,7 +476,7 @@ impl FromWorld for TransformGizmoMeshes {
 
 fn update_gizmo_state(
     mouse: Res<Input<MouseButton>>,
-    rapier: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     materials: Res<BasicMaterials>,
     q_camera: Query<&MainCamera>,
     mut q_window: Query<&mut Window, With<PrimaryWindow>>,
@@ -479,19 +488,25 @@ fn update_gizmo_state(
         &mut TransformGizmoPart,
     )>,
 ) {
-    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
     let mut mouse_ray_ent = None;
     let mut mouse_ray_casted = false;
     for (gizmo_part_ent, parent, mut material, mut gizmo_part) in &mut q_gizmo_part {
-        let Ok((mut gizmo, gizmo_gtr)) = q_gizmo.get_mut(parent.get()) else { continue };
+        let Ok((mut gizmo, gizmo_gtr)) = q_gizmo.get_mut(parent.get()) else {
+            continue;
+        };
         if gizmo.active_state.is_none() {
             if mouse_ray_casted == false && mouse_ray_ent.is_none() {
-                if let Some((hit_ent, _)) = rapier.cast_ray(
+                if let Some(RayHitData {
+                    entity: hit_ent, ..
+                }) = spatial_query.cast_ray(
                     mouse_ray.origin,
                     mouse_ray.direction,
                     1000.,
                     false,
-                    QueryFilter::new().exclude_solids(),
+                    SpatialQueryFilter::new().with_masks([Layer::Sensor]),
                 ) {
                     mouse_ray_ent = Some(hit_ent);
                 }
@@ -547,14 +562,27 @@ fn sync_parent_to_gizmo(
     q_parent_parent: Query<&GlobalTransform, Without<TransformGizmo>>,
     q_gizmo: Query<(&TransformGizmo, &GlobalTransform)>,
 ) {
-    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let Ok(Some(mouse_ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
     for (gizmo, gizmo_gtr) in &q_gizmo {
-        let Some(ref state) = gizmo.active_state else { continue };
-        let Some(hit) = state.constraint.ray_cast(state.start_trans, &mouse_ray, gizmo_gtr) else { continue };
+        let Some(ref state) = gizmo.active_state else {
+            continue;
+        };
+        let Some(hit) = state
+            .constraint
+            .ray_cast(state.start_trans, &mouse_ray, gizmo_gtr)
+        else {
+            continue;
+        };
 
-        let Ok((mut parent_tr, parent_ent)) = q_parent.get_mut(gizmo.entity) else { continue };
+        let Ok((mut parent_tr, parent_ent)) = q_parent.get_mut(gizmo.entity) else {
+            continue;
+        };
         if let Some(parent_ent) = parent_ent {
-            let Ok(parent_gtr) = q_parent_parent.get(parent_ent.get()) else { continue };
+            let Ok(parent_gtr) = q_parent_parent.get(parent_ent.get()) else {
+                continue;
+            };
             let inverse = parent_gtr.affine().inverse();
             if state.constraint.is_rotation() {
                 parent_tr.rotation =

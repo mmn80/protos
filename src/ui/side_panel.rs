@@ -4,17 +4,14 @@ use bevy::{
     window::PrimaryWindow,
 };
 use bevy_egui::{egui, EguiContext, EguiContexts, EguiSettings};
-use bevy_rapier3d::render::DebugRenderContext;
+use bevy_xpbd_3d::prelude::PhysicsDebugConfig;
 
 use crate::{
     ai::swarm::InitSwarmEvent,
     anim::rig::{KiRevoluteJoint, KiSphericalJoint},
 };
 
-use super::{
-    add_cube::{add_cube_ui, AddCubeUiState},
-    selection::{selection_ui, Selected, SelectionUiState},
-};
+use super::selection::{selection_ui, Selected, SelectionUiState};
 
 pub struct SidePanelPlugin;
 
@@ -26,7 +23,6 @@ impl Plugin for SidePanelPlugin {
             //.add_plugins(bevy::diagnostic::LogDiagnosticsPlugin::default())
             //.add_plugins(wgpu::WgpuResourceDiagnosticsPlugin::default())
             .add_plugins(bevy::diagnostic::EntityCountDiagnosticsPlugin::default())
-            .add_plugins(bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::default())
             //.add_plugins(bevy::diagnostic::SystemInformationDiagnosticsPlugin::default())
             .init_resource::<SidePanel>()
             .add_systems(Startup, configure_egui)
@@ -54,7 +50,7 @@ pub struct SidePanel {
     pub show_assets: bool,
     pub show_world: bool,
     pub mode: UiMode,
-    pub rapier_debug_enabled: bool,
+    pub physics_debug_enabled: bool,
     pub panel_width: f32,
     pub inspector_width: f32,
 }
@@ -67,7 +63,7 @@ impl Default for SidePanel {
             show_assets: false,
             show_world: true,
             mode: UiMode::Select,
-            rapier_debug_enabled: false,
+            physics_debug_enabled: false,
             panel_width: 0.0,
             inspector_width: 0.0,
         }
@@ -80,8 +76,7 @@ fn main_panel(
     diagnostics: Res<DiagnosticsStore>,
     mut panel: ResMut<SidePanel>,
     mut sel_state: ResMut<SelectionUiState>,
-    add_cube_state: ResMut<AddCubeUiState>,
-    mut debug_render_ctx: ResMut<DebugRenderContext>,
+    mut physics_debug_config: ResMut<PhysicsDebugConfig>,
     q_window: Query<&Window, With<PrimaryWindow>>,
     q_selected: Query<
         (
@@ -111,17 +106,10 @@ fn main_panel(
                 .get_measurement(bevy::diagnostic::EntityCountDiagnosticsPlugin::ENTITY_COUNT)
                 .map(|d| d.value as u32)
                 .unwrap_or(0);
-            let meshes = diagnostics
-                .get_measurement(
-                    bevy::asset::diagnostic::AssetCountDiagnosticsPlugin::<Mesh>::diagnostic_id(),
-                )
-                .map(|d| d.value as u32)
-                .unwrap_or(0);
             ui.horizontal(|ui| {
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(format!("FPS: {fps}"));
                     ui.separator();
-                    ui.label(format!("mesh: {meshes}"));
                     ui.label(format!("entity: {entities}"));
                 });
             });
@@ -139,10 +127,8 @@ fn main_panel(
             egui::CollapsingHeader::new("Physics")
                 .default_open(true)
                 .show(ui, |ui| {
-                    ui.checkbox(&mut panel.rapier_debug_enabled, "Debug render");
-                    debug_render_ctx.enabled = panel.rapier_debug_enabled;
-
-                    add_cube_ui(ui, &mut panel, add_cube_state);
+                    ui.checkbox(&mut panel.physics_debug_enabled, "Debug render");
+                    physics_debug_config.enabled = panel.physics_debug_enabled;
 
                     if ui.button("Toggle swarm").clicked() {
                         ev_init_swarm.send(InitSwarmEvent);
@@ -152,6 +138,7 @@ fn main_panel(
             egui::CollapsingHeader::new("World")
                 .default_open(true)
                 .show(ui, |ui| {
+                    ui_mode_toggle(ui, &mut panel, UiMode::ShootBalls, "Shoot balls");
                     ui_mode_toggle(ui, &mut panel, UiMode::AddFox, "Add fox");
                 });
         })

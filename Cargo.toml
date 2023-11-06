@@ -9,11 +9,11 @@ publish = false
 [dependencies]
 rand = "0.8"
 rand_distr = "0.4"
-futures-lite = "1.12"
-bevy = "0.11"
-bevy_egui = "0.22"
-bevy-inspector-egui = "0.20"
-bevy_rapier3d = { version = "0.22", features = ["simd-stable", "debug-render"] }
+futures-lite = "2.0"
+bevy = "0.12"
+bevy_egui = "0.23"
+bevy-inspector-egui = "0.21"
+bevy_xpbd_3d = { version = "0.3", features = ["parallel"] }
 parry3d = "0.13"
 
 [profile.dev]

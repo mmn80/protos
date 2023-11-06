@@ -113,11 +113,11 @@ fn main_camera(
 
     if !ui.mouse_over {
         if mouse.pressed(orbit_button) {
-            for ev in ev_motion.iter() {
+            for ev in ev_motion.read() {
                 rotation_move += ev.delta;
             }
         }
-        for ev in ev_scroll.iter() {
+        for ev in ev_scroll.read() {
             scroll += ev.y;
         }
         if mouse.just_released(orbit_button) || mouse.just_pressed(orbit_button) {
@@ -125,7 +125,7 @@ fn main_camera(
         }
     }
 
-    let cursor_pos = ev_cursor.iter().last().map(|p| p.position);
+    let cursor_pos = ev_cursor.read().last().map(|p| p.position);
 
     for (mut main_camera, mut camera_tr, camera_gtr, camera) in &mut q_camera {
         if let Some(pos) = cursor_pos {
@@ -224,9 +224,13 @@ pub fn update_screen_position(
     q_camera: Query<(&GlobalTransform, &Camera), With<MainCamera>>,
     mut q_screen_pos: Query<(&GlobalTransform, &mut ScreenPosition)>,
 ) {
-    let Some((camera_gtr, camera)) = q_camera.iter().next() else { return };
+    let Some((camera_gtr, camera)) = q_camera.iter().next() else {
+        return;
+    };
     for (gtr, mut screen_pos) in &mut q_screen_pos {
-        let Some(pos) = camera.world_to_viewport(camera_gtr, gtr.translation()) else { continue };
+        let Some(pos) = camera.world_to_viewport(camera_gtr, gtr.translation()) else {
+            continue;
+        };
         screen_pos.position = pos;
         screen_pos.camera_dist = (gtr.translation() - camera_gtr.translation()).length();
     }

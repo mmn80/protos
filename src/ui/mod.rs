@@ -1,4 +1,3 @@
-pub mod add_cube;
 pub mod basic_materials;
 pub mod selection;
 pub mod side_panel;

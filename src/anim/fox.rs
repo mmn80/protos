@@ -1,11 +1,12 @@
 use bevy::{prelude::*, render::mesh::skinning::SkinnedMesh};
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 
 use crate::{
     ai::terrain::Terrain,
     camera::{MainCamera, ScreenPosition},
     ui::{
-        selection::{Selectable, Selected},
+        basic_materials::BasicMaterials,
+        selection::{Layer, Selectable, Selected},
         side_panel::{SidePanel, UiMode},
     },
 };
@@ -14,8 +15,10 @@ pub struct FoxPlugin;
 
 impl Plugin for FoxPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_fox)
-            .add_systems(Update, (add_fox, init_fox, start_move_fox, move_fox));
+        app.add_systems(Startup, setup_fox).add_systems(
+            Update,
+            (add_fox, init_fox, start_move_fox, move_fox, shoot_balls),
+        );
     }
 }
 
@@ -38,7 +41,7 @@ fn setup_fox(asset_server: Res<AssetServer>, mut cmd: Commands) {
 fn add_fox(
     mouse: Res<Input<MouseButton>>,
     asset_server: Res<AssetServer>,
-    rapier: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     panel: Res<SidePanel>,
     terrain: Res<Terrain>,
     q_camera: Query<&MainCamera>,
@@ -48,17 +51,21 @@ fn add_fox(
         return;
     };
 
-    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
     let Some(ground) = terrain.ground else { return };
-    let Some((hit_ent, toi)) = rapier.cast_ray(
+    let Some(hit) = spatial_query.cast_ray(
         ray.origin,
         ray.direction,
         1000.,
         false,
-        QueryFilter::new().exclude_sensors(),
-    ) else { return };
-    if hit_ent == ground {
-        let pos = ray.origin + toi * ray.direction;
+        SpatialQueryFilter::new().with_masks([Layer::Object]),
+    ) else {
+        return;
+    };
+    if hit.entity == ground {
+        let pos = ray.origin + hit.time_of_impact * ray.direction;
         let dir_z = Vec3::new(ray.direction.x, 0., ray.direction.z).normalize();
         let dir_y = Vec3::Y;
         let rot = Quat::from_mat3(&Mat3::from_cols(
@@ -66,33 +73,36 @@ fn add_fox(
             dir_y,
             dir_z,
         ));
+        let pos = pos + 0.5 * dir_y;
         let fox = cmd
-            .spawn(SceneBundle {
-                transform: Transform::from_translation(pos)
-                    .with_rotation(rot)
-                    .with_scale(Vec3::splat(0.01)),
-                scene: asset_server.load("models/Fox.glb#Scene0"),
-                visibility: Visibility::Hidden,
-                ..default()
-            })
+            .spawn((
+                Fox { animator: None },
+                SpatialBundle {
+                    transform: Transform::from_translation(pos).with_rotation(rot),
+                    visibility: Visibility::Hidden,
+                    ..default()
+                },
+                ScreenPosition::default(),
+                RigidBody::Kinematic,
+                Collider::ball(0.5),
+                CollisionLayers::new([Layer::Object], [Layer::Object]),
+            ))
             .id();
         cmd.entity(fox)
             .insert((
-                Fox { animator: None },
                 Name::new(format!("Fox ({fox:?})")),
-                ScreenPosition::default(),
-                RigidBody::KinematicPositionBased,
+                Selectable::new(fox, None),
             ))
             .with_children(|parent| {
-                parent.spawn((
-                    SpatialBundle::from_transform(Transform::from_translation(0.5 * Vec3::Y)),
-                    Collider::ball(50.),
-                    ColliderDisabled,
-                    Selectable::new(fox, None),
-                ));
+                parent.spawn(SceneBundle {
+                    transform: Transform::from_translation(-0.5 * Vec3::Y)
+                        .with_scale(Vec3::splat(0.01)),
+                    scene: asset_server.load("models/Fox.glb#Scene0"),
+                    ..default()
+                });
             });
     } else {
-        info!("not ground: {:?}", hit_ent);
+        info!("not ground: {:?}", hit.entity);
     }
 }
 
@@ -104,7 +114,6 @@ fn init_fox(
     mut q_selectable: Query<&mut Selectable>,
     q_mesh: Query<Entity, With<SkinnedMesh>>,
     mut started: Local<Vec<Entity>>,
-    mut cmd: Commands,
 ) {
     if anims.0.is_empty() {
         return;
@@ -122,7 +131,6 @@ fn init_fox(
                         if q_selectable.contains(*c) {
                             selectable = Some(*c);
                             fox_ent = Some(parent);
-                            cmd.entity(*c).remove::<ColliderDisabled>();
                             break;
                         }
                     }
@@ -154,7 +162,7 @@ struct MoveFox {
 fn start_move_fox(
     mouse: Res<Input<MouseButton>>,
     keyboard: Res<Input<KeyCode>>,
-    rapier: Res<RapierContext>,
+    spatial_query: SpatialQuery,
     panel: Res<SidePanel>,
     terrain: Res<Terrain>,
     anims: Res<Animations>,
@@ -166,17 +174,21 @@ fn start_move_fox(
     if panel.mouse_over || !mouse.just_pressed(MouseButton::Right) {
         return;
     };
-    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else { return };
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
     let Some(ground) = terrain.ground else { return };
-    let Some((hit_ent, toi)) = rapier.cast_ray(
+    let Some(hit) = spatial_query.cast_ray(
         ray.origin,
         ray.direction,
         1000.,
         false,
-        QueryFilter::new().exclude_sensors(),
-    ) else { return };
-    if hit_ent == ground {
-        let destination = ray.origin + toi * ray.direction;
+        SpatialQueryFilter::new().with_masks([Layer::Object]),
+    ) else {
+        return;
+    };
+    if hit.entity == ground {
+        let destination = ray.origin + hit.time_of_impact * ray.direction + 0.5 * Vec3::Y;
         for (fox_ent, fox) in &q_fox {
             if let Some(animator) = fox.animator {
                 if let Ok(mut player) = q_player.get_mut(animator) {
@@ -219,4 +231,73 @@ fn move_fox(
             fox_tr.look_to(-dir, up);
         }
     }
+}
+
+#[derive(Component)]
+pub struct ShootyBall;
+
+fn shoot_balls(
+    panel: Res<SidePanel>,
+    materials: Res<BasicMaterials>,
+    mouse: Res<Input<MouseButton>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    q_camera: Query<&MainCamera>,
+    q_balls: Query<(Entity, &GlobalTransform), With<ShootyBall>>,
+    mut cmd: Commands,
+) {
+    for (ball, ball_tr) in &q_balls {
+        if ball_tr.translation().y < -50. {
+            cmd.entity(ball).despawn_recursive();
+        }
+    }
+
+    if panel.mode != UiMode::ShootBalls
+        || panel.mouse_over
+        || !mouse.just_pressed(MouseButton::Left)
+    {
+        return;
+    };
+
+    let Ok(Some(ray)) = q_camera.get_single().map(|c| c.mouse_ray.clone()) else {
+        return;
+    };
+    let ball = cmd
+        .spawn((
+            ShootyBall,
+            PbrBundle {
+                transform: Transform::from_translation(ray.origin),
+                mesh: meshes.add(
+                    Mesh::try_from(shape::Icosphere {
+                        radius: 1.,
+                        subdivisions: 20,
+                    })
+                    .unwrap(),
+                ),
+                material: materials.gold.clone(),
+                ..default()
+            },
+            ScreenPosition::default(),
+            RigidBody::Dynamic,
+            LinearDamping(0.),
+            AngularDamping(0.),
+            LinearVelocity(30. * ray.direction),
+            AngularVelocity(Vec3::ZERO),
+            Collider::ball(1.0),
+            CollisionLayers::new([Layer::Object], [Layer::Object]),
+            ColliderDensity(0.8),
+            Friction {
+                dynamic_coefficient: 0.8,
+                static_coefficient: 0.8,
+                combine_rule: CoefficientCombine::Average,
+            },
+            Restitution {
+                coefficient: 0.3,
+                combine_rule: CoefficientCombine::Average,
+            },
+        ))
+        .id();
+    cmd.entity(ball).insert((
+        Selectable::new(ball, Some(ball)),
+        Name::new(format!("Ball ({ball:?})")),
+    ));
 }

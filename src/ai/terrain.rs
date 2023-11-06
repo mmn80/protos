@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use bevy_rapier3d::prelude::*;
+use bevy_xpbd_3d::prelude::*;
 
-use crate::ui::basic_materials::BasicMaterials;
+use crate::ui::{basic_materials::BasicMaterials, selection::Layer};
 
 pub struct TerrainPlugin;
 
@@ -10,7 +10,7 @@ impl Plugin for TerrainPlugin {
         app.register_type::<Terrain>()
             .init_resource::<Terrain>()
             .add_systems(Startup, setup_terrain)
-            .add_systems(Update, (draw_terrain_lines, display_rapier_events));
+            .add_systems(Update, draw_terrain_lines);
     }
 }
 
@@ -41,8 +41,9 @@ fn setup_terrain(
                     material: materials.terrain.clone(),
                     ..default()
                 },
-                RigidBody::Fixed,
-                Collider::cuboid(ground_size.x / 2., ground_size.y / 2., ground_size.z / 2.),
+                RigidBody::Static,
+                Collider::cuboid(ground_size.x, ground_size.y, ground_size.z),
+                CollisionLayers::new([Layer::Object], [Layer::Object]),
             ))
             .id();
         cmd.entity(id)
@@ -84,18 +85,5 @@ fn draw_terrain_lines(mut gizmos: Gizmos) {
             Vec3::new(0.5, h, z as f32),
             col,
         );
-    }
-}
-
-fn display_rapier_events(
-    mut collision_ev: EventReader<CollisionEvent>,
-    mut contact_force_ev: EventReader<ContactForceEvent>,
-) {
-    for collision_event in collision_ev.iter() {
-        info!("Collision: {:?}", collision_event);
-    }
-
-    for contact_force_event in contact_force_ev.iter() {
-        info!("Contact force: {:?}", contact_force_event);
     }
 }
